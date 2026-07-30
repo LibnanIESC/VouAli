@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Baloo+2:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#FBF4E9; -webkit-font-smoothing:antialiased; }
+  * { box-sizing:border-box; }
+  a { color:#365D7A; text-decoration:none; }
+  a:hover { color:#F28C28; }
+</style>
+</helmet>
+
+<div style="width:100%; background:#FBF4E9; font-family:'Manrope',system-ui,sans-serif; color:#223A5E;">
+
+  <!-- CAPA -->
+  <section data-screen-label="Capa" style="padding:96px 72px 88px; display:grid; grid-template-columns:1.15fr 0.85fr; gap:64px; align-items:center; background:#FBF4E9; border-bottom:1px solid #E9D8BF;">
+    <div style="display:flex; flex-direction:column; gap:32px;">
+      <div style="display:flex; align-items:center; gap:12px; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:#7A5A3A;">
+        <span style="width:28px; height:1px; background:#7A5A3A; display:block;"></span>
+        <span>Brand Book — versão conceitual</span>
+      </div>
+      <div style="display:flex; align-items:flex-end; gap:6px;">
+        <sc-if value="{{ isScript }}" hint-placeholder-val="{{ true }}">
+          <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:132px; line-height:0.86; color:#223A5E; letter-spacing:-0.02em;">Vou</span><span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:132px; line-height:0.86; color:#F28C28; letter-spacing:-0.02em;">Ali</span>
+        </sc-if>
+        <sc-if value="{{ isGeometric }}" hint-placeholder-val="{{ false }}">
+          <span style="font-family:'Manrope',sans-serif; font-weight:800; font-size:124px; line-height:0.86; color:#223A5E; letter-spacing:-0.05em;">Vou</span><span style="font-family:'Manrope',sans-serif; font-weight:800; font-size:124px; line-height:0.86; color:#F28C28; letter-spacing:-0.05em;">Ali</span>
+        </sc-if>
+        <span style="width:26px; height:26px; margin-bottom:22px; background:#F28C28; clip-path:polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%); display:block;"></span>
+      </div>
+      <p style="margin:0; font-size:28px; font-weight:500; line-height:1.35; max-width:19ch; color:#223A5E; text-wrap:pretty;">Seu assistente de viagens com IA.</p>
+      <p style="margin:0; font-size:17px; font-weight:400; line-height:1.65; max-width:52ch; color:#365D7A; text-wrap:pretty;">Tornar qualquer viagem mais simples, inteligente e inesquecível — do primeiro roteiro rascunhado até a volta pra casa.</p>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <span style="width:44px; height:44px; border-radius:12px; background:#223A5E; display:block;"></span>
+        <span style="width:44px; height:44px; border-radius:12px; background:#365D7A; display:block;"></span>
+        <span style="width:44px; height:44px; border-radius:12px; background:#F28C28; display:block;"></span>
+        <span style="width:44px; height:44px; border-radius:12px; background:#E9D8BF; display:block;"></span>
+        <span style="width:44px; height:44px; border-radius:12px; background:#7A5A3A; display:block;"></span>
+      </div>
+    </div>
+    <div style="position:relative; border-radius:28px; overflow:hidden; background:#FFFFFF; border:1px solid #E9D8BF; padding:0;">
+      <img src="assets/ali-concept.png" alt="Folha de conceito do personagem Ali" style="display:block; width:100%; height:auto;">
+    </div>
+  </section>
+
+  <!-- CONCEITO -->
+  <section data-screen-label="Conceito" style="padding:88px 72px; background:#FFFFFF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:44px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">01</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Conceito da marca</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px;">
+      <div style="background:#F5E8D4; border-radius:24px; padding:40px; display:flex; flex-direction:column; gap:16px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#7A5A3A;">Propósito</span>
+        <p style="margin:0; font-size:26px; font-weight:600; line-height:1.4; text-wrap:pretty;">Viajar deveria ser sobre a viagem — não sobre a planilha.</p>
+        <p style="margin:0; font-size:16px; line-height:1.7; color:#365D7A; text-wrap:pretty;">A VouAli usa IA para montar roteiros, cuidar do orçamento e entregar as informações certas no momento certo.</p>
+      </div>
+      <div style="background:#223A5E; border-radius:24px; padding:40px; display:flex; flex-direction:column; gap:20px; color:#FBF4E9;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#F28C28;">Personalidade</span>
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <sc-for list="{{ traits }}" as="t" hint-placeholder-count="7">
+            <span style="padding:10px 18px; border:1px solid rgba(245,232,212,0.28); border-radius:999px; font-size:15px; font-weight:500;">{{ t }}</span>
+          </sc-for>
+        </div>
+        <p style="margin:6px 0 0; font-size:15px; line-height:1.7; color:rgba(245,232,212,0.72); text-wrap:pretty;">Nunca fria, nunca burocrática. A marca fala como um amigo experiente que já esteve lá.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOGO -->
+  <section data-screen-label="Logo" style="padding:88px 72px; background:#FBF4E9; border-top:1px solid #E9D8BF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">02</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Logotipo</h2>
+    </div>
+    <p style="margin:0 0 44px; font-size:16px; line-height:1.7; color:#365D7A; max-width:62ch;">Script personalizada: “Vou” em Azul Marinho, “Ali” em Laranja, com o avião de papel como sufixo. O avião nunca aparece sozinho como marca.</p>
+    <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:24px; align-items:stretch;">
+      <div style="background:#FFFFFF; border-radius:24px; padding:56px 40px; display:flex; flex-direction:column; justify-content:space-between; gap:32px; border:1px solid #E9D8BF;">
+        <div style="display:flex; align-items:flex-end; gap:4px;">
+          <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:76px; line-height:0.9; color:#223A5E;">Vou</span><span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:76px; line-height:0.9; color:#F28C28;">Ali</span>
+          <span style="width:16px; height:16px; margin-bottom:14px; background:#F28C28; clip-path:polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%); display:block;"></span>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Principal / fundo claro</span>
+      </div>
+      <div style="background:#223A5E; border-radius:24px; padding:56px 40px; display:flex; flex-direction:column; justify-content:space-between; gap:32px;">
+        <div style="display:flex; align-items:flex-end; gap:4px;">
+          <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:54px; line-height:0.9; color:#FBF4E9;">Vou</span><span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:54px; line-height:0.9; color:#F28C28;">Ali</span>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:rgba(245,232,212,0.6);">Reversa / fundo marinho</span>
+      </div>
+      <div style="background:#E9D8BF; border-radius:24px; padding:56px 40px; display:flex; flex-direction:column; justify-content:space-between; gap:32px;">
+        <div style="display:flex; align-items:flex-end; gap:4px;">
+          <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:54px; line-height:0.9; color:#7A5A3A;">Vou</span><span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:54px; line-height:0.9; color:#7A5A3A;">Ali</span>
+        </div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Monocromática / 1 cor</span>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:24px; margin-top:24px;">
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:24px; align-items:flex-start;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Ícone do app</span>
+        <div style="display:flex; gap:16px; align-items:flex-end;">
+          <div style="width:96px; height:96px; border-radius:26px; background:#223A5E; display:flex; align-items:center; justify-content:center;">
+            <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:52px; color:#F28C28; line-height:1;">A</span>
+          </div>
+          <div style="width:56px; height:56px; border-radius:16px; background:#F28C28; display:flex; align-items:center; justify-content:center;">
+            <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:30px; color:#223A5E; line-height:1;">A</span>
+          </div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:20px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Área de respiro</span>
+        <div style="flex:1; border:1px dashed #E9D8BF; border-radius:14px; padding:22px; display:flex; align-items:center; justify-content:center;">
+          <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:34px; color:#223A5E; line-height:1;">Vou<span style="color:#F28C28;">Ali</span></span>
+        </div>
+        <span style="font-size:14px; color:#365D7A; line-height:1.6;">Margem mínima = altura do “V”.</span>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:20px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Tamanho mínimo</span>
+        <div style="flex:1; display:flex; align-items:center; gap:18px;">
+          <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:22px; color:#223A5E; line-height:1;">Vou<span style="color:#F28C28;">Ali</span></span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7A5A3A;">96 px / 24 mm</span>
+        </div>
+        <span style="font-size:14px; color:#365D7A; line-height:1.6;">Abaixo disso, use só o ícone.</span>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:14px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Não faça</span>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <sc-for list="{{ dont }}" as="d" hint-placeholder-count="4">
+            <span style="font-size:14px; line-height:1.5; color:#365D7A; display:flex; gap:10px; align-items:flex-start;"><span style="width:6px; height:6px; margin-top:7px; background:#F28C28; border-radius:2px; flex:0 0 auto; display:block;"></span>{{ d }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CORES -->
+  <section data-screen-label="Cores" style="padding:88px 72px; background:#FFFFFF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">03</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Paleta</h2>
+    </div>
+    <p style="margin:0 0 40px; font-size:16px; line-height:1.7; color:#365D7A; max-width:62ch;">Base areia e marinho, laranja só onde precisa puxar o olho. Laranja nunca passa de ~10% da tela.</p>
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px;">
+      <sc-for list="{{ palette }}" as="c" hint-placeholder-count="8">
+        <div style="border-radius:20px; overflow:hidden; border:1px solid #E9D8BF; display:flex; flex-direction:column;">
+          <div style="height:132px; background:{{ c.hex }};"></div>
+          <div style="padding:18px 16px; display:flex; flex-direction:column; gap:6px; background:#FFFFFF;">
+            <span style="font-size:15px; font-weight:700;">{{ c.name }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7A5A3A;">{{ c.hex }}</span>
+            <span style="font-size:13px; color:#365D7A; line-height:1.5;">{{ c.use }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top:32px; display:flex; flex-direction:column; gap:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Proporção sugerida</span>
+      <div style="display:flex; height:56px; border-radius:14px; overflow:hidden; border:1px solid #E9D8BF;">
+        <div style="flex:32; background:#FBF4E9; border-right:1px solid #E9D8BF;"></div>
+        <div style="flex:12; background:#F5E8D4; border-right:1px solid #E9D8BF;"></div>
+        <div style="flex:22; background:#FFFFFF;"></div>
+        <div style="flex:18; background:#223A5E;"></div>
+        <div style="flex:8; background:#E9D8BF;"></div>
+        <div style="flex:6; background:#F28C28;"></div>
+        <div style="flex:2; background:#7A5A3A;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TIPOGRAFIA -->
+  <section data-screen-label="Tipografia" style="padding:88px 72px; background:#FBF4E9; border-top:1px solid #E9D8BF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:44px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">04</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Tipografia</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:0.9fr 1.1fr; gap:28px;">
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:40px; display:flex; flex-direction:column; gap:24px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Logo — script personalizada</span>
+          <span style="font-size:14px; color:#365D7A;">Referência atual: Baloo 2 ExtraBold, ajustada à mão.</span>
+        </div>
+        <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:82px; line-height:1; color:#223A5E;">Aa Bb</span>
+        <div style="height:1px; background:#E9D8BF;"></div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Dados & rótulos técnicos</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:22px; color:#223A5E;">R$ 4.280 · 12 dias</span>
+        </div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:40px; display:flex; flex-direction:column; gap:22px;">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:16px;">
+          <span style="font-size:22px; font-weight:800;">Manrope</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7A5A3A;">Interface · 300–800</span>
+        </div>
+        <div style="height:1px; background:#E9D8BF;"></div>
+        <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="5">
+          <div style="display:flex; align-items:baseline; gap:24px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7A5A3A; width:118px; flex:0 0 auto;">{{ t.spec }}</span>
+            <span style="font-size:{{ t.size }}; font-weight:{{ t.weight }}; line-height:1.25; color:#223A5E;">{{ t.sample }}</span>
+          </div>
+        </sc-for>
+        <span style="font-size:14px; color:#365D7A; line-height:1.6; margin-top:4px;">Alternativas aprovadas: Inter e Plus Jakarta Sans.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PERSONAGEM -->
+  <section data-screen-label="Personagem Ali" style="padding:88px 72px; background:#223A5E; color:#FBF4E9;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">05</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em; color:#FBF4E9;">Ali, o companheiro de viagem</h2>
+    </div>
+    <p style="margin:0 0 44px; font-size:16px; line-height:1.7; color:rgba(245,232,212,0.72); max-width:64ch;">Ali acompanha o usuário do planejamento até a volta. Rosto e turbante são assinatura: nunca mudam.</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px;">
+      <div style="background:#FBF4E9; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:20px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Traços fixos — não alterar</span>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <sc-for list="{{ fixedTraits }}" as="f" hint-placeholder-count="5">
+            <span style="background:#FFFFFF; border-radius:14px; padding:16px 18px; font-size:15px; font-weight:600; color:#223A5E;">{{ f }}</span>
+          </sc-for>
+        </div>
+        <div style="height:1px; background:#E9D8BF;"></div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Traços variáveis — adaptar ao destino</span>
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <sc-for list="{{ varTraits }}" as="v" hint-placeholder-count="4">
+            <span style="border:1px solid #E9D8BF; border-radius:999px; padding:9px 16px; font-size:14px; color:#365D7A;">{{ v }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:rgba(245,232,212,0.06); border:1px solid rgba(245,232,212,0.18); border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:22px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#F28C28;">Onde Ali aparece</span>
+        <sc-for list="{{ aliUses }}" as="u" hint-placeholder-count="4">
+          <div style="display:flex; gap:16px; align-items:flex-start;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:rgba(245,232,212,0.5); width:26px; flex:0 0 auto; padding-top:3px;">{{ u.n }}</span>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-size:17px; font-weight:600; color:#FBF4E9;">{{ u.title }}</span>
+              <span style="font-size:14px; line-height:1.6; color:rgba(245,232,212,0.66);">{{ u.desc }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOM DE VOZ -->
+  <section data-screen-label="Tom de voz" style="padding:88px 72px; background:#FFFFFF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">06</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Tom de voz</h2>
+    </div>
+    <p style="margin:0 0 44px; font-size:16px; line-height:1.7; color:#365D7A; max-width:62ch;">Sempre positivo, prestativo e proativo. Se a resposta for “não”, ela vem com uma alternativa.</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:28px;">
+      <div style="background:#F5E8D4; border-radius:24px; padding:36px; display:flex; flex-direction:column; gap:18px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Assim sim</span>
+        <sc-for list="{{ voiceDo }}" as="d" hint-placeholder-count="3">
+          <div style="background:#FFFFFF; border-radius:18px 18px 18px 6px; padding:20px 22px; font-size:16px; line-height:1.6; color:#223A5E; box-shadow:0 1px 0 #E9D8BF;">{{ d }}</div>
+        </sc-for>
+      </div>
+      <div style="background:#F5E8D4; border-radius:24px; padding:36px; display:flex; flex-direction:column; gap:18px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Assim não</span>
+        <sc-for list="{{ voiceDont }}" as="d" hint-placeholder-count="3">
+          <div style="background:#E9D8BF; border-radius:18px 18px 18px 6px; padding:20px 22px; font-size:16px; line-height:1.6; color:#7A5A3A; text-decoration:line-through; text-decoration-color:rgba(122,90,58,0.4);">{{ d }}</div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+
+  <!-- UI KIT -->
+  <section data-screen-label="Componentes" style="padding:88px 72px; background:#FBF4E9; border-top:1px solid #E9D8BF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:44px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">07</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Componentes</h2>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:24px;">
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:18px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Botões</span>
+        <button style="border:none; background:#365D7A; color:#FFFFFF; font-family:'Manrope',sans-serif; font-size:16px; font-weight:700; padding:16px 24px; border-radius:14px; cursor:pointer; text-align:center;" style-hover="background:#223A5E;">Montar meu roteiro</button>
+        <button style="border:none; background:#F28C28; color:#223A5E; font-family:'Manrope',sans-serif; font-size:16px; font-weight:700; padding:16px 24px; border-radius:14px; cursor:pointer;" style-hover="background:#dd7d1c;">Ver oferta</button>
+        <button style="border:1.5px solid #365D7A; background:transparent; color:#365D7A; font-family:'Manrope',sans-serif; font-size:16px; font-weight:600; padding:15px 24px; border-radius:14px; cursor:pointer;" style-hover="background:#F5E8D4;">Editar dia 3</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span style="background:#E9D8BF; color:#7A5A3A; font-size:14px; font-weight:600; padding:9px 15px; border-radius:999px;">Praia</span>
+          <span style="background:#E9D8BF; color:#7A5A3A; font-size:14px; font-weight:600; padding:9px 15px; border-radius:999px;">Gastronomia</span>
+          <span style="background:#223A5E; color:#FBF4E9; font-size:14px; font-weight:600; padding:9px 15px; border-radius:999px;">Econômico</span>
+        </div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:18px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Card de roteiro</span>
+        <div style="background:#E9D8BF; border-radius:18px; padding:22px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7A5A3A;">DIA 03 · LISBOA</span>
+            <span style="background:#F28C28; color:#223A5E; font-size:11px; font-weight:700; padding:5px 10px; border-radius:999px;">DICA DO ALI</span>
+          </div>
+          <span style="font-size:20px; font-weight:700; color:#223A5E; line-height:1.3;">Alfama a pé, do mirador ao fado</span>
+          <span style="font-size:14px; line-height:1.6; color:#7A5A3A;">4h · caminhada leve · melhor às 16h, sem fila</span>
+          <div style="display:flex; gap:10px; margin-top:4px;">
+            <span style="background:#FFFFFF; color:#365D7A; font-size:13px; font-weight:600; padding:8px 12px; border-radius:10px;">R$ 90</span>
+            <span style="background:#FFFFFF; color:#365D7A; font-size:13px; font-weight:600; padding:8px 12px; border-radius:10px;">2,1 km</span>
+          </div>
+        </div>
+        <div style="background:#F5E8D4; border-radius:18px; padding:20px; display:flex; gap:14px; align-items:center;">
+          <span style="width:40px; height:40px; border-radius:999px; background:#223A5E; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-family:'Baloo 2',cursive; font-weight:800; color:#F28C28; font-size:20px;">A</span>
+          <span style="font-size:14px; line-height:1.55; color:#223A5E;">“Chove das 11h às 14h — troquei o passeio pelo museu e mantive o jantar.”</span>
+        </div>
+      </div>
+      <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; padding:32px; display:flex; flex-direction:column; gap:18px;">
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:#7A5A3A;">Campos & orçamento</span>
+        <div style="border:1.5px solid #E9D8BF; border-radius:14px; padding:14px 18px; display:flex; flex-direction:column; gap:4px;">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.14em; color:#7A5A3A;">DESTINO</span>
+          <span style="font-size:16px; font-weight:600; color:#223A5E;">Lisboa, Portugal</span>
+        </div>
+        <div style="border:1.5px solid #365D7A; border-radius:14px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:16px; color:#365D7A;">Pergunte ao Ali…</span>
+          <span style="width:16px; height:16px; background:#F28C28; clip-path:polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%); display:block;"></span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:4px;">
+          <div style="display:flex; justify-content:space-between; font-size:14px; color:#7A5A3A;"><span>Orçamento usado</span><span style="font-family:'IBM Plex Mono',monospace; color:#223A5E;">R$ 3.140 / 4.500</span></div>
+          <div style="height:12px; border-radius:999px; background:#E9D8BF; overflow:hidden; display:flex;">
+            <div style="width:47%; background:#365D7A;"></div>
+            <div style="width:23%; background:#F28C28;"></div>
+          </div>
+          <div style="display:flex; gap:16px; font-size:12px; color:#7A5A3A;"><span>Hospedagem 47%</span><span>Passeios 23%</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <sc-if value="{{ showApp }}" hint-placeholder-val="{{ true }}">
+  <section data-screen-label="Aplicação no app" style="padding:88px 72px; background:#FFFFFF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">08</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">A identidade no app</h2>
+    </div>
+    <p style="margin:0 0 48px; font-size:16px; line-height:1.7; color:#365D7A; max-width:62ch;">Fundo areia, conteúdo em cards bege, marinho para estrutura e laranja apenas para a ação principal e para a voz do Ali.</p>
+    <div style="display:flex; gap:36px; flex-wrap:wrap; justify-content:center;">
+
+      <!-- Tela 1: Chat -->
+      <div style="width:340px; height:700px; border-radius:44px; background:#223A5E; padding:10px; flex:0 0 auto; box-shadow:0 30px 60px -30px rgba(34,58,94,0.5);">
+        <div style="width:100%; height:100%; border-radius:36px; background:#FBF4E9; overflow:hidden; display:flex; flex-direction:column;">
+          <div style="padding:18px 22px 12px; display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7A5A3A;"><span>9:41</span><span>▮▮▮</span></div>
+          <div style="padding:6px 22px 16px; display:flex; align-items:center; gap:12px;">
+            <span style="width:40px; height:40px; border-radius:999px; background:#223A5E; display:flex; align-items:center; justify-content:center; font-family:'Baloo 2',cursive; font-weight:800; color:#F28C28; font-size:20px;">A</span>
+            <div style="display:flex; flex-direction:column;">
+              <span style="font-size:16px; font-weight:700; color:#223A5E;">Ali</span>
+              <span style="font-size:12px; color:#7A5A3A;">planejando Lisboa · 12 dias</span>
+            </div>
+          </div>
+          <div style="flex:1; padding:8px 22px; display:flex; flex-direction:column; gap:12px; overflow:hidden;">
+            <div style="align-self:flex-end; max-width:80%; background:#365D7A; color:#FFFFFF; font-size:15px; line-height:1.5; padding:14px 16px; border-radius:18px 18px 6px 18px;">Consigo cortar R$ 600 no roteiro?</div>
+            <div style="align-self:flex-start; max-width:86%; background:#FFFFFF; color:#223A5E; font-size:15px; line-height:1.55; padding:14px 16px; border-radius:18px 18px 18px 6px;">Consigo — e sem tirar nada do que você mais quis. Achei três caminhos:</div>
+            <div style="background:#E9D8BF; border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.14em; color:#7A5A3A;">ECONOMIA ESTIMADA</span>
+              <div style="display:flex; justify-content:space-between; font-size:14px; color:#223A5E;"><span>Hotel no Príncipe Real</span><span style="font-family:'IBM Plex Mono',monospace; font-weight:600;">−R$ 380</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; color:#223A5E;"><span>Voo 1 dia antes</span><span style="font-family:'IBM Plex Mono',monospace; font-weight:600;">−R$ 210</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:14px; color:#223A5E;"><span>Passe de metrô 7 dias</span><span style="font-family:'IBM Plex Mono',monospace; font-weight:600;">−R$ 65</span></div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <span style="border:1px solid #365D7A; color:#365D7A; font-size:13px; font-weight:600; padding:9px 14px; border-radius:999px; white-space:nowrap; flex:0 0 auto;">Aplicar todas</span>
+              <span style="border:1px solid #365D7A; color:#365D7A; font-size:13px; font-weight:600; padding:9px 14px; border-radius:999px; white-space:nowrap; flex:0 0 auto;">Só o hotel</span>
+            </div>
+          </div>
+          <div style="padding:12px 22px 16px; display:flex; gap:10px; align-items:center;">
+            <div style="flex:1; background:#FFFFFF; border-radius:999px; padding:14px 18px; font-size:14px; color:#7A5A3A;">Pergunte ao Ali…</div>
+            <span style="width:44px; height:44px; border-radius:999px; background:#F28C28; display:flex; align-items:center; justify-content:center; flex:0 0 auto;">
+              <span style="width:15px; height:15px; background:#223A5E; clip-path:polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%); display:block;"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tela 2: Roteiro -->
+      <div style="width:340px; height:700px; border-radius:44px; background:#223A5E; padding:10px; flex:0 0 auto; box-shadow:0 30px 60px -30px rgba(34,58,94,0.5);">
+        <div style="width:100%; height:100%; border-radius:36px; background:#FBF4E9; overflow:hidden; display:flex; flex-direction:column;">
+          <div style="background:#223A5E; padding:18px 22px 22px; display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px; color:rgba(245,232,212,0.6);"><span>9:41</span><span>▮▮▮</span></div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; color:#F28C28;">14–26 SET · 12 DIAS</span>
+              <span style="font-size:26px; font-weight:800; color:#FBF4E9; letter-spacing:-0.02em;">Lisboa & Alentejo</span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <span style="background:#F28C28; color:#223A5E; font-size:13px; font-weight:700; padding:8px 14px; border-radius:999px; white-space:nowrap; flex:0 0 auto;">Dia 3</span>
+              <span style="border:1px solid rgba(245,232,212,0.3); color:#FBF4E9; font-size:13px; padding:8px 14px; border-radius:999px; white-space:nowrap; flex:0 0 auto;">Dia 4</span>
+              <span style="border:1px solid rgba(245,232,212,0.3); color:#FBF4E9; font-size:13px; padding:8px 14px; border-radius:999px; white-space:nowrap; flex:0 0 auto;">Dia 5</span>
+            </div>
+          </div>
+          <div style="flex:1; padding:20px 22px; display:flex; flex-direction:column; gap:12px; overflow:hidden;">
+            <sc-for list="{{ dayPlan }}" as="d" hint-placeholder-count="3">
+              <div style="background:#FFFFFF; border-radius:18px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start;">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7A5A3A; padding-top:3px; width:42px; flex:0 0 auto;">{{ d.time }}</span>
+                <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+                  <span style="font-size:16px; font-weight:700; color:#223A5E; line-height:1.3;">{{ d.title }}</span>
+                  <span style="font-size:13px; color:#7A5A3A; line-height:1.5;">{{ d.meta }}</span>
+                </div>
+              </div>
+            </sc-for>
+            <div style="background:#E9D8BF; border-radius:18px; padding:16px 18px; display:flex; gap:12px; align-items:center;">
+              <span style="width:32px; height:32px; border-radius:999px; background:#223A5E; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-family:'Baloo 2',cursive; font-weight:800; color:#F28C28; font-size:16px;">A</span>
+              <span style="font-size:13px; line-height:1.5; color:#223A5E;">Reserve o fado hoje: sexta lota depois das 20h.</span>
+            </div>
+          </div>
+          <div style="background:#FFFFFF; padding:14px 22px 20px; display:flex; justify-content:space-between;">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                <span style="width:20px; height:20px; border-radius:6px; background:{{ t.color }}; display:block;"></span>
+                <span style="font-size:11px; font-weight:600; color:{{ t.color }};">{{ t.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tela 3: Orçamento -->
+      <div style="width:340px; height:700px; border-radius:44px; background:#223A5E; padding:10px; flex:0 0 auto; box-shadow:0 30px 60px -30px rgba(34,58,94,0.5);">
+        <div style="width:100%; height:100%; border-radius:36px; background:#FBF4E9; overflow:hidden; display:flex; flex-direction:column;">
+          <div style="padding:18px 22px 8px; display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#7A5A3A;"><span>9:41</span><span>▮▮▮</span></div>
+          <div style="padding:8px 22px 0; display:flex; flex-direction:column; gap:6px;">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; color:#7A5A3A;">ORÇAMENTO DA VIAGEM</span>
+            <span style="font-size:26px; font-weight:800; color:#223A5E; letter-spacing:-0.02em;">R$ 3.140 <span style="font-size:17px; font-weight:500; color:#7A5A3A;">de R$ 4.500</span></span>
+          </div>
+          <div style="padding:14px 22px 10px; display:flex; justify-content:center;">
+            <div style="width:148px; height:148px; border-radius:999px; background:conic-gradient(#365D7A 0 47%, #F28C28 47% 70%, #7A5A3A 70% 82%, #E9D8BF 82% 100%); display:flex; align-items:center; justify-content:center;">
+              <div style="width:104px; height:104px; border-radius:999px; background:#FBF4E9; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;">
+                <span style="font-size:26px; font-weight:800; color:#223A5E;">70%</span>
+                <span style="font-size:12px; color:#7A5A3A;">usado</span>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1; padding:0 22px; display:flex; flex-direction:column; gap:10px;">
+            <sc-for list="{{ budget }}" as="b" hint-placeholder-count="4">
+              <div style="background:#FFFFFF; border-radius:16px; padding:12px 16px; display:flex; align-items:center; gap:12px;">
+                <span style="width:10px; height:10px; border-radius:3px; background:{{ b.color }}; flex:0 0 auto; display:block;"></span>
+                <span style="flex:1; font-size:15px; font-weight:600; color:#223A5E;">{{ b.label }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; color:#7A5A3A;">{{ b.value }}</span>
+              </div>
+            </sc-for>
+            <div style="background:#223A5E; border-radius:16px; padding:14px; display:flex; gap:12px; align-items:center;">
+              <span style="width:32px; height:32px; border-radius:999px; background:#F28C28; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-family:'Baloo 2',cursive; font-weight:800; color:#223A5E; font-size:16px;">A</span>
+              <span style="font-size:13px; line-height:1.5; color:#FBF4E9;">Sobram R$ 1.360 — dá pra um dia em Sintra com almoço.</span>
+            </div>
+          </div>
+          <div style="padding:12px 22px 18px; flex:0 0 auto;">
+            <div style="background:#F28C28; color:#223A5E; border-radius:14px; padding:15px; text-align:center; font-size:16px; font-weight:700;">Ajustar limites</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  </sc-if>
+
+  <!-- CAMPANHAS -->
+  <sc-if value="{{ showCampaigns }}" hint-placeholder-val="{{ true }}">
+  <section data-screen-label="Campanhas" style="padding:88px 72px 104px; background:#FBF4E9; border-top:1px solid #E9D8BF;">
+    <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#F28C28; letter-spacing:0.16em;">09</span>
+      <h2 style="margin:0; font-size:38px; font-weight:700; letter-spacing:-0.02em;">Ali em campanha</h2>
+    </div>
+    <p style="margin:0 0 44px; font-size:16px; line-height:1.7; color:#365D7A; max-width:62ch;">Uma ilustração por destino: roupa, mochila e acessórios mudam; rosto, barba e turbante permanecem.</p>
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:24px;">
+      <sc-for list="{{ campaigns }}" as="c" hint-placeholder-count="4">
+        <div style="background:#FFFFFF; border:1px solid #E9D8BF; border-radius:24px; overflow:hidden; display:flex; flex-direction:column;">
+          <div style="aspect-ratio:361 / 866; background:#FBF4E9;">
+            <img src="{{ c.img }}" alt="{{ c.alt }}" style="display:block; width:100%; height:100%; object-fit:contain;">
+          </div>
+          <div style="padding:22px; display:flex; flex-direction:column; gap:6px;">
+            <span style="font-size:17px; font-weight:700; color:#223A5E;">{{ c.city }}</span>
+            <span style="font-size:14px; color:#7A5A3A; line-height:1.5;">{{ c.outfit }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top:72px; padding-top:36px; border-top:1px solid #E9D8BF; display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:flex-end; gap:4px;">
+        <span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:40px; line-height:1; color:#223A5E;">Vou</span><span style="font-family:'Baloo 2',cursive; font-weight:800; font-size:40px; line-height:1; color:#F28C28;">Ali</span>
+        <span style="width:12px; height:12px; margin-bottom:7px; background:#F28C28; clip-path:polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%); display:block;"></span>
+      </div>
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#7A5A3A; letter-spacing:0.08em;">Brand Book conceitual · v0.1 · 2026</span>
+    </div>
+  </section>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;logoStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Script (Baloo 2)&quot;,&quot;Geométrica (Manrope)&quot;],&quot;default&quot;:&quot;Script (Baloo 2)&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Marca&quot;},&quot;showAppScreens&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;},&quot;showCampaigns&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Seções&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const logo = this.props.logoStyle ?? 'Script (Baloo 2)';
+    return {
+      isScript: logo !== 'Geométrica (Manrope)',
+      isGeometric: logo === 'Geométrica (Manrope)',
+      showApp: this.props.showAppScreens ?? true,
+      showCampaigns: this.props.showCampaigns ?? true,
+      traits: ['Inteligente', 'Acolhedora', 'Curiosa', 'Prestativa', 'Confiável', 'Elegante', 'Bem-humorada'],
+      dont: ['Trocar as cores do lettering', 'Aplicar sombra, contorno ou gradiente', 'Usar o avião de papel como logo isolado', 'Reescrever a marca em outra fonte'],
+      palette: [
+        { name: 'Azul Marinho', hex: '#223A5E', use: 'Marca, títulos, estrutura' },
+        { name: 'Azul Petróleo', hex: '#365D7A', use: 'Botões e links' },
+        { name: 'Laranja', hex: '#F28C28', use: 'Destaques e ação principal' },
+        { name: 'Areia Clara', hex: '#FBF4E9', use: 'Fundo padrão da interface' },
+        { name: 'Areia', hex: '#F5E8D4', use: 'Superfícies secundárias e blocos' },
+        { name: 'Bege', hex: '#E9D8BF', use: 'Cards e superfícies' },
+        { name: 'Marrom', hex: '#7A5A3A', use: 'Detalhes e texto de apoio' },
+        { name: 'Branco', hex: '#FFFFFF', use: 'Fundos e cards sobre areia' }
+      ],
+      typeScale: [
+        { spec: 'Display · 800', size: '40px', weight: 800, sample: 'Lisboa & Alentejo' },
+        { spec: 'Título · 700', size: '28px', weight: 700, sample: 'Seu dia 3, resolvido' },
+        { spec: 'Subtítulo · 600', size: '20px', weight: 600, sample: 'Alfama a pé, ao pôr do sol' },
+        { spec: 'Corpo · 400', size: '16px', weight: 400, sample: 'Ali ajusta o roteiro quando o tempo virar.' },
+        { spec: 'Rótulo · 600', size: '13px', weight: 600, sample: 'ORÇAMENTO DA VIAGEM' }
+      ],
+      fixedTraits: ['Rosto simpático', 'Barba curta', 'Olhos expressivos', 'Sorriso', 'Turbante estilizado'],
+      varTraits: ['Roupas', 'Mochila', 'Acessórios', 'Vestimentas do destino'],
+      aliUses: [
+        { n: '01', title: 'Avatar do chat', desc: 'Círculo marinho com o “A” laranja em conversas e notificações.' },
+        { n: '02', title: 'Dicas e insights', desc: 'Meio-corpo ao lado de sugestões proativas dentro do roteiro.' },
+        { n: '03', title: 'Onboarding e estados vazios', desc: 'Corpo inteiro, sempre em ação: mapa, celular, câmera.' },
+        { n: '04', title: 'Campanhas por destino', desc: 'Ilustração dedicada com figurino local.' }
+      ],
+      voiceDo: [
+        'Boa noite, Marina! Encaixei Sintra no dia 6 sem passar do seu limite — quer ver como ficou?',
+        'Esse restaurante está lotado na sexta. Reservei uma alternativa a 300 m com a mesma cozinha.',
+        'Seu voo atrasou 2h. Já remarquei o transfer e avisei o hotel.'
+      ],
+      voiceDont: [
+        'Não foi possível concluir sua solicitação.',
+        'Nenhum resultado encontrado.',
+        'Erro: orçamento insuficiente para este roteiro.'
+      ],
+      dayPlan: [
+        { time: '09:30', title: 'Café na Manteigaria', meta: 'Chiado · 20 min · R$ 18' },
+        { time: '11:00', title: 'Mirador de Santa Luzia', meta: 'Sombra até meio-dia · grátis' },
+        { time: '20:00', title: 'Fado em Alfama', meta: 'Reservar hoje · R$ 90' }
+      ],
+      tabs: [
+        { label: 'Roteiro', color: '#223A5E' },
+        { label: 'Orçamento', color: '#7A5A3A' },
+        { label: 'Ali', color: '#7A5A3A' },
+        { label: 'Perfil', color: '#7A5A3A' }
+      ],
+      budget: [
+        { label: 'Hospedagem', value: 'R$ 1.480', color: '#365D7A' },
+        { label: 'Passeios', value: 'R$ 720', color: '#F28C28' },
+        { label: 'Alimentação', value: 'R$ 610', color: '#7A5A3A' },
+        { label: 'Transporte', value: 'R$ 330', color: '#E9D8BF' }
+      ],
+      campaigns: [
+        { img: 'assets/ali-tokyo.png', alt: 'Ali em Tóquio', city: 'Tóquio', outfit: 'Moderno, leve e eficiente' },
+        { img: 'assets/ali-salvador.png', alt: 'Ali em Salvador', city: 'Salvador', outfit: 'Cores, alegria e tradição' },
+        { img: 'assets/ali-patagonia.png', alt: 'Ali na Patagônia', city: 'Patagônia', outfit: 'Aventura, natureza e foco' },
+        { img: 'assets/ali-marrakech.png', alt: 'Ali em Marrakech', city: 'Marrakech', outfit: 'Tradição, elegância e cultura' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
