@@ -456,10 +456,11 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: CREAM, display: "flex", justifyContent: "center", fontFamily: HELV, position: "relative", overflow: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: NAVY, display: "flex", justifyContent: "center", fontFamily: HELV, position: "relative", overflow: "hidden" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}} button{transition:transform .08s ease} button:active{transform:scale(.96)} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
       <Skyline />
-      <div style={{ position: "fixed", inset: 0, background: "linear-gradient(180deg, rgba(251,244,233,0) 0%, rgba(251,244,233,0.18) 45%, rgba(251,244,233,0.62) 100%)", zIndex: 1, pointerEvents: "none" }} />
+      <img src={PHOTO} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "fixed", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", inset: 0, background: "linear-gradient(180deg, rgba(20,36,64,0.48) 0%, rgba(20,36,64,0.34) 45%, rgba(20,36,64,0.66) 100%)", zIndex: 1, pointerEvents: "none" }} />
       <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", zIndex: 2 }}>
 
         {/* Header */}
@@ -507,12 +508,12 @@ export default function App() {
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 90px" }}>
           {tab === "roteiro" && (
             <>
-              <div style={{ fontSize: 11, letterSpacing: 1.4, color: BROWN, fontWeight: 500, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase" }}>{day.date} · {day.sub}</div>
+              <div style={{ fontSize: 11, letterSpacing: 1.4, color: "rgba(251,244,233,0.92)", fontWeight: 500, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase", textShadow: HSHADOW }}>{day.date} · {day.sub}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: NAVY, letterSpacing: -0.3, fontFamily: DISPLAY }}>{day.title}</h2>
+                <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: -0.3, fontFamily: DISPLAY, textShadow: HSHADOW }}>{day.title}</h2>
                 <button onClick={() => setReorder(!reorder)} style={btn(reorder ? day.color : "#fff", { color: reorder ? "#fff" : day.color, border: `1.5px solid ${day.color}`, padding: "7px 12px", flex: "0 0 auto", fontSize: 13 })}>{reorder ? "Concluir" : "↕ Reordenar"}</button>
               </div>
-              <div style={{ fontSize: 13, color: STEEL, marginBottom: 18, fontWeight: 600 }}>{reorder ? "Use as setas para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", marginBottom: 18, fontWeight: 600, textShadow: HSHADOW }}>{reorder ? "Use as setas para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
 
               <div style={{ position: "relative" }}>
                 {day.stops.map((s, i) => {
@@ -554,7 +555,7 @@ export default function App() {
           {tab === "orcamento" && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Orçamento</h2>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Orçamento</h2>
                 <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={btn("#223A5E", { padding: "8px 12px" })}>+ Item</button>
               </div>
               <div style={{ background: CARD_DARK, color: "#fff", borderRadius: 16, padding: "18px 20px", marginBottom: 20, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
@@ -579,7 +580,7 @@ export default function App() {
           {tab === "info" && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Comprar antes</h2>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Comprar antes</h2>
                 <button onClick={() => setOv({ kind: "prebuyForm", item: null })} style={btn("#223A5E", { padding: "8px 12px" })}>+ Item</button>
               </div>
               {prebuy.map((p) => (
@@ -590,7 +591,7 @@ export default function App() {
               ))}
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "26px 0 14px" }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Notas</h2>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Notas</h2>
                 <button onClick={() => setOv({ kind: "noteForm", item: null })} style={btn("#223A5E", { padding: "8px 12px" })}>+ Nota</button>
               </div>
               {notes.map((nt) => (
