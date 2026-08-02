@@ -335,7 +335,7 @@ export default function App() {
           onDelete={() => deleteStop(ov.stop.id)} />
       )}
       {ov?.kind === "stopForm" && (
-        <StopForm stop={ov.stop} color={day.color} onClose={() => setOv(null)} onSave={saveStop} />
+        <StopForm stop={ov.stop} color={day.color} trip={{ days, budget, prebuy, notes }} onClose={() => setOv(null)} onSave={saveStop} />
       )}
       {ov?.kind === "budgetForm" && (
         <BudgetForm item={ov.item} onClose={() => setOv(null)}

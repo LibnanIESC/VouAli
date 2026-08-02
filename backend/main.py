@@ -42,6 +42,15 @@ ALI_SYSTEM = (
     "cálculos nem tarefas. A pessoa tem que sair sorrindo, nunca sem graça nem entediada."
 )
 
+ALI_DICA_SYSTEM = (
+    "Você é o Ali, guia de viagens experiente e simpático. "
+    "Gere UMA dica curta e prática (1 a 2 frases, no máximo ~220 caracteres) para a parada indicada, na viagem a Nova York. "
+    "Foque num truque útil, algo a evitar, o melhor horário, ou o que priorizar no local. "
+    "Escreva em português do Brasil, com tom leve de amigo que já esteve lá. "
+    "Responda APENAS com o texto da dica — sem introdução, sem aspas, sem prefixos como 'Dica:'. "
+    "Não invente preços ou horários exatos; se não souber um detalhe, seja geral."
+)
+
 def _trip_context(trip: dict) -> str:
     parts = []
     days = trip.get("days") or []
@@ -147,6 +156,35 @@ async def ali_chat(request: Request):
             return {"reply": "Sobre isso eu prefiro não opinar — mas posso ajudar com qualquer coisa do roteiro, orçamento ou dicas da viagem. 🙂"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
         return {"reply": text or "…"}
+    except Exception as e:
+        return {"error": "api_error", "detail": str(e)[:200]}
+
+@app.post("/api/ali/dica")
+async def ali_dica(request: Request):
+    check(request)
+    if not _ali_client:
+        return {"error": "not_configured"}
+    body = await request.json()
+    stop = body.get("stop") or {}
+    trip = body.get("trip") or {}
+    name = str(stop.get("n", "")).strip()
+    if not name:
+        return {"error": "empty"}
+    prompt = f"Parada: {name}"
+    for k, label in (("t", "Horário"), ("d", "Resumo"), ("getting", "Como chegar"), ("todo", "O que fazer")):
+        v = str(stop.get(k, "")).strip()
+        if v:
+            prompt += f"\n{label}: {v}"
+    prompt += "\n\nContexto geral da viagem:\n" + _trip_context(trip) + "\n\nGere a dica do Ali para essa parada."
+    kwargs = {"model": ALI_MODEL, "max_tokens": 600, "system": ALI_DICA_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
+    if _ALI_EFFORT_OK:
+        kwargs["output_config"] = {"effort": "low"}
+    try:
+        resp = await _ali_client.messages.create(**kwargs)
+        if getattr(resp, "stop_reason", None) == "refusal":
+            return {"error": "refusal"}
+        text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip().strip('"').strip()
+        return {"dica": text}
     except Exception as e:
         return {"error": "api_error", "detail": str(e)[:200]}
 

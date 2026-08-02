@@ -85,3 +85,17 @@ export async function apiAli(messages, trip) {
     return await res.json();
   } catch (e) { return { error: "offline" }; }
 }
+
+// Gera uma dica do Ali (sob demanda) para uma parada do roteiro.
+export async function apiAliDica(stop, trip) {
+  try {
+    const res = await fetch("/api/ali/dica", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ stop, trip }),
+    });
+    if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json();
+  } catch (e) { return { error: "offline" }; }
+}
