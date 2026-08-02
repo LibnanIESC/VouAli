@@ -306,8 +306,8 @@ export default function App() {
           )}
         </div>
 
-        {/* Bottom tabs */}
-        <div style={{ position: "sticky", bottom: 0, display: "flex", background: "rgba(255,255,255,0.9)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderTop: "1px solid rgba(255,255,255,0.5)", padding: "8px 0 10px", boxShadow: "0 -3px 16px rgba(10,20,50,0.16)" }}>
+        {/* Bottom tabs (fixas no rodapé da tela) */}
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, margin: "0 auto", width: "100%", maxWidth: 440, zIndex: 20, display: "flex", background: "rgba(255,255,255,0.9)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderTop: "1px solid rgba(255,255,255,0.5)", padding: "8px 0 calc(10px + env(safe-area-inset-bottom))", boxShadow: "0 -3px 16px rgba(10,20,50,0.16)" }}>
           {[
             { id: "roteiro", label: "Roteiro", Icon: MapIcon },
             { id: "orcamento", label: "Orçamento", Icon: MoneyIcon },
