@@ -1,5 +1,6 @@
 import React from "react";
 import Sheet from "./Sheet";
+import AliTip from "./AliTip";
 import { btn } from "../theme";
 
 // Detalhe de uma parada do roteiro (como chegar, o que fazer, insight).
@@ -20,7 +21,12 @@ export default function StopDetail({ stop, color, onEdit, onDelete, onClose }) {
       <div style={{ padding: "6px 22px 26px" }}>
         <Section title="Como chegar">{stop.getting}</Section>
         <Section title="O que fazer">{stop.todo}</Section>
-        <Section title="Insight">{stop.insight}</Section>
+        {stop.insight && stop.insight.trim() && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, color, textTransform: "uppercase", marginBottom: 8 }}>Dica do Ali</div>
+            <AliTip>{stop.insight}</AliTip>
+          </div>
+        )}
         {stop.link && (
           <div style={{ marginTop: 18 }}>
             <a href={stop.link} target="_blank" rel="noreferrer" style={{ ...btn(color), display: "inline-block", textDecoration: "none" }}>Abrir link oficial ↗</a>

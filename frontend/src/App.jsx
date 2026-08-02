@@ -6,6 +6,7 @@ import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./dat
 import { MapIcon, MoneyIcon, PinIcon } from "./components/Icons";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
+import AliTip from "./components/AliTip";
 import StopDetail from "./components/StopDetail";
 import StopForm from "./components/StopForm";
 import BudgetForm from "./components/BudgetForm";
@@ -71,6 +72,15 @@ export default function App() {
   const planned = budget.reduce((a, b) => a + Number(b.v || 0), 0);
   const spent = budget.reduce((a, b) => a + Number(b.spent || 0), 0);
   const remaining = TOTAL_BUDGET - planned;
+
+  // Dica do Ali para o dia: a primeira parada com insight vira o "briefing".
+  const aliDayTip = (day.stops.find((s) => s.insight && s.insight.trim()) || {}).insight;
+  // Observação proativa do Ali sobre o orçamento (calculada, não armazenada).
+  const aliBudgetTip = remaining < 0
+    ? `Você passou US$ ${Math.abs(remaining).toLocaleString()} do teto planejado. Quer rever onde dá pra cortar?`
+    : remaining >= 100
+      ? `Sobram US$ ${remaining.toLocaleString()} dentro do teto — folga boa pra compras e imprevistos.`
+      : `Sobram US$ ${remaining.toLocaleString()} dentro do teto. Tá justo, vale ficar de olho nos gastos.`;
 
   const setDaysP = (nd) => { setDays(nd); persist({ days: nd }); };
   const setBudgetP = (nb) => { setBudget(nb); persist({ budget: nb }); };
@@ -187,6 +197,10 @@ export default function App() {
               </div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", marginBottom: 18, fontWeight: 600, textShadow: HSHADOW }}>{reorder ? "Use as setas para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
 
+              {!reorder && aliDayTip && (
+                <div style={{ marginBottom: 18 }}><AliTip>{aliDayTip}</AliTip></div>
+              )}
+
               <div style={{ position: "relative" }}>
                 {day.stops.map((s, i) => {
                   const last = i === day.stops.length - 1;
@@ -237,6 +251,7 @@ export default function App() {
                 <div style={{ height: 1, background: "#2a2a2a", margin: "12px 0" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={{ fontSize: 14, fontWeight: 700 }}>Sobra p/ compras</span><span style={{ fontWeight: 800, fontSize: 24, color: remaining < 0 ? "#ef4444" : "#F28C28" }}>US$ {remaining.toLocaleString()}</span></div>
               </div>
+              <div style={{ marginBottom: 20 }}><AliTip>{aliBudgetTip}</AliTip></div>
               {budget.map((b) => (
                 <div key={b.id} onClick={() => setOv({ kind: "budgetForm", item: b })} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", borderRadius: 10, padding: "12px 14px", marginBottom: 8, boxShadow: "0 4px 14px rgba(10,22,55,0.14)", cursor: "pointer" }}>
                   <div>
