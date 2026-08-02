@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, CARD_DARK, HSHADOW, PHOTO, btn } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending } from "./api";
-import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./data/seed";
+import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./seed";
 import { MapIcon, MoneyIcon, PinIcon } from "./components/Icons";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
