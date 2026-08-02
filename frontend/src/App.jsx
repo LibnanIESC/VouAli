@@ -7,6 +7,8 @@ import { MapIcon, MoneyIcon, PinIcon } from "./components/Icons";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
 import AliTip from "./components/AliTip";
+import AliAvatar from "./components/AliAvatar";
+import AliChat from "./components/AliChat";
 import StopDetail from "./components/StopDetail";
 import StopForm from "./components/StopForm";
 import BudgetForm from "./components/BudgetForm";
@@ -187,7 +189,8 @@ export default function App() {
         )}
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 18px 90px" }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "20px 18px 90px", display: tab === "ali" ? "flex" : "block", flexDirection: "column" }}>
+          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes }} />}
           {tab === "roteiro" && (
             <>
               <div style={{ fontSize: 11, letterSpacing: 1.4, color: "rgba(251,244,233,0.92)", fontWeight: 500, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase", textShadow: HSHADOW }}>{day.date} · {day.sub}</div>
@@ -311,12 +314,13 @@ export default function App() {
           {[
             { id: "roteiro", label: "Roteiro", Icon: MapIcon },
             { id: "orcamento", label: "Orçamento", Icon: MoneyIcon },
+            { id: "ali", label: "Ali", Icon: ({ on }) => <AliAvatar size={24} ring={on ? "#223A5E" : undefined} /> },
             { id: "info", label: "Info", Icon: PinIcon },
           ].map((t) => {
             const on = tab === t.id;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                <t.Icon color={on ? "#223A5E" : "#b5b3ac"} />
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, opacity: t.id === "ali" && !on ? 0.6 : 1 }}>
+                <t.Icon color={on ? "#223A5E" : "#b5b3ac"} on={on} />
                 <span style={{ fontSize: 11, fontWeight: 800, color: on ? "#223A5E" : "#b5b3ac" }}>{t.label}</span>
               </button>
             );

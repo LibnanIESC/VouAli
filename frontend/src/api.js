@@ -71,3 +71,17 @@ export function apiPut(state) {
 
 // Reenvia a última edição pendente ao voltar a conexão.
 export function flushPending() { if (_dirty && _pending) apiPut(_pending); }
+
+// ---------- Chat com o Ali (IA) ----------
+export async function apiAli(messages, trip) {
+  try {
+    const res = await fetch("/api/ali", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ messages, trip }),
+    });
+    if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json();
+  } catch (e) { return { error: "offline" }; }
+}
