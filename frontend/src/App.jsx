@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const HELV = '"Manrope", system-ui, -apple-system, sans-serif';
@@ -22,25 +22,67 @@ function promptToken() {
   const t = window.prompt("Senha do app (a que voce definiu em TRIP_TOKEN no Railway):");
   if (t) { localStorage.setItem(TOKEN_KEY, t); location.reload(); }
 }
+
+// Estado de sincronização observável (pub/sub) — alimenta o indicador no header.
+// synced | saving | offline | reloaded
+let _status = "synced";
+const _statusSubs = new Set();
+function setStatus(s) { _status = s; _statusSubs.forEach((fn) => fn(s)); }
+function onStatus(fn) { _statusSubs.add(fn); fn(_status); return () => _statusSubs.delete(fn); }
+
+let _version = 0;          // última versão conhecida do servidor
+let _dirty = false;        // há edição local pendente de gravação?
+let _onRemote = null;      // handler que aplica estado vindo do servidor
+function setRemoteHandler(fn) { _onRemote = fn; }
+function isDirty() { return _dirty; }
+
+// Busca o estado do servidor. Retorna { state, version } ou null em falha.
 async function apiGet() {
   try {
     const res = await fetch("/api/state", { headers: authHeaders() });
     if (res.status === 401) { promptToken(); return null; }
-    if (!res.ok) return null;
+    if (!res.ok) { setStatus("offline"); return null; }
     const j = await res.json();
-    return j && j.state ? j.state : null;
-  } catch (e) { return null; }
+    if (typeof j.version === "number") _version = j.version;
+    if (_status === "offline") setStatus("synced");
+    return { state: j && j.state ? j.state : null, version: _version };
+  } catch (e) { setStatus("offline"); return null; }
 }
+
 let putTimer = null;
+let _pending = null;       // último snapshot ainda não confirmado pelo servidor
 function apiPut(state) {
+  _dirty = true;
+  _pending = state;
+  setStatus("saving");
   clearTimeout(putTimer);
   putTimer = setTimeout(async () => {
     try {
-      const res = await fetch("/api/state", { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(state) });
-      if (res.status === 401) promptToken();
-    } catch (e) {}
+      const res = await fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-Base-Version": String(_version), ...authHeaders() },
+        body: JSON.stringify(state),
+      });
+      if (res.status === 401) { promptToken(); return; }
+      if (res.status === 409) {
+        // outro aparelho gravou antes; recarrega o estado do servidor e avisa
+        const fresh = await apiGet();
+        if (fresh && fresh.state && _onRemote) _onRemote(fresh.state);
+        _dirty = false;
+        setStatus("reloaded");
+        return;
+      }
+      if (!res.ok) { setStatus("offline"); return; }
+      const j = await res.json();
+      if (typeof j.version === "number") _version = j.version;
+      _dirty = false;
+      _pending = null;
+      setStatus("synced");
+    } catch (e) { setStatus("offline"); }
   }, 400);
 }
+// Reenvia a última edição pendente ao voltar a conexão.
+function flushPending() { if (_dirty && _pending) apiPut(_pending); }
 
 // ---------- Seed data ----------
 const seedDays = () => [
@@ -396,6 +438,22 @@ const Skyline = () => (
   </svg>
 );
 
+const SYNC_UI = {
+  synced:   { label: "Salvo", dot: "#5bd08a" },
+  saving:   { label: "Salvando…", dot: "#F28C28" },
+  offline:  { label: "Offline — mudanças salvas ao reconectar", dot: "#ef4444" },
+  reloaded: { label: "Atualizado em outro aparelho", dot: "#7ab6ff" },
+};
+function SyncPill({ status }) {
+  const ui = SYNC_UI[status] || SYNC_UI.synced;
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.14)", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.92)" }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: ui.dot, display: "block" }} />
+      {ui.label}
+    </div>
+  );
+}
+
 export default function App() {
   const [days, setDays] = useState(seedDays);
   const [budget, setBudget] = useState(seedBudget);
@@ -405,18 +463,45 @@ export default function App() {
   const [tab, setTab] = useState("roteiro");
   const [ov, setOv] = useState(null);
   const [reorder, setReorder] = useState(false);
+  const [sync, setSync] = useState("synced");
+
+  // aplica um estado (do servidor ou de um import) na UI
+  const applyState = (s) => {
+    if (!s) return;
+    if (s.days) setDays(s.days);
+    if (s.budget) setBudget(s.budget);
+    if (s.prebuy) setPrebuy(s.prebuy);
+    if (s.notes) setNotes(s.notes);
+  };
+
+  useEffect(() => onStatus(setSync), []);
 
   useEffect(() => {
+    setRemoteHandler(applyState);
     (async () => {
       const r = await apiGet();
-      if (r) {
-        if (r.days) setDays(r.days);
-        if (r.budget) setBudget(r.budget);
-        if (r.prebuy) setPrebuy(r.prebuy);
-        if (r.notes) setNotes(r.notes);
-      }
+      if (r && r.state) applyState(r.state);
     })();
   }, []);
+
+  // Polling: o outro aparelho passa a aparecer. Só adota o remoto quando não há
+  // edição local pendente, para não descartar algo que você acabou de digitar.
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      if (document.hidden || isDirty()) return;
+      const r = await apiGet();
+      if (alive && r && r.state) applyState(r.state);
+    };
+    const iv = setInterval(poll, 12000);
+    const onVis = () => { if (!document.hidden) { flushPending(); poll(); } };
+    const onOnline = () => flushPending();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    window.addEventListener("online", onOnline);
+    return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", onVis); window.removeEventListener("online", onOnline); };
+  }, []);
+
   const persist = (next) => {
     const snap = { days, budget, prebuy, notes, ...next };
     apiPut(snap);
@@ -434,6 +519,35 @@ export default function App() {
   const setBudgetP = (nb) => { setBudget(nb); persist({ budget: nb }); };
   const setPrebuyP = (np) => { setPrebuy(np); persist({ prebuy: np }); };
   const setNotesP = (nn) => { setNotes(nn); persist({ notes: nn }); };
+
+  // ---------- Backup (export / import JSON) ----------
+  const fileRef = useRef(null);
+  const exportBackup = () => {
+    const data = { days, budget, prebuy, notes, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vouali-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+  const importBackup = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let obj;
+      try { obj = JSON.parse(reader.result); }
+      catch (e) { alert("Não consegui ler o arquivo: JSON inválido."); return; }
+      if (!obj || (!obj.days && !obj.budget && !obj.prebuy && !obj.notes)) {
+        alert("Arquivo inválido: não parece um backup do VouAli."); return;
+      }
+      if (!window.confirm("Isso vai substituir todos os dados atuais pela cópia do arquivo. Continuar?")) return;
+      applyState(obj);
+      apiPut({ days: obj.days || days, budget: obj.budget || budget, prebuy: obj.prebuy || prebuy, notes: obj.notes || notes });
+    };
+    reader.readAsText(file);
+  };
 
   const toggleStop = (sid) =>
     setDaysP(days.map((d) => d.id === day.id ? { ...d, stops: d.stops.map((s) => s.id === sid ? { ...s, done: !s.done } : s) } : d));
@@ -483,6 +597,7 @@ export default function App() {
           <div style={{ height: 4, background: "rgba(255,255,255,0.28)", borderRadius: 2, marginTop: 12, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${overallPct}%`, background: ORANGE, transition: "width .4s ease" }} />
           </div>
+          <SyncPill status={sync} />
         </div>
 
         {/* Day selector */}
@@ -600,6 +715,21 @@ export default function App() {
                   <div style={{ fontSize: 13, color: "#665", lineHeight: 1.5, fontWeight: 500 }}>{nt.body}</div>
                 </div>
               ))}
+
+              <div style={{ margin: "26px 0 14px" }}>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Backup</h2>
+              </div>
+              <div style={{ background: "#fff", borderRadius: 12, padding: "16px", boxShadow: "0 4px 14px rgba(10,22,55,0.14)" }}>
+                <div style={{ fontSize: 13, color: "#665", lineHeight: 1.5, fontWeight: 500, marginBottom: 12 }}>
+                  Baixe uma cópia de toda a viagem (roteiro, orçamento e notas) antes de viajar. Se algo der errado, é só reimportar.
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={exportBackup} style={{ ...btn("#223A5E"), flex: 1 }}>↓ Exportar</button>
+                  <button onClick={() => fileRef.current && fileRef.current.click()} style={{ ...btn("#fff", { color: "#223A5E", border: "1.5px solid #223A5E" }), flex: 1 }}>↑ Importar</button>
+                </div>
+                <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }}
+                  onChange={(e) => { importBackup(e.target.files[0]); e.target.value = ""; }} />
+              </div>
             </>
           )}
         </div>
