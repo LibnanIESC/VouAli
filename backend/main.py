@@ -1,4 +1,5 @@
 import json, os, sqlite3, mimetypes
+from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse
@@ -28,7 +29,11 @@ ALI_SYSTEM = (
     "Seja sempre positivo, prestativo e proativo; quando a resposta for 'não', ofereça uma alternativa. "
     "Responda SEMPRE em português do Brasil, de forma concisa, prática e direta ao ponto (evite textos longos). "
     "Não invente reservas, preços exatos ou horários que não estejam nos dados; quando não souber, diga e sugira como descobrir. "
-    "O usuário está numa viagem a Nova York (6 a 13 de outubro). "
+    "A viagem é a Nova York, de 6 a 13 de outubro de 2026. Use a DATA DE HOJE (informada no fim deste prompt) para situar a viagem no tempo. "
+    "Se hoje ainda for antes de 06/10/2026, a viagem está no FUTURO: trate como planejamento (ex.: 'faltam X dias', 'quando você chegar') "
+    "e NUNCA fale em 'hoje' ou 'amanhã' como se fossem dias do roteiro. Só chame um dia de 'hoje'/'amanhã' se a data de hoje realmente "
+    "cair entre 06 e 13/10/2026. Ao se referir a um dia do roteiro, use sempre o rótulo e a data dele (ex.: 'o dia do Central Park', "
+    "'a quinta, 8/10'), nunca 'amanhã'. "
     "FOCO EM VIAGEM: você só ajuda com assuntos de viagem — roteiro, transporte, comida, orçamento, clima, o que fazer, "
     "compras, cultura local e dicas —, com prioridade para esta viagem a Nova York. "
     "Se perguntarem algo fora desse tema (programação, política, contas de matemática, tarefas aleatórias, conselhos gerais etc.), "
@@ -122,7 +127,8 @@ async def ali_chat(request: Request):
         conv.pop(0)
     if not conv:
         return {"error": "empty"}
-    system = ALI_SYSTEM + "\n\nDados atuais da viagem:\n" + _trip_context(trip)
+    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {today}.\n\nDados atuais da viagem:\n" + _trip_context(trip)
     kwargs = {"model": ALI_MODEL, "max_tokens": 1500, "system": system, "messages": conv}
     if _ALI_EFFORT_OK:
         kwargs["output_config"] = {"effort": "low"}
