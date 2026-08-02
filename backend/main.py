@@ -48,8 +48,13 @@ def _trip_context(trip: dict) -> str:
     if days:
         parts.append("ROTEIRO:")
         for d in days:
-            stops = "; ".join(f"{s.get('t','')} {s.get('n','')}".strip() for s in (d.get("stops") or []))
-            parts.append(f"- {d.get('label','')} {d.get('date','')} — {d.get('title','')}: {stops}")
+            parts.append(f"- {d.get('label','')} {d.get('date','')} — {d.get('title','')}:")
+            for s in (d.get("stops") or []):
+                line = f"   • {s.get('t','')} {s.get('n','')}".rstrip()
+                ins = (s.get("insight") or "").strip()
+                if ins:
+                    line += f" — dica: {ins}"
+                parts.append(line)
     budget = trip.get("budget") or []
     if budget:
         b = "; ".join(
@@ -57,6 +62,10 @@ def _trip_context(trip: dict) -> str:
             for x in budget
         )
         parts.append("ORÇAMENTO (teto US$3000): " + b)
+    prebuy = trip.get("prebuy") or []
+    pend = [str(p.get("text", "")).strip() for p in prebuy if not p.get("done") and str(p.get("text", "")).strip()]
+    if pend:
+        parts.append("COMPRAR ANTES (ainda pendente): " + "; ".join(pend))
     notes = trip.get("notes") or []
     if notes:
         parts.append("NOTAS: " + " | ".join(f"{n.get('title','')}: {n.get('body','')}" for n in notes))
