@@ -4,4 +4,5 @@ __pycache__/
 *.pyc
 /data/
 backend/data/
+backend/static/
 .env

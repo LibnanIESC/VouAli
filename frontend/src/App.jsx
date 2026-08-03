@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
-import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, CARD_DARK, HSHADOW, PHOTO, btn, onColor, readable } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending } from "./api";
+import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, CARD_DARK, HSHADOW, btn, onColor, readable } from "./theme";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip } from "./api";
 import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./seed";
 import { MapIcon, MoneyIcon, PinIcon } from "./components/Icons";
 import Skyline from "./components/Skyline";
@@ -14,6 +14,10 @@ import StopForm from "./components/StopForm";
 import DayForm from "./components/DayForm";
 import BudgetForm from "./components/BudgetForm";
 import TextForm from "./components/TextForm";
+import TripsSheet from "./components/TripsSheet";
+import TripForm from "./components/TripForm";
+
+const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
 
 export default function App() {
   const [days, setDays] = useState(seedDays);
@@ -25,8 +29,9 @@ export default function App() {
   const [ov, setOv] = useState(null);
   const [reorder, setReorder] = useState(false);
   const [sync, setSync] = useState("synced");
+  const [trips, setTrips] = useState({ active: null, list: [] });
 
-  // aplica um estado (do servidor ou de um import) na UI
+  // aplica um estado do servidor mesclando (só o que veio) — usado no polling/remoto
   const applyState = (s) => {
     if (!s) return;
     if (s.days) setDays(s.days);
@@ -34,14 +39,28 @@ export default function App() {
     if (s.prebuy) setPrebuy(s.prebuy);
     if (s.notes) setNotes(s.notes);
   };
+  // substitui o estado inteiro (usado ao trocar/criar viagem)
+  const replaceState = (s) => {
+    s = s || {};
+    setDays(s.days || []);
+    setBudget(s.budget || []);
+    setPrebuy(s.prebuy || []);
+    setNotes(s.notes || []);
+    setActive((s.days && s.days[0] && s.days[0].id) || "");
+  };
 
   useEffect(() => onStatus(setSync), []);
 
   useEffect(() => {
     setRemoteHandler(applyState);
     (async () => {
+      const t = await apiTrips();
+      if (t) setTrips(t);
       const r = await apiGet();
-      if (r && r.state) applyState(r.state);
+      if (r && r.state) {
+        applyState(r.state);
+        setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "qua");
+      }
     })();
   }, []);
 
@@ -68,8 +87,9 @@ export default function App() {
     apiPut(snap);
   };
 
+  const activeMeta = (trips.list || []).find((t) => t.id === trips.active) || {};
   const day = days.find((d) => d.id === active) || days[0];
-  const dc = readable(day.color); // acento legível do dia (marinho se a cor for clara demais)
+  const dc = readable((day && day.color) || NAVY); // acento legível do dia
   const totalStops = days.reduce((a, d) => a + d.stops.length, 0);
   const totalDone = days.reduce((a, d) => a + d.stops.filter((s) => s.done).length, 0);
   const overallPct = totalStops ? Math.round((totalDone / totalStops) * 100) : 0;
@@ -78,7 +98,7 @@ export default function App() {
   const remaining = TOTAL_BUDGET - planned;
 
   // Dica do Ali para o dia: a primeira parada com insight vira o "briefing".
-  const aliDayTip = (day.stops.find((s) => s.insight && s.insight.trim()) || {}).insight;
+  const aliDayTip = (((day && day.stops) || []).find((s) => s.insight && s.insight.trim()) || {}).insight;
   // Observação proativa do Ali sobre o orçamento (calculada, não armazenada).
   const aliBudgetTip = remaining < 0
     ? `Você passou US$ ${Math.abs(remaining).toLocaleString()} do teto planejado. Quer rever onde dá pra cortar?`
@@ -170,11 +190,53 @@ export default function App() {
     setDaysP(arr);
   };
 
+  // ---------- Viagens (multi-viagem) ----------
+  const switchTrip = async (id) => {
+    setOv(null);
+    if (id === trips.active) return;
+    await flushNow();                 // grava pendências na viagem atual antes de trocar
+    await apiSetActive(id);
+    setTrips((t) => ({ ...t, active: id }));
+    const r = await apiGet();
+    replaceState(r && r.state);
+    setTab("roteiro"); setReorder(false);
+  };
+  const createTrip = async (meta) => {
+    setOv(null);
+    await flushNow();
+    const r = await apiCreateTrip(meta); // já vira a ativa no servidor
+    if (!r) { alert("Não consegui criar a viagem agora. Tenta de novo."); return; }
+    if (r.trips) setTrips(r.trips);
+    const s = await apiGet();
+    replaceState(s && s.state);
+    setTab("roteiro"); setReorder(false);
+  };
+  const saveTripMeta = async (meta) => {
+    setOv(null);
+    const r = await apiTripMeta(meta.id, meta);
+    if (r && r.trips) setTrips(r.trips);
+  };
+  const deleteTrip = async (id) => {
+    const t = (trips.list || []).find((x) => x.id === id);
+    if (!window.confirm(`Excluir a viagem "${t ? t.name : ""}" e todo o seu roteiro? Isso não pode ser desfeito.`)) return;
+    setOv(null);
+    await flushNow();
+    const r = await apiDeleteTrip(id);
+    if (r && r.trips) {
+      setTrips(r.trips);
+      const s = await apiGet();       // backend já ajustou a ativa; carrega a nova
+      replaceState(s && s.state);
+      setTab("roteiro"); setReorder(false);
+    }
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: NAVY, display: "flex", justifyContent: "center", fontFamily: HELV, position: "relative", overflow: "hidden" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}} button{transition:transform .08s ease} button:active{transform:scale(.96)} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
       <Skyline />
-      <img src={PHOTO} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "fixed", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }} />
+      {activeMeta.bg ? (
+        <img src={activeMeta.bg} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "fixed", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }} />
+      ) : null}
       <div style={{ position: "fixed", inset: 0, background: "linear-gradient(180deg, rgba(20,36,64,0.48) 0%, rgba(20,36,64,0.34) 45%, rgba(20,36,64,0.66) 100%)", zIndex: 1, pointerEvents: "none" }} />
       <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", zIndex: 2 }}>
 
@@ -187,8 +249,13 @@ export default function App() {
                 <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 27, lineHeight: 0.9, color: ORANGE }}>Ali</span>
                 <span style={{ width: 11, height: 11, marginBottom: 6, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
               </div>
-              <div style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.05 }}>New York</div>
-              <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.82)", fontWeight: 600, marginTop: 1 }}>6 – 13 Outubro</div>
+              <button onClick={() => setOv({ kind: "trips" })} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", color: "#fff", display: "block" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.05 }}>{activeMeta.name || "Minha viagem"}</span>
+                  <span style={{ fontSize: 15, opacity: 0.8, marginTop: 2 }}>▾</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.82)", fontWeight: 600, marginTop: 1 }}>{activeMeta.dateLabel || "toque para escolher"}</div>
+              </button>
             </div>
             <div style={{ textAlign: "right", paddingTop: 2 }}>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", fontWeight: 700, letterSpacing: 1 }}>PROGRESSO</div>
@@ -227,7 +294,14 @@ export default function App() {
         {/* Body */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "20px 18px 90px", display: tab === "ali" ? "flex" : "block", flexDirection: "column" }}>
           {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes }} />}
-          {tab === "roteiro" && (
+          {tab === "roteiro" && !day && (
+            <div style={{ textAlign: "center", color: "#fff", marginTop: 50, textShadow: HSHADOW }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Esta viagem ainda não tem dias.</div>
+              <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 18 }}>Adicione o primeiro dia para começar o roteiro.</div>
+              <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>
+            </div>
+          )}
+          {tab === "roteiro" && day && (
             <>
               <div style={{ fontSize: 11, letterSpacing: 1.4, color: "rgba(251,244,233,0.92)", fontWeight: 500, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase", textShadow: HSHADOW }}>{day.date} · {day.sub}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
@@ -368,6 +442,17 @@ export default function App() {
       </div>
 
       {/* Overlays */}
+      {ov?.kind === "trips" && (
+        <TripsSheet trips={trips} activeId={trips.active} onClose={() => setOv(null)}
+          onSwitch={switchTrip}
+          onNew={() => setOv({ kind: "tripForm", trip: null })}
+          onEdit={(t) => setOv({ kind: "tripForm", trip: t })} />
+      )}
+      {ov?.kind === "tripForm" && (
+        <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={() => setOv(null)}
+          onSave={(data) => ov.trip ? saveTripMeta(data) : createTrip(data)}
+          onDelete={() => deleteTrip(ov.trip.id)} />
+      )}
       {ov?.kind === "detail" && (
         <StopDetail stop={ov.stop} color={dc} onClose={() => setOv(null)}
           onEdit={() => setOv({ kind: "stopForm", stop: ov.stop })}

@@ -72,6 +72,52 @@ export function apiPut(state) {
 // Reenvia a última edição pendente ao voltar a conexão.
 export function flushPending() { if (_dirty && _pending) apiPut(_pending); }
 
+// Grava imediatamente (e aguarda) qualquer edição pendente na viagem ATUAL.
+// Usado antes de trocar de viagem, para a pendência não cair na viagem errada.
+export async function flushNow() {
+  clearTimeout(putTimer);
+  if (!(_dirty && _pending)) return;
+  try {
+    const res = await fetch("/api/state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Base-Version": String(_version), ...authHeaders() },
+      body: JSON.stringify(_pending),
+    });
+    if (res.ok) { const j = await res.json(); if (typeof j.version === "number") _version = j.version; setStatus("synced"); }
+  } catch (e) {}
+  _dirty = false;
+  _pending = null;
+}
+
+// ---------- Gestão de viagens (multi-viagem) ----------
+export async function apiTrips() {
+  try {
+    const res = await fetch("/api/trips", { headers: authHeaders() });
+    if (res.status === 401) { promptToken(); return null; }
+    if (!res.ok) { setStatus("offline"); return null; }
+    const j = await res.json();
+    return j.trips || { active: null, list: [] };
+  } catch (e) { setStatus("offline"); return null; }
+}
+export async function apiCreateTrip(meta) {
+  const res = await fetch("/api/trips", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
+  if (!res.ok) return null;
+  return await res.json(); // { meta, trips }
+}
+export async function apiSetActive(id) {
+  try { await fetch("/api/active", { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) }); } catch (e) {}
+}
+export async function apiTripMeta(id, meta) {
+  const res = await fetch(`/api/trips/${id}/meta`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
+  if (!res.ok) return null;
+  return await res.json(); // { trips }
+}
+export async function apiDeleteTrip(id) {
+  const res = await fetch(`/api/trips/${id}`, { method: "DELETE", headers: authHeaders() });
+  if (!res.ok) return null;
+  return await res.json(); // { trips }
+}
+
 // ---------- Chat com o Ali (IA) ----------
 export async function apiAli(messages, trip) {
   try {
