@@ -1,4 +1,4 @@
-const CACHE = "vouali-v2";
+const CACHE = "vouali-v3";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -20,9 +20,10 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Navegação (documento HTML): network-first, para pegar a versão nova após
-  // um deploy; cai no cache só quando estiver offline.
-  if (req.mode === "navigate") {
+  // Documento HTML (navegação, "/" e "/index.html"): network-first, para nunca
+  // ficar preso numa versão antiga após um deploy; cai no cache só offline.
+  const isDoc = req.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html";
+  if (isDoc) {
     e.respondWith(
       fetch(req)
         .then((resp) => {
@@ -35,7 +36,7 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Demais assets (JS/CSS com hash, ícones): cache-first.
+  // Assets com hash no nome (JS/CSS) e ícones: cache-first (são imutáveis).
   e.respondWith(
     caches.match(req).then((r) =>
       r ||
