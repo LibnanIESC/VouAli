@@ -157,6 +157,18 @@ export default function App() {
     if (active === id) setActive(next[0].id);
     setOv(null);
   };
+  const moveDay = (id, where) => {
+    const i = days.findIndex((d) => d.id === id);
+    if (i < 0) return;
+    const arr = [...days];
+    const [d] = arr.splice(i, 1);
+    const j = where === "start" ? 0
+      : where === "end" ? arr.length
+      : where === "left" ? Math.max(0, i - 1)
+      : Math.min(arr.length, i + 1);
+    arr.splice(j, 0, d);
+    setDaysP(arr);
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: NAVY, display: "flex", justifyContent: "center", fontFamily: HELV, position: "relative", overflow: "hidden" }}>
@@ -365,7 +377,10 @@ export default function App() {
         <StopForm stop={ov.stop} color={dc} trip={{ days, budget, prebuy, notes }} onClose={() => setOv(null)} onSave={saveStop} />
       )}
       {ov?.kind === "dayForm" && (
-        <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1} onClose={() => setOv(null)}
+        <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1}
+          index={ov.day ? days.findIndex((d) => d.id === ov.day.id) : -1} total={days.length}
+          onMove={(where) => moveDay(ov.day.id, where)}
+          onClose={() => setOv(null)}
           onSave={(data) => ov.day ? saveDay(data) : addDay(data)}
           onDelete={() => deleteDay(ov.day.id)} />
       )}

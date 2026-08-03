@@ -3,10 +3,16 @@ import Sheet from "./Sheet";
 import { btn, field, lbl, onColor } from "../theme";
 
 // Formulário de criação/edição de um dia do roteiro.
-export default function DayForm({ day, onSave, onClose, onDelete, canDelete }) {
+export default function DayForm({ day, onSave, onClose, onDelete, canDelete, index = -1, total = 0, onMove }) {
   const [f, setF] = useState(day || { label: "", date: "", title: "", sub: "", line: "", color: "#365D7A" });
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const symbol = (f.line || "?").slice(0, 3);
+  const isFirst = index <= 0;
+  const isLast = index === total - 1;
+  const moveBtn = (where, txt, disabled) => (
+    <button type="button" onClick={() => onMove && onMove(where)} disabled={disabled}
+      style={{ flex: "0 0 auto", minWidth: 40, height: 38, borderRadius: 9, border: "1.5px solid #ccc", background: "#fff", color: "#223A5E", fontWeight: 800, fontSize: 15, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1 }}>{txt}</button>
+  );
   return (
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 26px" }}>
@@ -38,6 +44,19 @@ export default function DayForm({ day, onSave, onClose, onDelete, canDelete }) {
             <input type="color" value={f.color || "#365D7A"} onChange={up("color")} style={{ ...field, height: 44, padding: 4, cursor: "pointer" }} />
           </div>
         </div>
+        {day && total > 1 && (
+          <>
+            <label style={lbl}>Posição no roteiro</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+              {moveBtn("start", "⏮", isFirst)}
+              {moveBtn("left", "◀", isFirst)}
+              <span style={{ flex: 1, textAlign: "center", fontSize: 13, fontWeight: 700, color: "#365D7A" }}>{index + 1} de {total}</span>
+              {moveBtn("right", "▶", isLast)}
+              {moveBtn("end", "⏭", isLast)}
+            </div>
+          </>
+        )}
+
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
           <button onClick={() => f.title.trim() && onSave(f)} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
