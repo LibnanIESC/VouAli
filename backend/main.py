@@ -1,4 +1,4 @@
-import json, os, sqlite3, mimetypes, time
+import json, os, sqlite3, mimetypes, time, uuid
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +12,12 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB = DATA_DIR / "trip.db"
 TOKEN = os.getenv("TRIP_TOKEN", "")            # empty = no auth (dev)
 STATIC = Path(__file__).parent / "static"
+
+# Metadados da viagem de NY (usados na migração do dado antigo para o modelo
+# multi-viagem). Espelham o que hoje está fixo no frontend, para nada mudar.
+NY_BG = "https://images.unsplash.com/photo-1557780486-7347b5578a23?fm=jpg&q=70&w=1600&auto=format&fit=crop"
+NY_META = {"id": "ny", "name": "New York", "dateLabel": "6 – 13 Outubro", "destination": "New York", "bg": NY_BG}
+EMPTY_STATE = {"days": [], "budget": [], "prebuy": [], "notes": []}
 
 # --- Ali (assistente com IA) ---
 ALI_MODEL = os.getenv("ALI_MODEL", "claude-opus-5")
@@ -98,6 +104,37 @@ def _trip_context(trip: dict) -> str:
         parts.append("NOTAS: " + " | ".join(f"{n.get('title','')}: {n.get('body','')}" for n in notes))
     return "\n".join(parts)
 
+# ---------- Camada de armazenamento (kv: chave -> {valor json, versão}) ----------
+# 'trips'      -> índice {active, list:[metas...]}
+# 'trip:<id>'  -> estado da viagem {days, budget, prebuy, notes}
+# 'trip'       -> dado ANTIGO (viagem única). Mantido como backup, nunca apagado.
+def _read(con, key):
+    row = con.execute("SELECT v, ver FROM kv WHERE k=?", (key,)).fetchone()
+    if not row:
+        return None, 0
+    return json.loads(row[0]), row[1]
+
+def _write(con, key, value, ver):
+    con.execute(
+        "INSERT INTO kv(k,v,ver) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v, ver=excluded.ver",
+        (key, json.dumps(value, ensure_ascii=False), ver),
+    )
+
+def _ensure_migrated(con):
+    # já migrado?
+    if con.execute("SELECT 1 FROM kv WHERE k='trips'").fetchone():
+        return
+    old = con.execute("SELECT v, ver FROM kv WHERE k='trip'").fetchone()
+    if old:
+        # a viagem única antiga vira a viagem 'ny' (preserva o dado E a versão);
+        # 'trip' permanece intacto como backup
+        _write(con, "trip:ny", json.loads(old[0]), old[1])
+        trips = {"active": "ny", "list": [dict(NY_META)]}
+    else:
+        trips = {"active": None, "list": []}
+    _write(con, "trips", trips, 0)
+    con.commit()
+
 def db():
     con = sqlite3.connect(DB)
     con.execute("CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT, ver INTEGER DEFAULT 0)")
@@ -105,7 +142,13 @@ def db():
     cols = [r[1] for r in con.execute("PRAGMA table_info(kv)").fetchall()]
     if "ver" not in cols:
         con.execute("ALTER TABLE kv ADD COLUMN ver INTEGER DEFAULT 0")
+    _ensure_migrated(con)
     return con
+
+def _active_key(con):
+    trips, _ = _read(con, "trips")
+    active = (trips or {}).get("active")
+    return f"trip:{active}" if active else None
 
 app = FastAPI(title="VouAli")
 
@@ -113,11 +156,26 @@ def check(request: Request):
     if TOKEN and request.headers.get("X-Trip-Token") != TOKEN:
         raise HTTPException(status_code=401, detail="unauthorized")
 
+def _put_state_key(con, key, body, base):
+    """Grava um estado com concorrência otimista. Retorna a nova versão."""
+    _, current = _read(con, key)
+    if base is not None and base != "" and int(base) != current:
+        raise HTTPException(status_code=409, detail={"version": current})
+    new_ver = current + 1
+    _write(con, key, json.loads(body), new_ver)
+    con.commit()
+    return new_ver
+
+# --- Retrocompat: /api/state opera na viagem ATIVA (era a viagem única) ---
 @app.get("/api/state")
 def get_state(request: Request):
     check(request)
-    con = db(); row = con.execute("SELECT v, ver FROM kv WHERE k='trip'").fetchone(); con.close()
-    return {"state": json.loads(row[0]) if row else None, "version": row[1] if row else 0}
+    con = db()
+    key = _active_key(con)
+    if not key:
+        con.close(); return {"state": None, "version": 0}
+    data, ver = _read(con, key); con.close()
+    return {"state": data, "version": ver}
 
 @app.put("/api/state")
 async def put_state(request: Request):
@@ -128,22 +186,116 @@ async def put_state(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json")
     con = db()
-    row = con.execute("SELECT ver FROM kv WHERE k='trip'").fetchone()
-    current = row[0] if row else 0
-    # concorrência otimista: se o cliente informou a versão em que baseou a
-    # edição e ela ficou defasada, recusa em vez de sobrescrever o outro aparelho
-    base = request.headers.get("X-Base-Version")
-    if base is not None and base != "" and int(base) != current:
+    key = _active_key(con)
+    if not key:
+        con.close(); raise HTTPException(status_code=409, detail="no active trip")
+    try:
+        new_ver = _put_state_key(con, key, body, request.headers.get("X-Base-Version"))
+    finally:
         con.close()
-        raise HTTPException(status_code=409, detail={"version": current})
-    new_ver = current + 1
-    con.execute(
-        "INSERT INTO kv(k,v,ver) VALUES('trip',?,?) "
-        "ON CONFLICT(k) DO UPDATE SET v=excluded.v, ver=excluded.ver",
-        (body.decode("utf-8"), new_ver),
-    )
-    con.commit(); con.close()
     return {"ok": True, "version": new_ver}
+
+# --- Multi-viagem ---
+@app.get("/api/trips")
+def list_trips(request: Request):
+    check(request)
+    con = db(); trips, ver = _read(con, "trips"); con.close()
+    return {"trips": trips or {"active": None, "list": []}, "version": ver}
+
+@app.post("/api/trips")
+async def create_trip(request: Request):
+    check(request)
+    body = await request.json()
+    con = db()
+    trips, tver = _read(con, "trips")
+    trips = trips or {"active": None, "list": []}
+    tid = uuid.uuid4().hex[:8]
+    meta = {
+        "id": tid,
+        "name": (body.get("name") or "Nova viagem").strip() or "Nova viagem",
+        "dateLabel": (body.get("dateLabel") or "").strip(),
+        "destination": (body.get("destination") or "").strip(),
+        "bg": (body.get("bg") or "").strip(),
+    }
+    data = body.get("data") if isinstance(body.get("data"), dict) else None
+    _write(con, f"trip:{tid}", data or dict(EMPTY_STATE), 0)
+    trips["list"].append(meta)
+    if body.get("makeActive", True):
+        trips["active"] = tid
+    _write(con, "trips", trips, tver + 1)
+    con.commit(); con.close()
+    return {"meta": meta, "trips": trips}
+
+@app.put("/api/active")
+async def set_active(request: Request):
+    check(request)
+    body = await request.json()
+    tid = body.get("id")
+    con = db()
+    trips, tver = _read(con, "trips")
+    trips = trips or {"active": None, "list": []}
+    if not any(m.get("id") == tid for m in trips["list"]):
+        con.close(); raise HTTPException(status_code=404, detail="trip not found")
+    trips["active"] = tid
+    _write(con, "trips", trips, tver + 1)
+    con.commit(); con.close()
+    return {"trips": trips}
+
+@app.get("/api/trips/{tid}")
+def get_trip(request: Request, tid: str):
+    check(request)
+    con = db(); data, ver = _read(con, f"trip:{tid}"); con.close()
+    if data is None:
+        raise HTTPException(status_code=404, detail="trip not found")
+    return {"state": data, "version": ver}
+
+@app.put("/api/trips/{tid}")
+async def put_trip(request: Request, tid: str):
+    check(request)
+    body = await request.body()
+    try:
+        json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+    con = db()
+    if not con.execute("SELECT 1 FROM kv WHERE k=?", (f"trip:{tid}",)).fetchone():
+        con.close(); raise HTTPException(status_code=404, detail="trip not found")
+    try:
+        new_ver = _put_state_key(con, f"trip:{tid}", body, request.headers.get("X-Base-Version"))
+    finally:
+        con.close()
+    return {"ok": True, "version": new_ver}
+
+@app.put("/api/trips/{tid}/meta")
+async def put_trip_meta(request: Request, tid: str):
+    check(request)
+    body = await request.json()
+    con = db()
+    trips, tver = _read(con, "trips")
+    trips = trips or {"active": None, "list": []}
+    meta = next((m for m in trips["list"] if m.get("id") == tid), None)
+    if meta is None:
+        con.close(); raise HTTPException(status_code=404, detail="trip not found")
+    for k in ("name", "dateLabel", "destination", "bg"):
+        if k in body:
+            meta[k] = str(body[k]).strip()
+    _write(con, "trips", trips, tver + 1)
+    con.commit(); con.close()
+    return {"trips": trips}
+
+@app.delete("/api/trips/{tid}")
+def delete_trip(request: Request, tid: str):
+    check(request)
+    con = db()
+    trips, tver = _read(con, "trips")
+    trips = trips or {"active": None, "list": []}
+    trips["list"] = [m for m in trips["list"] if m.get("id") != tid]
+    con.execute("DELETE FROM kv WHERE k=?", (f"trip:{tid}",))
+    if trips["active"] == tid:
+        trips["active"] = trips["list"][0]["id"] if trips["list"] else None
+    _write(con, "trips", trips, tver + 1)
+    con.commit(); con.close()
+    return {"trips": trips}
 
 @app.post("/api/ali")
 async def ali_chat(request: Request):
