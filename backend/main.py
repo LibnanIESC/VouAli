@@ -1,4 +1,5 @@
-import json, os, sqlite3, mimetypes
+import json, os, sqlite3, mimetypes, time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
@@ -22,6 +23,20 @@ try:
     _ali_client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 except Exception:
     _ali_client = None
+
+# Rate limit simples (janela deslizante, em memória) para as rotas de IA —
+# fusível contra loop/abuso que gastaria crédito de API. Configurável por env.
+AI_RATE_MAX = int(os.getenv("ALI_RATE_MAX", "20"))       # nº de chamadas
+AI_RATE_WINDOW = int(os.getenv("ALI_RATE_WINDOW", "60"))  # por janela de segundos
+_ai_calls = deque()
+def _rate_ok() -> bool:
+    now = time.time()
+    while _ai_calls and now - _ai_calls[0] > AI_RATE_WINDOW:
+        _ai_calls.popleft()
+    if len(_ai_calls) >= AI_RATE_MAX:
+        return False
+    _ai_calls.append(now)
+    return True
 
 ALI_SYSTEM = (
     "Você é o Ali, o assistente de viagens do app VouAli. "
@@ -135,6 +150,8 @@ async def ali_chat(request: Request):
     check(request)
     if not _ali_client:
         return {"error": "not_configured"}
+    if not _rate_ok():
+        return {"error": "rate_limited"}
     body = await request.json()
     msgs = body.get("messages") or []
     trip = body.get("trip") or {}
@@ -167,6 +184,8 @@ async def ali_dica(request: Request):
     check(request)
     if not _ali_client:
         return {"error": "not_configured"}
+    if not _rate_ok():
+        return {"error": "rate_limited"}
     body = await request.json()
     stop = body.get("stop") or {}
     trip = body.get("trip") or {}

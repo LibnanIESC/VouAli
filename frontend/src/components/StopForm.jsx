@@ -16,6 +16,7 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
     setGerando(false);
     if (r && r.dica) setF((cur) => ({ ...cur, insight: r.dica }));
     else if (r && r.error === "not_configured") alert("A IA ainda não está ligada (falta configurar a chave ANTHROPIC_API_KEY no servidor).");
+    else if (r && r.error === "rate_limited") alert("Muitas gerações em pouco tempo. Espera uns segundinhos e tenta de novo. 🙂");
     else alert("Não consegui gerar a dica agora. Tenta de novo em instantes.");
   };
 

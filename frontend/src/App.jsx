@@ -11,6 +11,7 @@ import AliAvatar from "./components/AliAvatar";
 import AliChat from "./components/AliChat";
 import StopDetail from "./components/StopDetail";
 import StopForm from "./components/StopForm";
+import DayForm from "./components/DayForm";
 import BudgetForm from "./components/BudgetForm";
 import TextForm from "./components/TextForm";
 
@@ -138,6 +139,24 @@ export default function App() {
     setOv(null);
   };
 
+  const addDay = (data) => {
+    const nd = { ...data, id: uid(), stops: [] };
+    setDaysP([...days, nd]);
+    setActive(nd.id);
+    setOv(null);
+  };
+  const saveDay = (data) => {
+    setDaysP(days.map((d) => d.id === data.id ? { ...d, ...data } : d));
+    setOv(null);
+  };
+  const deleteDay = (id) => {
+    if (days.length <= 1) return; // sempre manter ao menos um dia
+    const next = days.filter((d) => d.id !== id);
+    setDaysP(next);
+    if (active === id) setActive(next[0].id);
+    setOv(null);
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: NAVY, display: "flex", justifyContent: "center", fontFamily: HELV, position: "relative", overflow: "hidden" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}} button{transition:transform .08s ease} button:active{transform:scale(.96)} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
@@ -174,7 +193,7 @@ export default function App() {
           <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "14px 16px", background: "linear-gradient(135deg, rgba(27,47,77,0.82), rgba(44,77,112,0.66))", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
             {days.map((d) => {
               const sel = d.id === active;
-              const complete = d.stops.length && d.stops.every((s) => s.done);
+              const complete = d.stops.length > 0 && d.stops.every((s) => s.done);
               return (
                 <button key={d.id} onClick={() => setActive(d.id)} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: sel ? 1 : 0.55 }}>
                   <div style={{ width: 42, height: 42, borderRadius: "50%", background: d.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, border: sel ? "3px solid #fff" : "3px solid transparent", position: "relative" }}>
@@ -185,6 +204,10 @@ export default function App() {
                 </button>
               );
             })}
+            <button onClick={() => setOv({ kind: "dayForm", day: null })} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "rgba(255,255,255,0.12)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, lineHeight: 1, border: "2px dashed rgba(255,255,255,0.55)" }}>+</div>
+              <div style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Dia</div>
+            </button>
           </div>
         )}
 
@@ -196,7 +219,10 @@ export default function App() {
               <div style={{ fontSize: 11, letterSpacing: 1.4, color: "rgba(251,244,233,0.92)", fontWeight: 500, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase", textShadow: HSHADOW }}>{day.date} · {day.sub}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                 <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: -0.3, fontFamily: DISPLAY, textShadow: HSHADOW }}>{day.title}</h2>
-                <button onClick={() => setReorder(!reorder)} style={btn(reorder ? day.color : "#fff", { color: reorder ? "#fff" : day.color, border: `1.5px solid ${day.color}`, padding: "7px 12px", flex: "0 0 auto", fontSize: 13 })}>{reorder ? "Concluir" : "↕ Reordenar"}</button>
+                <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
+                  {!reorder && <button onClick={() => setOv({ kind: "dayForm", day })} style={btn("#fff", { color: day.color, border: `1.5px solid ${day.color}`, padding: "7px 10px", fontSize: 13 })}>✎ Dia</button>}
+                  <button onClick={() => setReorder(!reorder)} style={btn(reorder ? day.color : "#fff", { color: reorder ? "#fff" : day.color, border: `1.5px solid ${day.color}`, padding: "7px 12px", fontSize: 13 })}>{reorder ? "Concluir" : "↕ Reordenar"}</button>
+                </div>
               </div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", marginBottom: 18, fontWeight: 600, textShadow: HSHADOW }}>{reorder ? "Use as setas para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
 
@@ -336,6 +362,11 @@ export default function App() {
       )}
       {ov?.kind === "stopForm" && (
         <StopForm stop={ov.stop} color={day.color} trip={{ days, budget, prebuy, notes }} onClose={() => setOv(null)} onSave={saveStop} />
+      )}
+      {ov?.kind === "dayForm" && (
+        <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1} onClose={() => setOv(null)}
+          onSave={(data) => ov.day ? saveDay(data) : addDay(data)}
+          onDelete={() => deleteDay(ov.day.id)} />
       )}
       {ov?.kind === "budgetForm" && (
         <BudgetForm item={ov.item} onClose={() => setOv(null)}
