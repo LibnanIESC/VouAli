@@ -19,6 +19,19 @@ export const PHOTO = "https://images.unsplash.com/photo-1557780486-7347b5578a23?
 export const CARD_DARK = "linear-gradient(135deg,#1c3050 0%,#2b4a6d 100%)";
 export const HSHADOW = "0 1px 4px rgba(0,0,0,0.45)";
 
+// ---------- Contraste de cor (cores de dia escolhidas pelo usuário) ----------
+// Luminância aproximada (0 escuro … 1 claro). Cores vazias/curtas contam como claras.
+export function isLight(hex) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length < 6) return true;
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.72;
+}
+// Cor de texto que contrasta sobre um fundo dessa cor.
+export const onColor = (hex) => (isLight(hex) ? NAVY : "#fff");
+// Acento legível sobre superfícies claras: se a cor for clara demais, cai no marinho.
+export const readable = (hex) => (isLight(hex) ? NAVY : hex);
+
 // ---------- Helpers de estilo ----------
 export const btn = (bg, extra = {}) => ({ background: bg, color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: HELV, ...extra });
 export const field = { width: "100%", boxSizing: "border-box", border: "1.5px solid #ddd", borderRadius: 9, padding: "10px 12px", fontSize: 14, fontFamily: HELV, marginTop: 4, resize: "vertical" };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
-import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, CARD_DARK, HSHADOW, PHOTO, btn } from "./theme";
+import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, CARD_DARK, HSHADOW, PHOTO, btn, onColor, readable } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending } from "./api";
 import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./seed";
 import { MapIcon, MoneyIcon, PinIcon } from "./components/Icons";
@@ -69,6 +69,7 @@ export default function App() {
   };
 
   const day = days.find((d) => d.id === active) || days[0];
+  const dc = readable(day.color); // acento legível do dia (marinho se a cor for clara demais)
   const totalStops = days.reduce((a, d) => a + d.stops.length, 0);
   const totalDone = days.reduce((a, d) => a + d.stops.filter((s) => s.done).length, 0);
   const overallPct = totalStops ? Math.round((totalDone / totalStops) * 100) : 0;
@@ -196,7 +197,7 @@ export default function App() {
               const complete = d.stops.length > 0 && d.stops.every((s) => s.done);
               return (
                 <button key={d.id} onClick={() => setActive(d.id)} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: sel ? 1 : 0.55 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: d.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, border: sel ? "3px solid #fff" : "3px solid transparent", position: "relative" }}>
+                  <div style={{ width: 42, height: 42, borderRadius: "50%", background: d.color, color: onColor(d.color), display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, border: sel ? "3px solid #fff" : "3px solid transparent", position: "relative" }}>
                     {d.line}
                     {complete && <div style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: ORANGE, border: "2px solid #223A5E", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</div>}
                   </div>
@@ -220,8 +221,8 @@ export default function App() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                 <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: -0.3, fontFamily: DISPLAY, textShadow: HSHADOW }}>{day.title}</h2>
                 <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
-                  {!reorder && <button onClick={() => setOv({ kind: "dayForm", day })} style={btn("#fff", { color: day.color, border: `1.5px solid ${day.color}`, padding: "7px 10px", fontSize: 13 })}>✎ Dia</button>}
-                  <button onClick={() => setReorder(!reorder)} style={btn(reorder ? day.color : "#fff", { color: reorder ? "#fff" : day.color, border: `1.5px solid ${day.color}`, padding: "7px 12px", fontSize: 13 })}>{reorder ? "Concluir" : "↕ Reordenar"}</button>
+                  {!reorder && <button onClick={() => setOv({ kind: "dayForm", day })} style={btn("#fff", { color: dc, border: `1.5px solid ${dc}`, padding: "7px 10px", fontSize: 13 })}>✎ Dia</button>}
+                  <button onClick={() => setReorder(!reorder)} style={btn(reorder ? dc : "#fff", { color: reorder ? "#fff" : dc, border: `1.5px solid ${dc}`, padding: "7px 12px", fontSize: 13 })}>{reorder ? "Concluir" : "↕ Reordenar"}</button>
                 </div>
               </div>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", marginBottom: 18, fontWeight: 600, textShadow: HSHADOW }}>{reorder ? "Use as setas para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
@@ -238,22 +239,22 @@ export default function App() {
                   );
                   return (
                     <div key={s.id} style={{ display: "flex", gap: 14, position: "relative", paddingBottom: last ? 0 : 22 }}>
-                      {!last && !reorder && <div style={{ position: "absolute", left: 12, top: 26, bottom: 0, width: 3, background: s.done ? day.color : "#d9d7d0" }} />}
+                      {!last && !reorder && <div style={{ position: "absolute", left: 12, top: 26, bottom: 0, width: 3, background: s.done ? dc : "#d9d7d0" }} />}
                       {reorder ? (
                         <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 4, zIndex: 1 }}>
                           {arrow(-1, i === 0)}
                           {arrow(1, last)}
                         </div>
                       ) : (
-                        <div onClick={() => toggleStop(s.id)} style={{ flex: "0 0 auto", width: 26, height: 26, borderRadius: "50%", zIndex: 1, cursor: "pointer", background: s.done ? day.color : "#fff", border: `3px solid ${s.done ? day.color : "#c9c7c0"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div onClick={() => toggleStop(s.id)} style={{ flex: "0 0 auto", width: 26, height: 26, borderRadius: "50%", zIndex: 1, cursor: "pointer", background: s.done ? dc : "#fff", border: `3px solid ${s.done ? dc : "#c9c7c0"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {s.done && <span style={{ color: "#fff", fontSize: 13, fontWeight: 900 }}>✓</span>}
                         </div>
                       )}
-                      <div onClick={reorder ? undefined : () => setOv({ kind: "detail", stop: s })} style={{ flex: 1, background: "#fff", borderRadius: 13, padding: "12px 14px", boxShadow: "0 5px 16px rgba(10,22,55,0.18)", opacity: (s.done && !reorder) ? 0.6 : 1, cursor: reorder ? "default" : "pointer", borderLeft: `4px solid ${day.color}`, border: reorder ? `1.5px solid ${day.color}` : undefined, display: "flex", alignItems: "center", gap: 10 }}>
+                      <div onClick={reorder ? undefined : () => setOv({ kind: "detail", stop: s })} style={{ flex: 1, background: "#fff", borderRadius: 13, padding: "12px 14px", boxShadow: "0 5px 16px rgba(10,22,55,0.18)", opacity: (s.done && !reorder) ? 0.6 : 1, cursor: reorder ? "default" : "pointer", borderLeft: `4px solid ${dc}`, border: reorder ? `1.5px solid ${dc}` : undefined, display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                             <span style={{ fontWeight: 800, fontSize: 15, color: "#223A5E", textDecoration: (s.done && !reorder) ? "line-through" : "none" }}>{s.n}</span>
-                            <span style={{ flex: "0 0 auto", fontSize: 12, fontWeight: 800, color: day.color }}>{s.t}</span>
+                            <span style={{ flex: "0 0 auto", fontSize: 12, fontWeight: 800, color: dc }}>{s.t}</span>
                           </div>
                           <div style={{ fontSize: 12.5, color: "#888", marginTop: 2, fontWeight: 500 }}>{s.d}</div>
                         </div>
@@ -263,7 +264,7 @@ export default function App() {
                   );
                 })}
               </div>
-              {!reorder && <button onClick={() => setOv({ kind: "stopForm", stop: null })} style={btn("#fff", { color: day.color, border: `1.5px dashed ${day.color}`, width: "100%", marginTop: 20 })}>+ Adicionar parada</button>}
+              {!reorder && <button onClick={() => setOv({ kind: "stopForm", stop: null })} style={btn("#fff", { color: dc, border: `1.5px dashed ${dc}`, width: "100%", marginTop: 20 })}>+ Adicionar parada</button>}
             </>
           )}
 
@@ -356,12 +357,12 @@ export default function App() {
 
       {/* Overlays */}
       {ov?.kind === "detail" && (
-        <StopDetail stop={ov.stop} color={day.color} onClose={() => setOv(null)}
+        <StopDetail stop={ov.stop} color={dc} onClose={() => setOv(null)}
           onEdit={() => setOv({ kind: "stopForm", stop: ov.stop })}
           onDelete={() => deleteStop(ov.stop.id)} />
       )}
       {ov?.kind === "stopForm" && (
-        <StopForm stop={ov.stop} color={day.color} trip={{ days, budget, prebuy, notes }} onClose={() => setOv(null)} onSave={saveStop} />
+        <StopForm stop={ov.stop} color={dc} trip={{ days, budget, prebuy, notes }} onClose={() => setOv(null)} onSave={saveStop} />
       )}
       {ov?.kind === "dayForm" && (
         <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1} onClose={() => setOv(null)}

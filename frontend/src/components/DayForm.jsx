@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Sheet from "./Sheet";
-import { btn, field, lbl } from "../theme";
+import { btn, field, lbl, onColor } from "../theme";
 
 // Formulário de criação/edição de um dia do roteiro.
 export default function DayForm({ day, onSave, onClose, onDelete, canDelete }) {
@@ -11,7 +11,7 @@ export default function DayForm({ day, onSave, onClose, onDelete, canDelete }) {
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 26px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", background: f.color || "#365D7A", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, flex: "0 0 auto" }}>{symbol}</div>
+          <div style={{ width: 42, height: 42, borderRadius: "50%", background: f.color || "#365D7A", color: onColor(f.color || "#365D7A"), display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, flex: "0 0 auto" }}>{symbol}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: "#223A5E" }}>{day ? "Editar dia" : "Novo dia"}</div>
         </div>
         <label style={lbl}>Título</label>
