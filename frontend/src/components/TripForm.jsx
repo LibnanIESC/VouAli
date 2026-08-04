@@ -24,7 +24,7 @@ function GenProgress() {
   }, []);
   return (
     <div style={{ padding: "40px 22px 48px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }} aria-live="polite">
-      <AliAvatar size={72} ring={ORANGE} />
+      <AliAvatar size={88} portrait ring={ORANGE} />
       <div style={{ fontSize: 20, fontWeight: 800, color: NAVY, marginTop: 18 }}>Ali está montando seu roteiro</div>
       <div key={i} style={{ fontSize: 15, fontWeight: 600, color: INK2, marginTop: 10, animation: "fadeUp .35s ease" }}>{GEN_MSGS[i]}</div>
       <div style={{ fontSize: 13, color: INK3, fontWeight: 500, marginTop: 22 }}>Isso leva uns 15 segundos. Depois você pode editar tudo.</div>

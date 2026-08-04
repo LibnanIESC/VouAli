@@ -328,7 +328,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: CREAM, display: "flex", justifyContent: "center", fontFamily: HELV }}>
-      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} button{transition:transform .08s ease} button:active{transform:scale(.96)} button:focus-visible,a:focus-visible{outline:3px solid #F28C28;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
+      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} .bub{position:relative} .bub-in::after{content:"";position:absolute;left:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(100% 0,100% 100%,0 100%)} .bub-out::after{content:"";position:absolute;right:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(0 0,0 100%,100% 100%)} button{transition:transform .08s ease} button:active{transform:scale(.96)} button:focus-visible,a:focus-visible{outline:3px solid #F28C28;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
       <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)" }}>
 
         {/* Hero: foto da viagem contida no topo + header compacto */}
@@ -388,7 +388,7 @@ export default function App() {
 
         {/* Body (superfície sólida areia-clara) */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
-          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes, budgetTotal }} destino={activeMeta.destination || activeMeta.name} currency={cur} />}
+          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes, budgetTotal, currency: cur }} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
           {!booted && tab !== "ali" && <SkeletonList />}
           {booted && tab === "roteiro" && !day && (
             <div style={{ textAlign: "center", marginTop: 50 }}>
@@ -685,7 +685,7 @@ export default function App() {
       {needKey && (
         <Sheet onClose={() => setNeedKey(false)}>
           <div style={{ padding: "26px 22px 36px", textAlign: "center" }}>
-            <AliAvatar size={64} ring={ORANGE} />
+            <AliAvatar size={72} portrait ring={ORANGE} />
             <div style={{ fontSize: 20, fontWeight: 800, color: NAVY, marginTop: 14 }}>Senha do app</div>
             <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginTop: 6, lineHeight: 1.5 }}>Digite a senha da viagem para sincronizar os dados.</div>
             <input type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)}
