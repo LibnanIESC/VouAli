@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import Sheet from "./Sheet";
 import { SparkIcon } from "./Icons";
 import { apiAliDica } from "../api";
+import { toast } from "../toast";
 import { btn, field, lbl, ORANGE, NAVY, HELV } from "../theme";
 
 // Formulário de criação/edição de parada.
@@ -16,9 +17,9 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
     const r = await apiAliDica({ n: f.n, t: f.t, d: f.d, getting: f.getting, todo: f.todo }, trip || {});
     setGerando(false);
     if (r && r.dica) setF((cur) => ({ ...cur, insight: r.dica }));
-    else if (r && r.error === "not_configured") alert("A IA ainda não está ligada (falta configurar a chave ANTHROPIC_API_KEY no servidor).");
-    else if (r && r.error === "rate_limited") alert("Muitas gerações em pouco tempo. Espera uns segundinhos e tenta de novo. 🙂");
-    else alert("Não consegui gerar a dica agora. Tenta de novo em instantes.");
+    else if (r && r.error === "not_configured") toast("A IA ainda não está ligada — falta a chave no servidor.");
+    else if (r && r.error === "rate_limited") toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂");
+    else toast("Não consegui gerar a dica agora. Tenta de novo em instantes.");
   };
 
   return (

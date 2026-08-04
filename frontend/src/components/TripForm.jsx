@@ -1,8 +1,35 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Sheet from "./Sheet";
+import AliAvatar from "./AliAvatar";
 import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
-import { btn, field, lbl, NAVY, ORANGE, SAND, HELV } from "../theme";
+import { toast } from "../toast";
+import { btn, field, lbl, NAVY, ORANGE, SAND, HELV, INK2, INK3 } from "../theme";
+
+const GEN_MSGS = [
+  "Desenhando seus dias…",
+  "Espalhando paradas no mapa…",
+  "Calculando o orçamento…",
+  "Garimpando dicas de quem já foi…",
+  "Caprichando nos detalhes…",
+];
+
+// Tela de espera da geração: o Ali "trabalhando", com mensagens rotativas.
+function GenProgress() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setI((x) => (x + 1) % GEN_MSGS.length), 2200);
+    return () => clearInterval(iv);
+  }, []);
+  return (
+    <div style={{ padding: "40px 22px 48px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }} aria-live="polite">
+      <AliAvatar size={72} ring={ORANGE} />
+      <div style={{ fontSize: 20, fontWeight: 800, color: NAVY, marginTop: 18 }}>Ali está montando seu roteiro</div>
+      <div key={i} style={{ fontSize: 15, fontWeight: 600, color: INK2, marginTop: 10, animation: "fadeUp .35s ease" }}>{GEN_MSGS[i]}</div>
+      <div style={{ fontSize: 13, color: INK3, fontWeight: 500, marginTop: 22 }}>Isso leva uns 15 segundos. Depois você pode editar tudo.</div>
+    </div>
+  );
+}
 
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
@@ -28,10 +55,10 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
       });
       setGerando(false);
       if (r && r.state) { onSave({ ...f, data: r.state }); return; }
-      if (r && r.error === "not_configured") { alert("A IA ainda não está ligada (falta a chave ANTHROPIC_API_KEY no servidor)."); return; }
-      if (r && r.error === "rate_limited") { alert("Muitas gerações em pouco tempo. Espera uns segundinhos e tenta de novo. 🙂"); return; }
-      if (r && r.error === "invalid") { alert("Informe o destino e o número de dias (pelo menos 1)."); return; }
-      alert("Não consegui gerar o roteiro agora. Tenta de novo, ou crie a viagem vazia."); return;
+      if (r && r.error === "not_configured") { toast("A IA ainda não está ligada — falta a chave no servidor."); return; }
+      if (r && r.error === "rate_limited") { toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂"); return; }
+      if (r && r.error === "invalid") { toast("Informe o destino e o número de dias (pelo menos 1)."); return; }
+      toast("Não consegui gerar o roteiro agora. Tenta de novo, ou crie a viagem vazia."); return;
     }
     onSave(f); // criar vazia OU salvar edição
   };
@@ -44,7 +71,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
   );
 
   return (
-    <Sheet onClose={onClose}>
+    <Sheet onClose={gerando ? () => {} : onClose}>
+      {gerando ? <GenProgress /> : (
       <div style={{ padding: "22px 22px 26px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>{trip ? "Editar viagem" : "Nova viagem"}</div>
         <label style={lbl}>Nome</label>
@@ -89,12 +117,13 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         )}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          {canDelete && <button onClick={onDelete} disabled={gerando} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
-          <button onClick={submit} disabled={gerando || !f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: gerando || !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {gerando ? "Ali está montando…" : (trip ? "Salvar" : (mode === "ai" ? <><SparkIcon color={NAVY} size={15} />Gerar e criar</> : "Criar viagem"))}
+          {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+          <button onClick={submit} disabled={!f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {trip ? "Salvar" : (mode === "ai" ? <><SparkIcon color={NAVY} size={15} />Gerar e criar</> : "Criar viagem")}
           </button>
         </div>
       </div>
+      )}
     </Sheet>
   );
 }

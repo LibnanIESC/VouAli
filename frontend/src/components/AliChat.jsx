@@ -48,7 +48,7 @@ export default function AliChat({ trip }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       {/* Mensagens */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 14px 8px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div aria-live="polite" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "16px 14px 8px", display: "flex", flexDirection: "column", gap: 10 }}>
         {msgs.map((m, i) => (
           m.role === "user" ? (
             <div key={i} style={{ alignSelf: "flex-end", maxWidth: "82%", background: STEEL, color: "#fff", fontSize: 14.5, lineHeight: 1.5, padding: "10px 14px", borderRadius: "16px 16px 5px 16px", boxShadow: "0 2px 8px rgba(10,22,55,0.18)" }}>{m.content}</div>
@@ -66,19 +66,20 @@ export default function AliChat({ trip }) {
           </div>
         )}
 
-        {/* Sugestões só no início da conversa */}
-        {msgs.length === 1 && !loading && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
-            {SUGESTOES.map((s) => (
-              <button key={s} onClick={() => send(s)} style={{ textAlign: "left", background: SAND, color: NAVY, border: "none", borderRadius: 12, padding: "10px 14px", fontSize: 13.5, fontWeight: 600, fontFamily: HELV, cursor: "pointer" }}>{s}</button>
-            ))}
-          </div>
-        )}
         <div ref={endRef} />
       </div>
 
+      {/* Sugestões rápidas (sempre à mão, roláveis na horizontal) */}
+      {!loading && (
+        <div style={{ flex: "0 0 auto", display: "flex", gap: 8, overflowX: "auto", padding: "8px 12px 2px", background: "rgba(255,255,255,0.86)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+          {SUGESTOES.map((s) => (
+            <button key={s} onClick={() => send(s)} style={{ flex: "0 0 auto", whiteSpace: "nowrap", background: "#fff", color: STEEL, border: `1.5px solid ${STEEL}`, borderRadius: 999, padding: "8px 14px", minHeight: 38, fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer" }}>{s}</button>
+          ))}
+        </div>
+      )}
+
       {/* Barra de entrada (acima da barra de abas fixa) */}
-      <div style={{ flex: "0 0 auto", display: "flex", gap: 8, alignItems: "flex-end", padding: "8px 12px", paddingBottom: "calc(72px + env(safe-area-inset-bottom))", background: "rgba(255,255,255,0.86)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+      <div style={{ flex: "0 0 auto", display: "flex", gap: 8, alignItems: "flex-end", padding: "8px 12px", paddingBottom: "calc(72px + env(safe-area-inset-bottom))", background: "rgba(255,255,255,0.86)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}

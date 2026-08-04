@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
-import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, onColor, readable } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip } from "./api";
+import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable } from "./theme";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken } from "./api";
+import { onToast, toast as toastMsg } from "./toast";
 import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./seed";
 import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon, PlusIcon, PencilIcon } from "./components/Icons";
 import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
+import Sheet from "./components/Sheet";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
 import AliTip from "./components/AliTip";
@@ -20,6 +22,20 @@ import TripsSheet from "./components/TripsSheet";
 import TripForm from "./components/TripForm";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
+
+// Skeleton do carregamento inicial (evita o "flash" de dados trocando).
+const Ghost = ({ h, w = "100%", r = 12, mb = 10 }) => (
+  <div aria-hidden="true" style={{ height: h, width: w, background: "#e9e2d4", borderRadius: r, marginBottom: mb, animation: "pulse 1.4s ease-in-out infinite" }} />
+);
+function SkeletonList() {
+  return (
+    <div>
+      <Ghost h={14} w={150} r={7} mb={8} />
+      <Ghost h={26} w={230} r={8} mb={18} />
+      <Ghost h={68} /><Ghost h={68} /><Ghost h={68} /><Ghost h={68} /><Ghost h={68} />
+    </div>
+  );
+}
 
 // Anel de progresso compacto do header (substitui o bloco "PROGRESSO XX%").
 const RING_C = 2 * Math.PI * 18;
@@ -47,6 +63,10 @@ export default function App() {
   const [reorder, setReorder] = useState(false);
   const [sync, setSync] = useState("synced");
   const [trips, setTrips] = useState({ active: null, list: [] });
+  const [booted, setBooted] = useState(false);   // 1ª resposta do servidor chegou?
+  const [toasts, setToasts] = useState([]);
+  const [needKey, setNeedKey] = useState(false); // servidor pediu a senha (401)
+  const [keyInput, setKeyInput] = useState("");
 
   // aplica um estado do servidor mesclando (só o que veio) — usado no polling/remoto
   const applyState = (s) => {
@@ -67,6 +87,12 @@ export default function App() {
   };
 
   useEffect(() => onStatus(setSync), []);
+  useEffect(() => onAuthNeeded(() => setNeedKey(true)), []);
+  useEffect(() => onToast((msg) => {
+    const id = Date.now() + Math.random();
+    setToasts((t) => [...t, { id, msg }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3400);
+  }), []);
 
   useEffect(() => {
     setRemoteHandler(applyState);
@@ -78,6 +104,7 @@ export default function App() {
         applyState(r.state);
         setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "qua");
       }
+      setBooted(true); // com ou sem resposta, sai do skeleton
     })();
   }, []);
 
@@ -157,15 +184,19 @@ export default function App() {
     reader.onload = () => {
       let obj;
       try { obj = JSON.parse(reader.result); }
-      catch (e) { alert("Não consegui ler o arquivo: JSON inválido."); return; }
+      catch (e) { toastMsg("Não consegui ler o arquivo: JSON inválido."); return; }
       if (!obj || (!obj.days && !obj.budget && !obj.prebuy && !obj.notes)) {
-        alert("Arquivo inválido: não parece um backup do VouAli."); return;
+        toastMsg("Arquivo inválido: não parece um backup do VouAli."); return;
       }
-      if (!window.confirm("Isso vai substituir todos os dados atuais pela cópia do arquivo. Continuar?")) return;
-      applyState(obj);
-      apiPut({ days: obj.days || days, budget: obj.budget || budget, prebuy: obj.prebuy || prebuy, notes: obj.notes || notes });
+      setOv({ kind: "confirmImport", data: obj });
     };
     reader.readAsText(file);
+  };
+  const doImport = (obj) => {
+    applyState(obj);
+    apiPut({ days: obj.days || days, budget: obj.budget || budget, prebuy: obj.prebuy || prebuy, notes: obj.notes || notes });
+    setOv(null);
+    toastMsg("Backup importado. ✅");
   };
 
   const toggleStop = (sid) =>
@@ -265,7 +296,7 @@ export default function App() {
     setOv(null);
     await flushNow();
     const r = await apiCreateTrip(meta); // já vira a ativa no servidor
-    if (!r) { alert("Não consegui criar a viagem agora. Tenta de novo."); return; }
+    if (!r) { toastMsg("Não consegui criar a viagem agora. Tenta de novo."); return; }
     if (r.trips) setTrips(r.trips);
     const s = await apiGet();
     replaceState(s && s.state);
@@ -277,8 +308,6 @@ export default function App() {
     if (r && r.trips) setTrips(r.trips);
   };
   const deleteTrip = async (id) => {
-    const t = (trips.list || []).find((x) => x.id === id);
-    if (!window.confirm(`Excluir a viagem "${t ? t.name : ""}" e todo o seu roteiro? Isso não pode ser desfeito.`)) return;
     setOv(null);
     await flushNow();
     const r = await apiDeleteTrip(id);
@@ -333,7 +362,7 @@ export default function App() {
               const sel = d.id === active;
               const complete = d.stops.length > 0 && d.stops.every((s) => s.done);
               return (
-                <button key={d.id} onClick={() => setActive(d.id)} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: sel ? 1 : 0.55 }}>
+                <button key={d.id} onClick={() => setActive(d.id)} aria-label={`Dia ${d.label} ${d.date} — ${d.title}`} aria-current={sel ? "true" : undefined} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: sel ? 1 : 0.55 }}>
                   <div style={{ width: 42, height: 42, borderRadius: "50%", background: d.color, color: onColor(d.color), display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, border: sel ? "3px solid #fff" : "3px solid transparent", position: "relative" }}>
                     {d.line}
                     {complete && <div style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: ORANGE, border: "2px solid #223A5E", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</div>}
@@ -353,14 +382,15 @@ export default function App() {
         {/* Body (superfície sólida areia-clara) */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
           {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes }} />}
-          {tab === "roteiro" && !day && (
+          {!booted && tab !== "ali" && <SkeletonList />}
+          {booted && tab === "roteiro" && !day && (
             <div style={{ textAlign: "center", marginTop: 50 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: NAVY, marginBottom: 6 }}>Esta viagem ainda não tem dias.</div>
               <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginBottom: 18 }}>Adicione o primeiro dia para começar o roteiro.</div>
               <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>
             </div>
           )}
-          {tab === "roteiro" && day && (
+          {booted && tab === "roteiro" && day && (
             <>
               <div style={{ fontSize: 12, letterSpacing: 1.2, color: BROWN, fontWeight: 700, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase" }}>{day.date} · {day.sub}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -421,7 +451,7 @@ export default function App() {
             </>
           )}
 
-          {tab === "orcamento" && (
+          {booted && tab === "orcamento" && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Orçamento</h2>
@@ -485,7 +515,7 @@ export default function App() {
             </>
           )}
 
-          {tab === "info" && (
+          {booted && tab === "info" && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Comprar antes</h2>
@@ -537,7 +567,7 @@ export default function App() {
           ].map((t) => {
             const on = tab === t.id;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, opacity: t.id === "ali" && !on ? 0.6 : 1 }}>
+              <button key={t.id} onClick={() => setTab(t.id)} aria-current={on ? "page" : undefined} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minHeight: 48, opacity: t.id === "ali" && !on ? 0.6 : 1 }}>
                 <t.Icon color={on ? "#223A5E" : "#b5b3ac"} on={on} />
                 <span style={{ fontSize: 11, fontWeight: 800, color: on ? "#223A5E" : "#b5b3ac" }}>{t.label}</span>
               </button>
@@ -547,7 +577,7 @@ export default function App() {
       </div>
 
       {/* FAB: adicionar parada (roteiro) */}
-      {tab === "roteiro" && day && !reorder && !ov && (
+      {booted && tab === "roteiro" && day && !reorder && !ov && (
         <button onClick={() => setOv({ kind: "stopForm", stop: null })} aria-label="Adicionar parada"
           style={{ position: "fixed", right: "max(16px, calc(50% - 204px))", bottom: "calc(84px + env(safe-area-inset-bottom))", width: 56, height: 56, borderRadius: 28, border: "none", background: ORANGE, boxShadow: "0 8px 20px rgba(221,125,28,0.45)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15 }}>
           <PlusIcon color={NAVY} size={24} />
@@ -575,7 +605,23 @@ export default function App() {
       {ov?.kind === "tripForm" && (
         <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={() => setOv(null)}
           onSave={(data) => ov.trip ? saveTripMeta(data) : createTrip(data)}
-          onDelete={() => deleteTrip(ov.trip.id)} />
+          onDelete={() => setOv({ kind: "confirmDeleteTrip", id: ov.trip.id, name: ov.trip.name })} />
+      )}
+      {ov?.kind === "confirmDeleteTrip" && (
+        <ActionSheet message={`Excluir a viagem "${ov.name}" e todo o seu roteiro? Isso não pode ser desfeito.`}
+          onClose={() => setOv(null)}
+          actions={[
+            { label: "Excluir viagem", danger: true, onClick: () => deleteTrip(ov.id) },
+            { label: "Cancelar", onClick: () => setOv(null) },
+          ]} />
+      )}
+      {ov?.kind === "confirmImport" && (
+        <ActionSheet message="Substituir todos os dados atuais pela cópia do arquivo?"
+          onClose={() => setOv(null)}
+          actions={[
+            { label: "Substituir dados", danger: true, onClick: () => doImport(ov.data) },
+            { label: "Cancelar", onClick: () => setOv(null) },
+          ]} />
       )}
       {ov?.kind === "detail" && (
         <StopDetail stop={ov.stop} color={dc} onClose={() => setOv(null)}
@@ -612,6 +658,32 @@ export default function App() {
           onClose={() => setOv(null)}
           onSave={(data) => { if (!data.title?.trim()) return; const nn = ov.item ? notes.map((n) => n.id === data.id ? data : n) : [...notes, { ...data, id: uid() }]; setNotesP(nn); setOv(null); }}
           onDelete={() => { setNotesP(notes.filter((n) => n.id !== ov.item.id)); setOv(null); }} />
+      )}
+
+      {/* Tela de desbloqueio (senha do app) — substitui o window.prompt */}
+      {needKey && (
+        <Sheet onClose={() => setNeedKey(false)}>
+          <div style={{ padding: "26px 22px 36px", textAlign: "center" }}>
+            <AliAvatar size={64} ring={ORANGE} />
+            <div style={{ fontSize: 20, fontWeight: 800, color: NAVY, marginTop: 14 }}>Senha do app</div>
+            <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginTop: 6, lineHeight: 1.5 }}>Digite a senha da viagem para sincronizar os dados.</div>
+            <input type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && keyInput.trim()) setToken(keyInput.trim()); }}
+              placeholder="Senha" aria-label="Senha do app"
+              style={{ ...field, marginTop: 16, textAlign: "center" }} />
+            <button onClick={() => keyInput.trim() && setToken(keyInput.trim())} disabled={!keyInput.trim()}
+              style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 14, opacity: keyInput.trim() ? 1 : 0.6 }}>Entrar</button>
+          </div>
+        </Sheet>
+      )}
+
+      {/* Toasts */}
+      {toasts.length > 0 && (
+        <div aria-live="polite" style={{ position: "fixed", top: "calc(14px + env(safe-area-inset-top))", left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, zIndex: 90, pointerEvents: "none", padding: "0 16px" }}>
+          {toasts.map((t) => (
+            <div key={t.id} style={{ background: "rgba(23,37,63,0.95)", color: "#fff", borderRadius: 12, padding: "12px 18px", fontSize: 14, fontWeight: 600, maxWidth: 380, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", animation: "fadeUp .25s ease" }}>{t.msg}</div>
+          ))}
+        </div>
       )}
     </div>
   );

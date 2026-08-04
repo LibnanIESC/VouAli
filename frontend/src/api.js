@@ -5,10 +5,11 @@ function authHeaders() {
   if (!t) { const q = new URLSearchParams(location.search).get("k"); if (q) { t = q; localStorage.setItem(TOKEN_KEY, q); } }
   return t ? { "X-Trip-Token": t } : {};
 }
-function promptToken() {
-  const t = window.prompt("Senha do app (a que voce definiu em TRIP_TOKEN no Railway):");
-  if (t) { localStorage.setItem(TOKEN_KEY, t); location.reload(); }
-}
+// Pedido de senha: avisa o App (que mostra a tela de desbloqueio própria).
+let _authCb = null;
+export function onAuthNeeded(fn) { _authCb = fn; }
+export function setToken(t) { localStorage.setItem(TOKEN_KEY, t); location.reload(); }
+function promptToken() { if (_authCb) _authCb(); }
 
 // Estado de sincronização observável (pub/sub) — alimenta o indicador no header.
 // synced | saving | offline | reloaded
