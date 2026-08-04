@@ -1,15 +1,37 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import AliAvatar from "./AliAvatar";
 import { apiAli } from "../api";
 import { NAVY, STEEL, ORANGE, CREAM, SAND, DISPLAY, HELV } from "../theme";
 
 const WELCOME = "Oi! Sou o Ali 👋 Pode perguntar o que quiser sobre a viagem — o que fazer se chover num dia, onde comer perto de uma parada, como cortar gastos, o que priorizar... tô aqui pra isso.";
 
-const SUGESTOES = [
-  "O que faço se chover no dia do Central Park?",
-  "Onde comer bem e barato perto do Met?",
-  "Consigo cortar US$ 200 do orçamento?",
-];
+// Sugestões montadas a partir da viagem ATIVA (sem custo de IA): usam paradas e
+// destino reais, para nunca sugerirem algo de outra viagem.
+function buildSugestoes(trip, destino, cur) {
+  const dias = (trip && trip.days) || [];
+  const stops = [];
+  dias.forEach((d) => (d.stops || []).forEach((s) => { if (s && s.n) stops.push({ n: s.n, dia: d.title || d.label }); }));
+  const onde = destino ? `em ${destino}` : "nessa viagem";     // evita "em essa viagem"
+  const noDestino = destino ? `em ${destino}` : "no destino";
+  if (stops.length === 0) {
+    return [
+      `O que não posso perder ${onde}?`,
+      `Quanto devo separar por dia ${noDestino}?`,
+      `Como me locomover ${noDestino}?`,
+    ];
+  }
+  const a = stops[0];
+  const b = stops[Math.min(stops.length - 1, Math.floor(stops.length / 2))] || a;
+  const out = [
+    `O que faço se chover no dia ${a.dia ? `de ${a.dia}` : `do ${a.n}`}?`,
+    `Onde comer bem e barato perto do ${b.n}?`,
+  ];
+  const teto = (trip && trip.budgetTotal) || 0;
+  out.push(teto > 0
+    ? `Consigo cortar ${cur} ${Math.max(50, Math.round(teto * 0.1)).toLocaleString()} do orçamento?`
+    : `O que priorizar ${onde} se o tempo for curto?`);
+  return out;
+}
 
 // Prepara o histórico para o backend: sem a mensagem de boas-vindas, começando por 'user'.
 function toHistory(msgs) {
@@ -18,11 +40,12 @@ function toHistory(msgs) {
   return h;
 }
 
-export default function AliChat({ trip }) {
+export default function AliChat({ trip, destino, currency = "US$" }) {
   const [msgs, setMsgs] = useState([{ role: "assistant", content: WELCOME }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const SUGESTOES = useMemo(() => buildSugestoes(trip, destino, currency), [trip, destino, currency]);
 
   useEffect(() => { endRef.current && endRef.current.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
 
@@ -54,14 +77,14 @@ export default function AliChat({ trip }) {
             <div key={i} style={{ alignSelf: "flex-end", maxWidth: "82%", background: STEEL, color: "#fff", fontSize: 14.5, lineHeight: 1.5, padding: "10px 14px", borderRadius: "16px 16px 5px 16px", boxShadow: "0 2px 8px rgba(10,22,55,0.18)" }}>{m.content}</div>
           ) : (
             <div key={i} style={{ alignSelf: "flex-start", display: "flex", gap: 8, alignItems: "flex-end", maxWidth: "88%" }}>
-              <AliAvatar size={28} />
+              <AliAvatar size={36} />
               <div style={{ background: "#fff", color: NAVY, fontSize: 14.5, lineHeight: 1.5, padding: "10px 14px", borderRadius: "16px 16px 16px 5px", boxShadow: "0 2px 8px rgba(10,22,55,0.14)" }}>{m.content}</div>
             </div>
           )
         ))}
         {loading && (
           <div style={{ alignSelf: "flex-start", display: "flex", gap: 8, alignItems: "flex-end" }}>
-            <AliAvatar size={28} />
+            <AliAvatar size={36} />
             <div style={{ background: "#fff", color: "#888", fontSize: 13.5, fontStyle: "italic", padding: "10px 14px", borderRadius: "16px 16px 16px 5px", boxShadow: "0 2px 8px rgba(10,22,55,0.14)" }}>Ali está digitando…</div>
           </div>
         )}

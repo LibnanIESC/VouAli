@@ -139,7 +139,11 @@ export default function App() {
   const overallPct = totalStops ? Math.round((totalDone / totalStops) * 100) : 0;
   const planned = budget.reduce((a, b) => a + Number(b.v || 0), 0);
   const spent = budget.reduce((a, b) => a + Number(b.spent || 0), 0);
-  const remaining = TOTAL_BUDGET - planned;
+  // Moeda e teto vêm da viagem (fallback só para bases antigas sem esses campos).
+  const cur = activeMeta.currency || "US$";
+  const budgetTotal = Number(activeMeta.budget) > 0 ? Number(activeMeta.budget) : (trips.active === "ny" ? TOTAL_BUDGET : 0);
+  const hasTeto = budgetTotal > 0;
+  const remaining = budgetTotal - planned;
 
   // Dica do Ali para o dia: a primeira parada com insight vira o "briefing".
   const aliDayTip = (((day && day.stops) || []).find((s) => s.insight && s.insight.trim()) || {}).insight;
@@ -381,7 +385,7 @@ export default function App() {
 
         {/* Body (superfície sólida areia-clara) */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
-          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes }} />}
+          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes, budgetTotal }} destino={activeMeta.destination || activeMeta.name} currency={cur} />}
           {!booted && tab !== "ali" && <SkeletonList />}
           {booted && tab === "roteiro" && !day && (
             <div style={{ textAlign: "center", marginTop: 50 }}>
@@ -562,7 +566,7 @@ export default function App() {
           {[
             { id: "roteiro", label: "Roteiro", Icon: MapIcon },
             { id: "orcamento", label: "Orçamento", Icon: MoneyIcon },
-            { id: "ali", label: "Ali", Icon: ({ on }) => <AliAvatar size={24} ring={on ? "#223A5E" : undefined} /> },
+            { id: "ali", label: "Ali", Icon: ({ on }) => <AliAvatar size={28} ring={on ? "#223A5E" : undefined} /> },
             { id: "info", label: "Info", Icon: PinIcon },
           ].map((t) => {
             const on = tab === t.id;
