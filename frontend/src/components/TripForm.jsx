@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Sheet from "./Sheet";
+import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { btn, field, lbl, NAVY, ORANGE, SAND, HELV } from "../theme";
 
@@ -37,7 +38,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
 
   const modeBtn = (id, label) => (
     <button type="button" onClick={() => setMode(id)} disabled={gerando}
-      style={{ flex: 1, padding: "10px 8px", borderRadius: 10, fontSize: 13.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer",
+      style={{ flex: 1, padding: "10px 8px", minHeight: 44, borderRadius: 12, fontSize: 13.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
         border: mode === id ? `2px solid ${NAVY}` : "1.5px solid #ddd",
         background: mode === id ? SAND : "#fff", color: NAVY }}>{label}</button>
   );
@@ -65,7 +66,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
             <label style={lbl}>Como criar o roteiro?</label>
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               {modeBtn("empty", "Começar vazia")}
-              {modeBtn("ai", "✨ Gerar com o Ali")}
+              {modeBtn("ai", <><SparkIcon color={NAVY} size={14} />Gerar com o Ali</>)}
             </div>
             {mode === "ai" && (
               <div style={{ marginTop: 10, background: "#faf7f1", borderRadius: 12, padding: "12px 14px" }}>
@@ -89,8 +90,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           {canDelete && <button onClick={onDelete} disabled={gerando} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
-          <button onClick={submit} disabled={gerando || !f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: gerando || !f.name.trim() ? 0.6 : 1 }}>
-            {gerando ? "Ali está montando…" : (trip ? "Salvar" : (mode === "ai" ? "✨ Gerar e criar" : "Criar viagem"))}
+          <button onClick={submit} disabled={gerando || !f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: gerando || !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            {gerando ? "Ali está montando…" : (trip ? "Salvar" : (mode === "ai" ? <><SparkIcon color={NAVY} size={15} />Gerar e criar</> : "Criar viagem"))}
           </button>
         </div>
       </div>

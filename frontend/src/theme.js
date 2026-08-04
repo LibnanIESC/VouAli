@@ -32,7 +32,13 @@ export const onColor = (hex) => (isLight(hex) ? NAVY : "#fff");
 // Acento legível sobre superfícies claras: se a cor for clara demais, cai no marinho.
 export const readable = (hex) => (isLight(hex) ? NAVY : hex);
 
+// ---------- Tipografia (escala fixa: 12/14/16/20/24/28) & texto ----------
+export const FS = { caps: 12, support: 14, body: 16, sub: 20, title: 24, display: 28 };
+export const INK = NAVY;        // texto principal sobre superfícies claras
+export const INK2 = "#4A5A6E";  // texto de apoio (≈7:1 sobre branco)
+export const INK3 = "#66738A";  // rótulos/caps (≈4.8:1 sobre branco)
+
 // ---------- Helpers de estilo ----------
-export const btn = (bg, extra = {}) => ({ background: bg, color: "#fff", border: "none", borderRadius: 10, padding: "11px 16px", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: HELV, ...extra });
-export const field = { width: "100%", boxSizing: "border-box", border: "1.5px solid #ddd", borderRadius: 9, padding: "10px 12px", fontSize: 14, fontFamily: HELV, marginTop: 4, resize: "vertical" };
-export const lbl = { fontSize: 12, fontWeight: 800, color: "#555", letterSpacing: 0.5, marginTop: 12, display: "block" };
+export const btn = (bg, extra = {}) => ({ background: bg, color: "#fff", border: "none", borderRadius: 12, padding: "12px 18px", minHeight: 44, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: HELV, ...extra });
+export const field = { width: "100%", boxSizing: "border-box", border: "1.5px solid #ddd", borderRadius: 12, padding: "12px 14px", minHeight: 44, fontSize: 15, fontFamily: HELV, marginTop: 4, resize: "vertical" };
+export const lbl = { fontSize: 12, fontWeight: 800, color: "#66738A", letterSpacing: 0.5, marginTop: 12, display: "block" };

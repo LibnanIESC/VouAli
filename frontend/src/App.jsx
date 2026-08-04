@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
-import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, CARD_DARK, HSHADOW, btn, onColor, readable } from "./theme";
+import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, onColor, readable } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip } from "./api";
 import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./seed";
-import { MapIcon, MoneyIcon, PinIcon } from "./components/Icons";
+import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon, PlusIcon, PencilIcon } from "./components/Icons";
+import ActionSheet from "./components/ActionSheet";
+import AjustesSheet from "./components/AjustesSheet";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
 import AliTip from "./components/AliTip";
@@ -18,6 +20,21 @@ import TripsSheet from "./components/TripsSheet";
 import TripForm from "./components/TripForm";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
+
+// Anel de progresso compacto do header (substitui o bloco "PROGRESSO XX%").
+const RING_C = 2 * Math.PI * 18;
+function ProgressRing({ pct }) {
+  return (
+    <div style={{ position: "relative", width: 44, height: 44, flex: "0 0 auto" }} role="img" aria-label={`Progresso da viagem: ${pct}%`}>
+      <svg width="44" height="44" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r="18" stroke="rgba(255,255,255,0.28)" strokeWidth="4" fill="none" />
+        <circle cx="22" cy="22" r="18" stroke={ORANGE} strokeWidth="4" fill="none" strokeLinecap="round"
+          strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - pct / 100)} transform="rotate(-90 22 22)" style={{ transition: "stroke-dashoffset .4s ease" }} />
+      </svg>
+      <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff" }}>{pct}%</span>
+    </div>
+  );
+}
 
 export default function App() {
   const [days, setDays] = useState(seedDays);
@@ -106,13 +123,24 @@ export default function App() {
       ? `Sobram US$ ${remaining.toLocaleString()} dentro do teto — folga boa pra compras e imprevistos.`
       : `Sobram US$ ${remaining.toLocaleString()} dentro do teto. Tá justo, vale ficar de olho nos gastos.`;
 
+  // Orçamento por categoria (donut + grupos)
+  const tagOf = (b) => ((b.tag || "outros").trim().toLowerCase() || "outros");
+  const tagTotals = {};
+  budget.forEach((b) => { const t = tagOf(b); tagTotals[t] = (tagTotals[t] || 0) + Number(b.v || 0); });
+  const tags = Object.keys(tagTotals);
+  const TAGC = [STEEL, ORANGE, BROWN, "#00933c", "#b933ad", "#0039a6"];
+  const tagColor = (t) => TAGC[tags.indexOf(t) % TAGC.length];
+  let _acc = 0;
+  const donutBg = planned > 0
+    ? `conic-gradient(${tags.map((t) => { const from = (_acc / planned) * 100; _acc += tagTotals[t]; const to = (_acc / planned) * 100; return `${tagColor(t)} ${from}% ${to}%`; }).join(", ")})`
+    : SAND_L;
+
   const setDaysP = (nd) => { setDays(nd); persist({ days: nd }); };
   const setBudgetP = (nb) => { setBudget(nb); persist({ budget: nb }); };
   const setPrebuyP = (np) => { setPrebuy(np); persist({ prebuy: np }); };
   const setNotesP = (nn) => { setNotes(nn); persist({ notes: nn }); };
 
-  // ---------- Backup (export / import JSON) ----------
-  const fileRef = useRef(null);
+  // ---------- Backup (export / import JSON — acionado pelo sheet Ajustes) ----------
   const exportBackup = () => {
     const data = { days, budget, prebuy, notes, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -142,12 +170,44 @@ export default function App() {
 
   const toggleStop = (sid) =>
     setDaysP(days.map((d) => d.id === day.id ? { ...d, stops: d.stops.map((s) => s.id === sid ? { ...s, done: !s.done } : s) } : d));
-  const moveStop = (idx, dir) => {
-    const j = idx + dir;
-    if (j < 0 || j >= day.stops.length) return;
-    const stops = [...day.stops];
-    [stops[idx], stops[j]] = [stops[j], stops[idx]];
-    setDaysP(days.map((d) => d.id === day.id ? { ...d, stops } : d));
+
+  // Próxima parada em aberto do dia (ganha destaque na timeline).
+  const nextStopId = (((day && day.stops) || []).find((s) => !s.done) || {}).id;
+
+  // Reordenação por arrasto (modo reordenar): puxador com pointer events.
+  const rowRefs = useRef([]);
+  const [drag, setDrag] = useState(null); // { idx, y0, dy }
+  const onDragStart = (i) => (e) => {
+    e.preventDefault();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    setDrag({ idx: i, y0: e.clientY, dy: 0 });
+  };
+  const onDragMove = (e) => {
+    if (!drag) return;
+    const y = e.clientY;
+    setDrag((d) => (d ? { ...d, dy: y - d.y0 } : d));
+  };
+  const onDragEnd = () => {
+    if (!drag) return;
+    const rects = rowRefs.current.slice(0, day.stops.length).map((r) => (r ? r.getBoundingClientRect() : null));
+    const cur = rects[drag.idx];
+    if (cur) {
+      const center = cur.top + cur.height / 2; // já com o translateY aplicado
+      let target = drag.idx, best = Infinity;
+      rects.forEach((r, j) => {
+        if (!r) return;
+        const mid = j === drag.idx ? cur.top - drag.dy + cur.height / 2 : r.top + r.height / 2;
+        const dist = Math.abs(center - mid);
+        if (dist < best) { best = dist; target = j; }
+      });
+      if (target !== drag.idx) {
+        const stops = [...day.stops];
+        const [sp] = stops.splice(drag.idx, 1);
+        stops.splice(target, 0, sp);
+        setDaysP(days.map((d) => (d.id === day.id ? { ...d, stops } : d)));
+      }
+    }
+    setDrag(null);
   };
   const saveStop = (data) => {
     const exists = day.stops.some((s) => s.id === data.id);
@@ -231,46 +291,44 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: NAVY, display: "flex", justifyContent: "center", fontFamily: HELV, position: "relative", overflow: "hidden" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}} button{transition:transform .08s ease} button:active{transform:scale(.96)} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
-      <Skyline />
-      {activeMeta.bg ? (
-        <img src={activeMeta.bg} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "fixed", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }} />
-      ) : null}
-      <div style={{ position: "fixed", inset: 0, background: "linear-gradient(180deg, rgba(20,36,64,0.48) 0%, rgba(20,36,64,0.34) 45%, rgba(20,36,64,0.66) 100%)", zIndex: 1, pointerEvents: "none" }} />
-      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", zIndex: 2 }}>
+    <div style={{ minHeight: "100vh", background: CREAM, display: "flex", justifyContent: "center", fontFamily: HELV }}>
+      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} button{transition:transform .08s ease} button:active{transform:scale(.96)} button:focus-visible,a:focus-visible{outline:3px solid #F28C28;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
+      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)" }}>
 
-        {/* Header */}
-        <div style={{ background: "linear-gradient(135deg, rgba(27,47,77,0.95) 0%, rgba(34,58,94,0.9) 50%, rgba(44,77,112,0.86) 100%)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", color: "#fff", padding: "18px 20px 16px", boxShadow: "0 2px 14px rgba(10,20,40,0.32)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 5 }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 27, lineHeight: 0.9, color: CREAM }}>Vou</span>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 27, lineHeight: 0.9, color: ORANGE }}>Ali</span>
-                <span style={{ width: 11, height: 11, marginBottom: 6, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
+        {/* Hero: foto da viagem contida no topo + header compacto */}
+        <div style={{ position: "relative", overflow: "hidden", background: NAVY, flex: "0 0 auto" }}>
+          <div style={{ position: "absolute", inset: 0 }} aria-hidden="true">
+            {activeMeta.bg
+              ? <img src={activeMeta.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : <Skyline />}
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(18,30,52,0.52) 0%, rgba(18,30,52,0.62) 55%, rgba(18,30,52,0.85) 100%)" }} />
+          </div>
+
+          <div style={{ position: "relative", padding: "14px 16px 12px", color: "#fff" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 0.9, color: CREAM }}>Vou</span>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 0.9, color: ORANGE }}>Ali</span>
+                <span style={{ width: 9, height: 9, marginBottom: 4, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
               </div>
-              <button onClick={() => setOv({ kind: "trips" })} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", color: "#fff", display: "block" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 25, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.05 }}>{activeMeta.name || "Minha viagem"}</span>
-                  <span style={{ fontSize: 15, opacity: 0.8, marginTop: 2 }}>▾</span>
-                </div>
-                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.82)", fontWeight: 600, marginTop: 1 }}>{activeMeta.dateLabel || "toque para escolher"}</div>
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => setOv({ kind: "ajustes" })} aria-label="Ajustes" style={{ width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <GearIcon color="rgba(255,255,255,0.92)" size={19} />
+                </button>
+                <ProgressRing pct={overallPct} />
+              </div>
             </div>
-            <div style={{ textAlign: "right", paddingTop: 2 }}>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", fontWeight: 700, letterSpacing: 1 }}>PROGRESSO</div>
-              <div style={{ fontSize: 28, fontWeight: 800, fontFamily: DISPLAY, color: ORANGE }}>{overallPct}%</div>
-            </div>
+            <button onClick={() => setOv({ kind: "trips" })} aria-label="Trocar de viagem" style={{ marginTop: 8, background: "rgba(255,255,255,0.14)", border: "1.5px solid rgba(255,255,255,0.35)", borderRadius: 999, padding: "8px 16px", minHeight: 42, display: "inline-flex", alignItems: "center", gap: 8, color: "#fff", cursor: "pointer", fontFamily: HELV, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>
+              <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>{activeMeta.name || "Minha viagem"}</span>
+              <ChevronIcon color="rgba(255,255,255,0.85)" size={14} dir="down" />
+            </button>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", fontWeight: 700, marginTop: 7 }}>{activeMeta.dateLabel || "toque no nome para escolher a viagem"}</div>
+            {sync !== "synced" && <SyncPill status={sync} />}
           </div>
-          <div style={{ height: 4, background: "rgba(255,255,255,0.28)", borderRadius: 2, marginTop: 12, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${overallPct}%`, background: ORANGE, transition: "width .4s ease" }} />
-          </div>
-          <SyncPill status={sync} />
-        </div>
 
         {/* Day selector */}
         {tab === "roteiro" && (
-          <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "14px 16px", background: "linear-gradient(135deg, rgba(27,47,77,0.82), rgba(44,77,112,0.66))", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}>
+          <div style={{ position: "relative", display: "flex", gap: 10, overflowX: "auto", padding: "6px 16px 14px" }}>
             {days.map((d) => {
               const sel = d.id === active;
               const complete = d.stops.length > 0 && d.stops.every((s) => s.done);
@@ -290,28 +348,32 @@ export default function App() {
             </button>
           </div>
         )}
+        </div>
 
-        {/* Body */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "20px 18px 90px", display: tab === "ali" ? "flex" : "block", flexDirection: "column" }}>
+        {/* Body (superfície sólida areia-clara) */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
           {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes }} />}
           {tab === "roteiro" && !day && (
-            <div style={{ textAlign: "center", color: "#fff", marginTop: 50, textShadow: HSHADOW }}>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Esta viagem ainda não tem dias.</div>
-              <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 18 }}>Adicione o primeiro dia para começar o roteiro.</div>
+            <div style={{ textAlign: "center", marginTop: 50 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: NAVY, marginBottom: 6 }}>Esta viagem ainda não tem dias.</div>
+              <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginBottom: 18 }}>Adicione o primeiro dia para começar o roteiro.</div>
               <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>
             </div>
           )}
           {tab === "roteiro" && day && (
             <>
-              <div style={{ fontSize: 11, letterSpacing: 1.4, color: "rgba(251,244,233,0.92)", fontWeight: 500, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase", textShadow: HSHADOW }}>{day.date} · {day.sub}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: -0.3, fontFamily: DISPLAY, textShadow: HSHADOW }}>{day.title}</h2>
-                <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
-                  {!reorder && <button onClick={() => setOv({ kind: "dayForm", day })} style={btn("#fff", { color: dc, border: `1.5px solid ${dc}`, padding: "7px 10px", fontSize: 13 })}>✎ Dia</button>}
-                  <button onClick={() => setReorder(!reorder)} style={btn(reorder ? dc : "#fff", { color: reorder ? "#fff" : dc, border: `1.5px solid ${dc}`, padding: "7px 12px", fontSize: 13 })}>{reorder ? "Concluir" : "↕ Reordenar"}</button>
-                </div>
+              <div style={{ fontSize: 12, letterSpacing: 1.2, color: BROWN, fontWeight: 700, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase" }}>{day.date} · {day.sub}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: NAVY, letterSpacing: -0.3, fontFamily: DISPLAY }}>{day.title}</h2>
+                {reorder ? (
+                  <button onClick={() => setReorder(false)} style={btn(dc, { padding: "8px 18px", minHeight: 40, flex: "0 0 auto", fontSize: 14 })}>Concluir</button>
+                ) : (
+                  <button onClick={() => setOv({ kind: "dayMenu" })} aria-label="Opções do dia" style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(34,58,94,0.08)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <DotsIcon color={NAVY} size={20} />
+                  </button>
+                )}
               </div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.9)", marginBottom: 18, fontWeight: 600, textShadow: HSHADOW }}>{reorder ? "Use as setas para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
+              <div style={{ fontSize: 13, color: INK2, marginBottom: 16, fontWeight: 600 }}>{reorder ? "Arraste pelo puxador para mudar a ordem" : `${day.stops.filter((s) => s.done).length} de ${day.stops.length} paradas · toque para detalhes`}</div>
 
               {!reorder && aliDayTip && (
                 <div style={{ marginBottom: 18 }}><AliTip>{aliDayTip}</AliTip></div>
@@ -320,104 +382,147 @@ export default function App() {
               <div style={{ position: "relative" }}>
                 {day.stops.map((s, i) => {
                   const last = i === day.stops.length - 1;
-                  const arrow = (dir, disabled) => (
-                    <button onClick={() => moveStop(i, dir)} disabled={disabled} style={{ width: 30, height: 25, borderRadius: 7, border: "1.5px solid #ccc", background: "#fff", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.3 : 1, fontWeight: 900, fontSize: 14, color: "#223A5E", lineHeight: 1 }}>{dir < 0 ? "↑" : "↓"}</button>
-                  );
+                  const isNext = !reorder && !s.done && s.id === nextStopId;
+                  const dragging = drag && drag.idx === i;
                   return (
-                    <div key={s.id} style={{ display: "flex", gap: 14, position: "relative", paddingBottom: last ? 0 : 22 }}>
-                      {!last && !reorder && <div style={{ position: "absolute", left: 12, top: 26, bottom: 0, width: 3, background: s.done ? dc : "#d9d7d0" }} />}
+                    <div key={s.id} ref={(el) => { rowRefs.current[i] = el; }}
+                      style={{ display: "flex", gap: 12, position: "relative", paddingBottom: last ? 0 : 20, transform: dragging ? `translateY(${drag.dy}px)` : "none", zIndex: dragging ? 6 : "auto", transition: dragging ? "none" : "transform .15s ease" }}>
+                      {!last && !reorder && <div style={{ position: "absolute", left: 15, top: 32, bottom: 0, width: 3, background: s.done ? dc : "#ded8ca", borderRadius: 2 }} />}
                       {reorder ? (
-                        <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 4, zIndex: 1 }}>
-                          {arrow(-1, i === 0)}
-                          {arrow(1, last)}
-                        </div>
+                        <button
+                          onPointerDown={onDragStart(i)} onPointerMove={onDragMove} onPointerUp={onDragEnd} onPointerCancel={onDragEnd}
+                          aria-label={`Arrastar ${s.n} para reordenar`}
+                          style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: 12, border: "1.5px solid #d8d3c8", background: "#fff", cursor: dragging ? "grabbing" : "grab", display: "flex", alignItems: "center", justifyContent: "center", touchAction: "none", zIndex: 1, boxShadow: dragging ? "0 8px 20px rgba(20,32,56,0.25)" : "none" }}>
+                          <DragIcon size={20} />
+                        </button>
                       ) : (
-                        <div onClick={() => toggleStop(s.id)} style={{ flex: "0 0 auto", width: 26, height: 26, borderRadius: "50%", zIndex: 1, cursor: "pointer", background: s.done ? dc : "#fff", border: `3px solid ${s.done ? dc : "#c9c7c0"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          {s.done && <span style={{ color: "#fff", fontSize: 13, fontWeight: 900 }}>✓</span>}
-                        </div>
+                        <button onClick={() => toggleStop(s.id)} aria-pressed={!!s.done} aria-label={s.done ? `Desmarcar ${s.n}` : `Concluir ${s.n}`}
+                          style={{ flex: "0 0 auto", width: 44, height: 44, margin: "-6px 0 0 -7px", padding: 0, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
+                          <span style={{ width: 30, height: 30, borderRadius: "50%", background: s.done ? dc : "#fff", border: `3px solid ${s.done ? dc : "#c9c7c0"}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(20,32,56,0.12)" }}>
+                            {s.done && <span style={{ color: "#fff", fontSize: 14, fontWeight: 900, animation: "pop .25s ease" }}>✓</span>}
+                          </span>
+                        </button>
                       )}
-                      <div onClick={reorder ? undefined : () => setOv({ kind: "detail", stop: s })} style={{ flex: 1, background: "#fff", borderRadius: 13, padding: "12px 14px", boxShadow: "0 5px 16px rgba(10,22,55,0.18)", opacity: (s.done && !reorder) ? 0.6 : 1, cursor: reorder ? "default" : "pointer", borderLeft: `4px solid ${dc}`, border: reorder ? `1.5px solid ${dc}` : undefined, display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                            <span style={{ fontWeight: 800, fontSize: 15, color: "#223A5E", textDecoration: (s.done && !reorder) ? "line-through" : "none" }}>{s.n}</span>
+                      <button onClick={reorder ? undefined : () => setOv({ kind: "detail", stop: s })} disabled={reorder}
+                        style={{ flex: 1, minWidth: 0, textAlign: "left", fontFamily: HELV, background: "#fff", borderRadius: 14, padding: "13px 14px", boxShadow: isNext ? "0 8px 22px rgba(20,32,56,0.16)" : "0 4px 12px rgba(20,32,56,0.08)", opacity: (s.done && !reorder) ? 0.55 : 1, cursor: reorder ? "default" : "pointer", borderTop: isNext ? `2px solid ${dc}` : "2px solid transparent", borderRight: isNext ? `2px solid ${dc}` : "2px solid transparent", borderBottom: isNext ? `2px solid ${dc}` : "2px solid transparent", borderLeft: `4px solid ${dc}`, display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                            <span style={{ fontWeight: 800, fontSize: 15, color: NAVY, textDecoration: (s.done && !reorder) ? "line-through" : "none" }}>{s.n}</span>
                             <span style={{ flex: "0 0 auto", fontSize: 12, fontWeight: 800, color: dc }}>{s.t}</span>
-                          </div>
-                          <div style={{ fontSize: 12.5, color: "#888", marginTop: 2, fontWeight: 500 }}>{s.d}</div>
-                        </div>
-                        {!reorder && <span style={{ color: "#cfcdc6", fontSize: 20, fontWeight: 700, flex: "0 0 auto" }}>›</span>}
-                      </div>
+                          </span>
+                          <span style={{ display: "block", fontSize: 13, color: INK3, marginTop: 2, fontWeight: 500 }}>{s.d}</span>
+                        </span>
+                        {!reorder && <ChevronIcon color="#b6bfcc" size={16} />}
+                      </button>
                     </div>
                   );
                 })}
               </div>
-              {!reorder && <button onClick={() => setOv({ kind: "stopForm", stop: null })} style={btn("#fff", { color: dc, border: `1.5px dashed ${dc}`, width: "100%", marginTop: 20 })}>+ Adicionar parada</button>}
             </>
           )}
 
           {tab === "orcamento" && (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Orçamento</h2>
-                <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={btn("#223A5E", { padding: "8px 12px" })}>+ Item</button>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Orçamento</h2>
+                <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Item</button>
               </div>
-              <div style={{ background: CARD_DARK, color: "#fff", borderRadius: 16, padding: "18px 20px", marginBottom: 20, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ color: "#8a8a8a", fontSize: 13, fontWeight: 600 }}>Teto</span><span style={{ fontWeight: 800 }}>US$ {TOTAL_BUDGET.toLocaleString()}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ color: "#8a8a8a", fontSize: 13, fontWeight: 600 }}>Planejado</span><span style={{ fontWeight: 800 }}>US$ {planned.toLocaleString()}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#8a8a8a", fontSize: 13, fontWeight: 600 }}>Já gasto</span><span style={{ fontWeight: 800 }}>US$ {spent.toLocaleString()}</span></div>
-                <div style={{ height: 1, background: "#2a2a2a", margin: "12px 0" }} />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={{ fontSize: 14, fontWeight: 700 }}>Sobra p/ compras</span><span style={{ fontWeight: 800, fontSize: 24, color: remaining < 0 ? "#ef4444" : "#F28C28" }}>US$ {remaining.toLocaleString()}</span></div>
-              </div>
-              <div style={{ marginBottom: 20 }}><AliTip>{aliBudgetTip}</AliTip></div>
-              {budget.map((b) => (
-                <div key={b.id} onClick={() => setOv({ kind: "budgetForm", item: b })} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", borderRadius: 10, padding: "12px 14px", marginBottom: 8, boxShadow: "0 4px 14px rgba(10,22,55,0.14)", cursor: "pointer" }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: "#223A5E" }}>{b.k}</div>
-                    <div style={{ fontSize: 11, color: "#aaa", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>{b.tag}{b.spent ? ` · gasto US$ ${b.spent}` : ""}</div>
+
+              {budget.length === 0 ? (
+                <>
+                  <AliTip>Bora planejar os gastos? Adicione o primeiro item — ingressos, comida, transporte — e eu te ajudo a ficar de olho no teto.</AliTip>
+                  <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={{ ...btn("#fff", { color: NAVY, border: `1.5px dashed ${STEEL}` }), width: "100%", marginTop: 14 }}>+ Adicionar item</button>
+                </>
+              ) : (
+                <>
+                  <div style={{ background: "#fff", borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: "0 6px 18px rgba(20,32,56,0.08)", display: "flex", alignItems: "center", gap: 16 }}>
+                    <div aria-hidden="true" style={{ width: 108, height: 108, borderRadius: "50%", background: donutBg, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
+                      <div style={{ width: 74, height: 74, borderRadius: "50%", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: remaining < 0 ? "#C62828" : NAVY }}>{remaining < 0 ? "−" : ""}US$ {Math.abs(remaining).toLocaleString()}</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: INK3, letterSpacing: 1 }}>{remaining < 0 ? "ACIMA" : "SOBRA"}</span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {[["Teto", TOTAL_BUDGET], ["Planejado", planned], ["Já gasto", spent]].map(([l, v]) => (
+                        <div key={l} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: INK3 }}>{l}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY }}>US$ {v.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#223A5E" }}>US$ {b.v}</div>
-                </div>
-              ))}
+                  <div style={{ marginBottom: 18 }}><AliTip>{aliBudgetTip}</AliTip></div>
+                  {tags.map((t) => (
+                    <div key={t} style={{ marginBottom: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 2px 8px" }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 3, background: tagColor(t), display: "block", flex: "0 0 auto" }} />
+                        <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.8, textTransform: "uppercase" }}>{t}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: INK3 }}>US$ {tagTotals[t].toLocaleString()}</span>
+                      </div>
+                      {budget.filter((b) => tagOf(b) === t).map((b) => {
+                        const v = Number(b.v || 0), sp = Number(b.spent || 0);
+                        return (
+                          <button key={b.id} onClick={() => setOv({ kind: "budgetForm", item: b })} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: "pointer" }}>
+                            <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                              <span style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{b.k}</span>
+                              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY, flex: "0 0 auto" }}>US$ {v.toLocaleString()}</span>
+                            </span>
+                            {v > 0 && (
+                              <>
+                                <span style={{ display: "block", height: 6, background: SAND_L, borderRadius: 3, marginTop: 9, overflow: "hidden" }}>
+                                  <span style={{ display: "block", height: "100%", width: `${Math.min(100, (sp / v) * 100)}%`, background: sp > v ? "#C62828" : STEEL, borderRadius: 3, transition: "width .3s ease" }} />
+                                </span>
+                                <span style={{ display: "block", fontSize: 12, color: INK3, marginTop: 5, fontWeight: 600 }}>{sp > 0 ? `gasto US$ ${sp.toLocaleString()}` : "nada gasto ainda"}</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </>
+              )}
             </>
           )}
 
           {tab === "info" && (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Comprar antes</h2>
-                <button onClick={() => setOv({ kind: "prebuyForm", item: null })} style={btn("#223A5E", { padding: "8px 12px" })}>+ Item</button>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Comprar antes</h2>
+                <button onClick={() => setOv({ kind: "prebuyForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Item</button>
               </div>
+              {prebuy.length === 0 && (
+                <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginBottom: 8 }}>Nada por aqui ainda — adicione o que precisa reservar ou comprar antes de viajar.</div>
+              )}
               {prebuy.map((p) => (
-                <div key={p.id} style={{ display: "flex", gap: 12, alignItems: "center", background: "#fff", borderRadius: 10, padding: "13px 14px", marginBottom: 8, boxShadow: "0 4px 14px rgba(10,22,55,0.14)" }}>
-                  <div onClick={() => setPrebuyP(prebuy.map((x) => x.id === p.id ? { ...x, done: !x.done } : x))} style={{ width: 22, height: 22, borderRadius: 6, flex: "0 0 auto", cursor: "pointer", background: p.done ? "#F28C28" : "#fff", border: `2px solid ${p.done ? "#F28C28" : "#ccc"}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900 }}>{p.done && "✓"}</div>
-                  <span onClick={() => setOv({ kind: "prebuyForm", item: p })} style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#223A5E", textDecoration: p.done ? "line-through" : "none", opacity: p.done ? 0.5 : 1, cursor: "pointer" }}>{p.text}</span>
+                <div key={p.id} style={{ display: "flex", gap: 4, alignItems: "center", background: "#fff", borderRadius: 12, padding: "3px 6px 3px 3px", marginBottom: 8, boxShadow: "0 4px 12px rgba(20,32,56,0.07)" }}>
+                  <button onClick={() => setPrebuyP(prebuy.map((x) => x.id === p.id ? { ...x, done: !x.done } : x))} aria-pressed={!!p.done} aria-label={p.done ? `Desmarcar ${p.text}` : `Marcar ${p.text}`}
+                    style={{ width: 44, height: 44, flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                    <span style={{ width: 24, height: 24, borderRadius: 7, background: p.done ? ORANGE : "#fff", border: `2px solid ${p.done ? ORANGE : "#ccc"}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900 }}>{p.done && <span style={{ animation: "pop .25s ease" }}>✓</span>}</span>
+                  </button>
+                  <button onClick={() => setOv({ kind: "prebuyForm", item: p })} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: HELV, textAlign: "left" }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: NAVY, textDecoration: p.done ? "line-through" : "none", opacity: p.done ? 0.5 : 1 }}>{p.text}</span>
+                    <ChevronIcon color="#b6bfcc" size={15} />
+                  </button>
                 </div>
               ))}
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "26px 0 14px" }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Notas</h2>
-                <button onClick={() => setOv({ kind: "noteForm", item: null })} style={btn("#223A5E", { padding: "8px 12px" })}>+ Nota</button>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Notas</h2>
+                <button onClick={() => setOv({ kind: "noteForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Nota</button>
               </div>
+              {notes.length === 0 && (
+                <div style={{ fontSize: 14, color: INK2, fontWeight: 500 }}>Nenhuma nota ainda — guarde aqui lembretes, regras do metrô, clima…</div>
+              )}
               {notes.map((nt) => (
-                <div key={nt.id} onClick={() => setOv({ kind: "noteForm", item: nt })} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 10, boxShadow: "0 4px 14px rgba(10,22,55,0.14)", cursor: "pointer" }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: "#223A5E", marginBottom: 6 }}>{nt.title}</div>
-                  <div style={{ fontSize: 13, color: "#665", lineHeight: 1.5, fontWeight: 500 }}>{nt.body}</div>
-                </div>
+                <button key={nt.id} onClick={() => setOv({ kind: "noteForm", item: nt })} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 14, padding: "14px 16px", marginBottom: 10, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontWeight: 800, fontSize: 14, color: NAVY, marginBottom: 5 }}>{nt.title}</span>
+                    <span style={{ display: "block", fontSize: 13, color: INK2, lineHeight: 1.5, fontWeight: 500 }}>{nt.body}</span>
+                  </span>
+                  <ChevronIcon color="#b6bfcc" size={15} />
+                </button>
               ))}
-
-              <div style={{ margin: "26px 0 14px" }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff", fontFamily: DISPLAY, textShadow: HSHADOW }}>Backup</h2>
-              </div>
-              <div style={{ background: "#fff", borderRadius: 12, padding: "16px", boxShadow: "0 4px 14px rgba(10,22,55,0.14)" }}>
-                <div style={{ fontSize: 13, color: "#665", lineHeight: 1.5, fontWeight: 500, marginBottom: 12 }}>
-                  Baixe uma cópia de toda a viagem (roteiro, orçamento e notas) antes de viajar. Se algo der errado, é só reimportar.
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={exportBackup} style={{ ...btn("#223A5E"), flex: 1 }}>↓ Exportar</button>
-                  <button onClick={() => fileRef.current && fileRef.current.click()} style={{ ...btn("#fff", { color: "#223A5E", border: "1.5px solid #223A5E" }), flex: 1 }}>↑ Importar</button>
-                </div>
-                <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }}
-                  onChange={(e) => { importBackup(e.target.files[0]); e.target.value = ""; }} />
-              </div>
             </>
           )}
         </div>
@@ -441,7 +546,26 @@ export default function App() {
         </div>
       </div>
 
+      {/* FAB: adicionar parada (roteiro) */}
+      {tab === "roteiro" && day && !reorder && !ov && (
+        <button onClick={() => setOv({ kind: "stopForm", stop: null })} aria-label="Adicionar parada"
+          style={{ position: "fixed", right: "max(16px, calc(50% - 204px))", bottom: "calc(84px + env(safe-area-inset-bottom))", width: 56, height: 56, borderRadius: 28, border: "none", background: ORANGE, boxShadow: "0 8px 20px rgba(221,125,28,0.45)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15 }}>
+          <PlusIcon color={NAVY} size={24} />
+        </button>
+      )}
+
       {/* Overlays */}
+      {ov?.kind === "ajustes" && (
+        <AjustesSheet onClose={() => setOv(null)} onExport={exportBackup}
+          onImportFile={(f) => { setOv(null); importBackup(f); }} />
+      )}
+      {ov?.kind === "dayMenu" && day && (
+        <ActionSheet title={day.title} onClose={() => setOv(null)} actions={[
+          { icon: <PencilIcon color={NAVY} size={18} />, label: "Editar dia", onClick: () => setOv({ kind: "dayForm", day }) },
+          { icon: <DragIcon color={NAVY} size={18} />, label: "Reordenar paradas", onClick: () => { setReorder(true); setOv(null); } },
+          { icon: <PlusIcon color={NAVY} size={18} />, label: "Adicionar parada", onClick: () => setOv({ kind: "stopForm", stop: null }) },
+        ]} />
+      )}
       {ov?.kind === "trips" && (
         <TripsSheet trips={trips} activeId={trips.active} onClose={() => setOv(null)}
           onSwitch={switchTrip}

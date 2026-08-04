@@ -5,7 +5,7 @@ import React from "react";
 export default function Skyline() {
   return (
   <svg viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"
-    style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 0, opacity: 0.9 }}>
+    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.9 }}>
     <defs>
       <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stopColor="#F5E8D4" /><stop offset="0.6" stopColor="#FBF4E9" /><stop offset="1" stopColor="#FBF4E9" />

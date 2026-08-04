@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Sheet from "./Sheet";
-import { btn, field, lbl, onColor } from "../theme";
+import { ChevronIcon, ChevronsIcon } from "./Icons";
+import { btn, field, lbl, onColor, NAVY } from "../theme";
 
 // Formulário de criação/edição de um dia do roteiro.
 export default function DayForm({ day, onSave, onClose, onDelete, canDelete, index = -1, total = 0, onMove }) {
@@ -9,9 +10,9 @@ export default function DayForm({ day, onSave, onClose, onDelete, canDelete, ind
   const symbol = (f.line || "?").slice(0, 3);
   const isFirst = index <= 0;
   const isLast = index === total - 1;
-  const moveBtn = (where, txt, disabled) => (
-    <button type="button" onClick={() => onMove && onMove(where)} disabled={disabled}
-      style={{ flex: "0 0 auto", minWidth: 40, height: 38, borderRadius: 9, border: "1.5px solid #ccc", background: "#fff", color: "#223A5E", fontWeight: 800, fontSize: 15, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1 }}>{txt}</button>
+  const moveBtn = (where, icon, disabled, label) => (
+    <button type="button" onClick={() => onMove && onMove(where)} disabled={disabled} aria-label={label}
+      style={{ flex: "0 0 auto", minWidth: 48, height: 44, borderRadius: 12, border: "1.5px solid #ccc", background: "#fff", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1, display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</button>
   );
   return (
     <Sheet onClose={onClose}>
@@ -48,11 +49,11 @@ export default function DayForm({ day, onSave, onClose, onDelete, canDelete, ind
           <>
             <label style={lbl}>Posição no roteiro</label>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
-              {moveBtn("start", "⏮", isFirst)}
-              {moveBtn("left", "◀", isFirst)}
+              {moveBtn("start", <ChevronsIcon color={NAVY} size={17} dir="left" />, isFirst, "Mover para o início")}
+              {moveBtn("left", <ChevronIcon color={NAVY} size={17} dir="left" />, isFirst, "Mover para antes")}
               <span style={{ flex: 1, textAlign: "center", fontSize: 13, fontWeight: 700, color: "#365D7A" }}>{index + 1} de {total}</span>
-              {moveBtn("right", "▶", isLast)}
-              {moveBtn("end", "⏭", isLast)}
+              {moveBtn("right", <ChevronIcon color={NAVY} size={17} dir="right" />, isLast, "Mover para depois")}
+              {moveBtn("end", <ChevronsIcon color={NAVY} size={17} dir="right" />, isLast, "Mover para o fim")}
             </div>
           </>
         )}

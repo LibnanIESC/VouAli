@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Sheet from "./Sheet";
+import { SparkIcon } from "./Icons";
 import { apiAliDica } from "../api";
 import { btn, field, lbl, ORANGE, NAVY, HELV } from "../theme";
 
@@ -39,8 +40,8 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
           <label style={{ ...lbl, marginTop: 0 }}>Dica do Ali</label>
           <button type="button" onClick={gerarDica} disabled={gerando || !f.n.trim()}
             title={!f.n.trim() ? "Preencha o nome da parada primeiro" : ""}
-            style={{ background: ORANGE, color: NAVY, border: "none", borderRadius: 999, padding: "6px 12px", fontSize: 12, fontWeight: 800, fontFamily: HELV, cursor: gerando || !f.n.trim() ? "default" : "pointer", opacity: gerando || !f.n.trim() ? 0.5 : 1 }}>
-            {gerando ? "Gerando…" : "✨ Gerar com o Ali"}
+            style={{ background: ORANGE, color: NAVY, border: "none", borderRadius: 999, padding: "8px 14px", minHeight: 36, fontSize: 12.5, fontWeight: 800, fontFamily: HELV, cursor: gerando || !f.n.trim() ? "default" : "pointer", opacity: gerando || !f.n.trim() ? 0.5 : 1, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <SparkIcon color={NAVY} size={13} />{gerando ? "Gerando…" : "Gerar com o Ali"}
           </button>
         </div>
         <textarea style={field} rows={2} value={f.insight} onChange={up("insight")} placeholder="Um truque, o que evitar, o melhor horário… ou toque em Gerar com o Ali" />

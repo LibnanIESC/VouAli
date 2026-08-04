@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { CloseIcon } from "./Icons";
 
 // Bottom sheet arrastável (fecha ao puxar para baixo).
 export default function Sheet({ children, onClose }) {
@@ -17,7 +18,9 @@ export default function Sheet({ children, onClose }) {
           style={{ position: "relative", height: 34, flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", cursor: dragging ? "grabbing" : "grab", touchAction: "none" }}>
           <div style={{ width: 44, height: 5, borderRadius: 3, background: "rgba(0,0,0,0.22)" }} />
           <button onClick={onClose} onPointerDown={(e) => e.stopPropagation()} aria-label="Fechar"
-            style={{ position: "absolute", right: 12, top: 5, width: 30, height: 30, borderRadius: 15, border: "none", background: "rgba(0,0,0,0.30)", color: "#fff", fontSize: 15, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>✕</button>
+            style={{ position: "absolute", right: 8, top: 2, width: 44, height: 44, borderRadius: 22, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+            <span style={{ width: 30, height: 30, borderRadius: 15, background: "rgba(0,0,0,0.30)", display: "flex", alignItems: "center", justifyContent: "center" }}><CloseIcon size={14} /></span>
+          </button>
         </div>
         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
       </div>
