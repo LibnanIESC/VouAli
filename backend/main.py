@@ -16,7 +16,10 @@ STATIC = Path(__file__).parent / "static"
 # Metadados da viagem de NY (usados na migração do dado antigo para o modelo
 # multi-viagem). Espelham o que hoje está fixo no frontend, para nada mudar.
 NY_BG = "https://images.unsplash.com/photo-1557780486-7347b5578a23?fm=jpg&q=70&w=1600&auto=format&fit=crop"
-NY_META = {"id": "ny", "name": "New York", "dateLabel": "6 – 13 Outubro", "destination": "New York", "bg": NY_BG}
+NY_META = {"id": "ny", "name": "New York", "dateLabel": "6 – 13 Outubro", "destination": "New York", "bg": NY_BG,
+           "currency": "US$", "budget": 3000, "startDate": "2026-10-06", "endDate": "2026-10-13", "interests": ""}
+# Campos de metadados aceitos ao criar/editar uma viagem (texto, exceto budget).
+META_FIELDS = ("name", "dateLabel", "destination", "bg", "currency", "startDate", "endDate", "interests")
 EMPTY_STATE = {"days": [], "budget": [], "prebuy": [], "notes": []}
 
 # --- Ali (assistente com IA) ---
@@ -76,7 +79,7 @@ ALI_GERAR_SYSTEM = (
     '{"days":[{"label":"<sigla do dia da semana, ex: SEG>","date":"<ex: 14 SET>","title":"<tema do dia>",'
     '"sub":"<subtítulo curto>","stops":[{"t":"<horário, ex: 10h>","n":"<nome do lugar>","d":"<resumo de 1 linha>",'
     '"getting":"<como chegar>","todo":"<o que fazer>","insight":"<dica do Ali, específica e útil>"}]}],'
-    '"budget":[{"k":"<descrição>","v":<número em US$>,"tag":"<ingressos|comida|transporte|hospedagem|outros>"}],'
+    '"budget":[{"k":"<descrição>","v":<número na moeda informada>,"tag":"<ingressos|comida|transporte|hospedagem|outros>"}],'
     '"prebuy":["<item para reservar/comprar antes>"],'
     '"notes":[{"title":"<título curto com emoji>","body":"<texto útil>"}]}\n'
     "Regras: gere EXATAMENTE o número de dias pedido; 3 a 5 paradas por dia, em ordem cronológica; "
@@ -173,13 +176,19 @@ def _trip_context(trip: dict) -> str:
                 if ins:
                     line += f" — dica: {ins}"
                 parts.append(line)
+    cur = str(trip.get("currency") or "US$").strip() or "US$"
     budget = trip.get("budget") or []
     if budget:
         b = "; ".join(
-            f"{x.get('k','')} US${x.get('v',0)}" + (f" (gasto US${x.get('spent',0)})" if x.get('spent') else "")
+            f"{x.get('k','')} {cur}{x.get('v',0)}" + (f" (gasto {cur}{x.get('spent',0)})" if x.get('spent') else "")
             for x in budget
         )
-        parts.append("ORÇAMENTO (teto US$3000): " + b)
+        try:
+            teto = float(trip.get("budgetTotal") or 0)
+        except (TypeError, ValueError):
+            teto = 0
+        head = f"ORÇAMENTO (teto {cur}{teto:g}): " if teto > 0 else "ORÇAMENTO (sem teto definido): "
+        parts.append(head + b)
     prebuy = trip.get("prebuy") or []
     pend = [str(p.get("text", "")).strip() for p in prebuy if not p.get("done") and str(p.get("text", "")).strip()]
     if pend:
@@ -281,11 +290,21 @@ async def put_state(request: Request):
     return {"ok": True, "version": new_ver}
 
 # --- Multi-viagem ---
+def _with_meta_defaults(trips):
+    """Preenche campos novos em viagens criadas antes deles existirem."""
+    for m in (trips or {}).get("list", []):
+        for k in META_FIELDS:
+            m.setdefault(k, "")
+        m.setdefault("budget", 0)
+        if not m.get("currency"):
+            m["currency"] = "US$"
+    return trips
+
 @app.get("/api/trips")
 def list_trips(request: Request):
     check(request)
     con = db(); trips, ver = _read(con, "trips"); con.close()
-    return {"trips": trips or {"active": None, "list": []}, "version": ver}
+    return {"trips": _with_meta_defaults(trips or {"active": None, "list": []}), "version": ver}
 
 @app.post("/api/trips")
 async def create_trip(request: Request):
@@ -295,13 +314,15 @@ async def create_trip(request: Request):
     trips, tver = _read(con, "trips")
     trips = trips or {"active": None, "list": []}
     tid = uuid.uuid4().hex[:8]
-    meta = {
-        "id": tid,
-        "name": (body.get("name") or "Nova viagem").strip() or "Nova viagem",
-        "dateLabel": (body.get("dateLabel") or "").strip(),
-        "destination": (body.get("destination") or "").strip(),
-        "bg": (body.get("bg") or "").strip(),
-    }
+    meta = {"id": tid}
+    for k in META_FIELDS:
+        meta[k] = str(body.get(k) or "").strip()
+    meta["name"] = meta["name"] or "Nova viagem"
+    meta["currency"] = meta["currency"] or "US$"
+    try:
+        meta["budget"] = float(body.get("budget") or 0)
+    except (TypeError, ValueError):
+        meta["budget"] = 0
     data = body.get("data") if isinstance(body.get("data"), dict) else None
     _write(con, f"trip:{tid}", data or dict(EMPTY_STATE), 0)
     trips["list"].append(meta)
@@ -361,9 +382,14 @@ async def put_trip_meta(request: Request, tid: str):
     meta = next((m for m in trips["list"] if m.get("id") == tid), None)
     if meta is None:
         con.close(); raise HTTPException(status_code=404, detail="trip not found")
-    for k in ("name", "dateLabel", "destination", "bg"):
+    for k in META_FIELDS:
         if k in body:
-            meta[k] = str(body[k]).strip()
+            meta[k] = str(body[k] or "").strip()
+    if "budget" in body:
+        try:
+            meta["budget"] = float(body.get("budget") or 0)
+        except (TypeError, ValueError):
+            meta["budget"] = 0
     _write(con, "trips", trips, tver + 1)
     con.commit(); con.close()
     return {"trips": trips}
@@ -466,11 +492,12 @@ async def ali_gerar(request: Request):
     style = str(body.get("style", "")).strip()
     date_label = str(body.get("dateLabel", "")).strip()
     budget = body.get("budget")
-    prompt = f"Destino: {destination}\nNúmero de dias: {days}"
+    cur = str(body.get("currency") or "US$").strip() or "US$"
+    prompt = f"Destino: {destination}\nNúmero de dias: {days}\nMoeda: {cur} (use SEMPRE esta moeda nos valores)"
     if date_label:
         prompt += f"\nPeríodo: {date_label}"
     if budget:
-        prompt += f"\nOrçamento total aproximado: US$ {budget}"
+        prompt += f"\nOrçamento total aproximado: {cur} {budget}"
     if style:
         prompt += f"\nEstilo/interesses: {style}"
     prompt += f"\n\nGere o roteiro completo em JSON com EXATAMENTE {days} dias, seguindo o schema."

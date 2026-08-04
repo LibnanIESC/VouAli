@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sheet from "./Sheet";
 import AliAvatar from "./AliAvatar";
 import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
+import { CURRENCIES, INTERESSES, guessCurrency, daysBetween, formatDateLabel } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, HELV, INK2, INK3 } from "../theme";
 
 const GEN_MSGS = [
@@ -31,43 +32,70 @@ function GenProgress() {
   );
 }
 
+// Converte a lista de interesses (texto salvo) em {marcados, outros}.
+function parseInteresses(txt) {
+  const itens = String(txt || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const marcados = [], outros = [];
+  itens.forEach((i) => (INTERESSES.some((k) => k.toLowerCase() === i.toLowerCase()) ? marcados.push(INTERESSES.find((k) => k.toLowerCase() === i.toLowerCase())) : outros.push(i)));
+  return { marcados, outros: outros.join(", ") };
+}
+
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
 export default function TripForm({ trip, onSave, onClose, onDelete, canDelete }) {
-  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", bg: "" });
+  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", bg: "", currency: "", budget: "", startDate: "", endDate: "", interests: "" });
   const [mode, setMode] = useState("empty");     // empty | ai (só na criação)
-  const [gen, setGen] = useState({ days: "5", budget: "", style: "" });
   const [gerando, setGerando] = useState(false);
+  const ini = useMemo(() => parseInteresses((trip || {}).interests), [trip]);
+  const [tags, setTags] = useState(ini.marcados);
+  const [outros, setOutros] = useState(ini.outros);
+  const [dias, setDias] = useState("5");         // usado só quando não há datas
   const isNew = !trip;
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const upGen = (k) => (e) => setGen({ ...gen, [k]: e.target.value });
+
+  const diasCalc = daysBetween(f.startDate, f.endDate);
+  const label = formatDateLabel(f.startDate, f.endDate) || f.dateLabel;
+  const nDias = diasCalc || Number(dias || 0);
+  const interesses = [...tags, ...String(outros || "").split(",").map((s) => s.trim()).filter(Boolean)].join(", ");
+
+  // Sugere a moeda pelo destino enquanto o usuário ainda não escolheu uma.
+  useEffect(() => {
+    if (f.currency) return;
+    const g = guessCurrency(f.destination || f.name);
+    if (g) setF((cur) => (cur.currency ? cur : { ...cur, currency: g }));
+  }, [f.destination, f.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleTag = (t) => setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
   const submit = async () => {
     if (!f.name.trim() || gerando) return;
+    const meta = { ...f, dateLabel: label, interests: interesses, budget: Number(f.budget || 0) };
     if (isNew && mode === "ai") {
+      if (nDias < 1) { toast("Informe as datas da viagem (ou o número de dias)."); return; }
       setGerando(true);
       const r = await apiGenerate({
         destination: f.destination || f.name,
-        dateLabel: f.dateLabel,
-        days: Number(gen.days || 0),
-        budget: gen.budget ? Number(gen.budget) : undefined,
-        style: gen.style,
+        dateLabel: label,
+        days: nDias,
+        budget: Number(f.budget) > 0 ? Number(f.budget) : undefined,
+        currency: f.currency || "US$",
+        style: interesses,
       });
       setGerando(false);
-      if (r && r.state) { onSave({ ...f, data: r.state }); return; }
+      if (r && r.state) { onSave({ ...meta, data: r.state }); return; }
       if (r && r.error === "not_configured") { toast("A IA ainda não está ligada — falta a chave no servidor."); return; }
       if (r && r.error === "rate_limited") { toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂"); return; }
       if (r && r.error === "invalid") { toast("Informe o destino e o número de dias (pelo menos 1)."); return; }
       toast("Não consegui gerar o roteiro agora. Tenta de novo, ou crie a viagem vazia."); return;
     }
-    onSave(f); // criar vazia OU salvar edição
+    onSave(meta); // criar vazia OU salvar edição
   };
 
-  const modeBtn = (id, label) => (
+  const modeBtn = (id, label2) => (
     <button type="button" onClick={() => setMode(id)} disabled={gerando}
       style={{ flex: 1, padding: "10px 8px", minHeight: 44, borderRadius: 12, fontSize: 13.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
         border: mode === id ? `2px solid ${NAVY}` : "1.5px solid #ddd",
-        background: mode === id ? SAND : "#fff", color: NAVY }}>{label}</button>
+        background: mode === id ? SAND : "#fff", color: NAVY }}>{label2}</button>
   );
 
   return (
@@ -75,12 +103,60 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
       {gerando ? <GenProgress /> : (
       <div style={{ padding: "22px 22px 26px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>{trip ? "Editar viagem" : "Nova viagem"}</div>
+
         <label style={lbl}>Nome</label>
         <input style={field} value={f.name} onChange={up("name")} placeholder="Ex: New York" />
-        <label style={lbl}>Datas</label>
-        <input style={field} value={f.dateLabel} onChange={up("dateLabel")} placeholder="Ex: 6 – 13 Outubro" />
         <label style={lbl}>Destino</label>
         <input style={field} value={f.destination} onChange={up("destination")} placeholder="Ex: New York, EUA" />
+
+        {/* Datas com seletor de calendário */}
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>Início</label>
+            <input type="date" style={field} value={f.startDate || ""} onChange={up("startDate")} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>Fim</label>
+            <input type="date" style={field} value={f.endDate || ""} onChange={up("endDate")} min={f.startDate || undefined} />
+          </div>
+        </div>
+        {(label || diasCalc > 0) && (
+          <div style={{ fontSize: 13, color: INK2, fontWeight: 600, marginTop: 8 }}>
+            {label}{diasCalc > 0 ? ` · ${diasCalc} ${diasCalc === 1 ? "dia" : "dias"}` : ""}
+          </div>
+        )}
+        {f.startDate && f.endDate && diasCalc === 0 && (
+          <div style={{ fontSize: 13, color: "#C62828", fontWeight: 600, marginTop: 8 }}>A data final precisa ser igual ou depois da inicial.</div>
+        )}
+
+        {/* Orçamento + moeda */}
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: 1.3 }}>
+            <label style={lbl}>Orçamento (teto)</label>
+            <input type="number" inputMode="decimal" style={field} value={f.budget} onChange={up("budget")} placeholder="Ex: 3000" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={lbl}>Moeda</label>
+            <select style={{ ...field, appearance: "auto" }} value={f.currency || "US$"} onChange={up("currency")}>
+              {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Interesses */}
+        <label style={lbl}>Interesses</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+          {INTERESSES.map((t) => {
+            const on = tags.includes(t);
+            return (
+              <button key={t} type="button" onClick={() => toggleTag(t)} aria-pressed={on}
+                style={{ padding: "9px 14px", minHeight: 40, borderRadius: 999, fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer",
+                  border: on ? `2px solid ${NAVY}` : "1.5px solid #ddd", background: on ? SAND : "#fff", color: NAVY }}>{t}</button>
+            );
+          })}
+        </div>
+        <input style={{ ...field, marginTop: 10 }} value={outros} onChange={(e) => setOutros(e.target.value)} placeholder="Outros (separe por vírgula)" aria-label="Outros interesses" />
+
         <label style={lbl}>Imagem de fundo (link)</label>
         <input style={field} value={f.bg} onChange={up("bg")} placeholder="Cole o link (URL) de uma foto" />
         {f.bg ? (
@@ -98,19 +174,18 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
             </div>
             {mode === "ai" && (
               <div style={{ marginTop: 10, background: "#faf7f1", borderRadius: 12, padding: "12px 14px" }}>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Nº de dias</label>
-                    <input type="number" style={field} value={gen.days} onChange={upGen("days")} min={1} max={12} />
+                {diasCalc > 0 ? (
+                  <div style={{ fontSize: 13.5, color: INK2, fontWeight: 600 }}>
+                    O Ali vai montar <strong style={{ color: NAVY }}>{diasCalc} {diasCalc === 1 ? "dia" : "dias"}</strong> de roteiro{f.destination ? ` em ${f.destination}` : ""}.
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={lbl}>Orçamento US$ (opcional)</label>
-                    <input type="number" style={field} value={gen.budget} onChange={upGen("budget")} placeholder="Ex: 3000" />
-                  </div>
-                </div>
-                <label style={lbl}>Estilo / interesses (opcional)</label>
-                <input style={field} value={gen.style} onChange={upGen("style")} placeholder="Ex: gastronomia, museus, econômico, com crianças…" />
-                <div style={{ fontSize: 12, color: "#8a7a63", marginTop: 8, lineHeight: 1.5 }}>O Ali monta o cronograma dia a dia. Você pode editar tudo depois.</div>
+                ) : (
+                  <>
+                    <label style={{ ...lbl, marginTop: 0 }}>Nº de dias</label>
+                    <input type="number" style={field} value={dias} onChange={(e) => setDias(e.target.value)} min={1} max={12} />
+                    <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>Preencha as datas acima para calcular sozinho.</div>
+                  </>
+                )}
+                <div style={{ fontSize: 12, color: "#8a7a63", marginTop: 8, lineHeight: 1.5 }}>Ele usa o destino, as datas, o orçamento e os interesses. Você pode editar tudo depois.</div>
               </div>
             )}
           </>

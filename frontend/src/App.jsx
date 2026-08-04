@@ -20,6 +20,7 @@ import BudgetForm from "./components/BudgetForm";
 import TextForm from "./components/TextForm";
 import TripsSheet from "./components/TripsSheet";
 import TripForm from "./components/TripForm";
+import TetoForm from "./components/TetoForm";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
 
@@ -148,11 +149,13 @@ export default function App() {
   // Dica do Ali para o dia: a primeira parada com insight vira o "briefing".
   const aliDayTip = (((day && day.stops) || []).find((s) => s.insight && s.insight.trim()) || {}).insight;
   // Observação proativa do Ali sobre o orçamento (calculada, não armazenada).
-  const aliBudgetTip = remaining < 0
-    ? `Você passou US$ ${Math.abs(remaining).toLocaleString()} do teto planejado. Quer rever onde dá pra cortar?`
-    : remaining >= 100
-      ? `Sobram US$ ${remaining.toLocaleString()} dentro do teto — folga boa pra compras e imprevistos.`
-      : `Sobram US$ ${remaining.toLocaleString()} dentro do teto. Tá justo, vale ficar de olho nos gastos.`;
+  const aliBudgetTip = !hasTeto
+    ? `Defina um teto para esta viagem e eu te aviso quando o planejado começar a apertar. Por enquanto, você já planejou ${cur} ${planned.toLocaleString()}.`
+    : remaining < 0
+      ? `Você passou ${cur} ${Math.abs(remaining).toLocaleString()} do teto planejado. Quer rever onde dá pra cortar?`
+      : remaining >= 100
+        ? `Sobram ${cur} ${remaining.toLocaleString()} dentro do teto — folga boa pra compras e imprevistos.`
+        : `Sobram ${cur} ${remaining.toLocaleString()} dentro do teto. Tá justo, vale ficar de olho nos gastos.`;
 
   // Orçamento por categoria (donut + grupos)
   const tagOf = (b) => ((b.tag || "outros").trim().toLowerCase() || "outros");
@@ -471,16 +474,26 @@ export default function App() {
                 <>
                   <div style={{ background: "#fff", borderRadius: 16, padding: 16, marginBottom: 14, boxShadow: "0 6px 18px rgba(20,32,56,0.08)", display: "flex", alignItems: "center", gap: 16 }}>
                     <div aria-hidden="true" style={{ width: 108, height: 108, borderRadius: "50%", background: donutBg, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
-                      <div style={{ width: 74, height: 74, borderRadius: "50%", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: remaining < 0 ? "#C62828" : NAVY }}>{remaining < 0 ? "−" : ""}US$ {Math.abs(remaining).toLocaleString()}</span>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: INK3, letterSpacing: 1 }}>{remaining < 0 ? "ACIMA" : "SOBRA"}</span>
+                      <div style={{ width: 74, height: 74, borderRadius: "50%", background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, padding: 4, boxSizing: "border-box" }}>
+                        {hasTeto ? (
+                          <>
+                            <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, color: remaining < 0 ? "#C62828" : NAVY }}>{remaining < 0 ? "−" : ""}{cur} {Math.abs(remaining).toLocaleString()}</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: INK3, letterSpacing: 1 }}>{remaining < 0 ? "ACIMA" : "SOBRA"}</span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: INK3, textAlign: "center", lineHeight: 1.3 }}>sem teto</span>
+                        )}
                       </div>
                     </div>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                      {[["Teto", TOTAL_BUDGET], ["Planejado", planned], ["Já gasto", spent]].map(([l, v]) => (
+                      <button onClick={() => setOv({ kind: "tetoForm" })} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: HELV, minHeight: 28 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: INK3, display: "inline-flex", alignItems: "center", gap: 5 }}>Teto <PencilIcon color={INK3} size={13} /></span>
+                        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: hasTeto ? NAVY : STEEL }}>{hasTeto ? `${cur} ${budgetTotal.toLocaleString()}` : "definir"}</span>
+                      </button>
+                      {[["Planejado", planned], ["Já gasto", spent]].map(([l, v]) => (
                         <div key={l} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: INK3 }}>{l}</span>
-                          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY }}>US$ {v.toLocaleString()}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY }}>{cur} {v.toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
@@ -491,7 +504,7 @@ export default function App() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 2px 8px" }}>
                         <span style={{ width: 10, height: 10, borderRadius: 3, background: tagColor(t), display: "block", flex: "0 0 auto" }} />
                         <span style={{ flex: 1, fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.8, textTransform: "uppercase" }}>{t}</span>
-                        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: INK3 }}>US$ {tagTotals[t].toLocaleString()}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: INK3 }}>{cur} {tagTotals[t].toLocaleString()}</span>
                       </div>
                       {budget.filter((b) => tagOf(b) === t).map((b) => {
                         const v = Number(b.v || 0), sp = Number(b.spent || 0);
@@ -499,14 +512,14 @@ export default function App() {
                           <button key={b.id} onClick={() => setOv({ kind: "budgetForm", item: b })} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: "pointer" }}>
                             <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                               <span style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{b.k}</span>
-                              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY, flex: "0 0 auto" }}>US$ {v.toLocaleString()}</span>
+                              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY, flex: "0 0 auto" }}>{cur} {v.toLocaleString()}</span>
                             </span>
                             {v > 0 && (
                               <>
                                 <span style={{ display: "block", height: 6, background: SAND_L, borderRadius: 3, marginTop: 9, overflow: "hidden" }}>
                                   <span style={{ display: "block", height: "100%", width: `${Math.min(100, (sp / v) * 100)}%`, background: sp > v ? "#C62828" : STEEL, borderRadius: 3, transition: "width .3s ease" }} />
                                 </span>
-                                <span style={{ display: "block", fontSize: 12, color: INK3, marginTop: 5, fontWeight: 600 }}>{sp > 0 ? `gasto US$ ${sp.toLocaleString()}` : "nada gasto ainda"}</span>
+                                <span style={{ display: "block", fontSize: 12, color: INK3, marginTop: 5, fontWeight: 600 }}>{sp > 0 ? `gasto ${cur} ${sp.toLocaleString()}` : "nada gasto ainda"}</span>
                               </>
                             )}
                           </button>
@@ -643,8 +656,12 @@ export default function App() {
           onSave={(data) => ov.day ? saveDay(data) : addDay(data)}
           onDelete={() => deleteDay(ov.day.id)} />
       )}
+      {ov?.kind === "tetoForm" && (
+        <TetoForm value={budgetTotal} currency={cur} onClose={() => setOv(null)}
+          onSave={(v) => { saveTripMeta({ id: trips.active, budget: v }); toastMsg("Teto atualizado. ✅"); }} />
+      )}
       {ov?.kind === "budgetForm" && (
-        <BudgetForm item={ov.item} onClose={() => setOv(null)}
+        <BudgetForm item={ov.item} currency={cur} onClose={() => setOv(null)}
           onSave={(data) => { const nb = ov.item ? budget.map((b) => b.id === data.id ? data : b) : [...budget, { ...data, id: uid() }]; setBudgetP(nb); setOv(null); }}
           onDelete={() => { setBudgetP(budget.filter((b) => b.id !== ov.item.id)); setOv(null); }} />
       )}

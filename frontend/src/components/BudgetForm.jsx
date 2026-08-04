@@ -3,7 +3,7 @@ import Sheet from "./Sheet";
 import { btn, field, lbl } from "../theme";
 
 // Formulário de item de orçamento (planejado x gasto).
-export default function BudgetForm({ item, onSave, onClose, onDelete }) {
+export default function BudgetForm({ item, currency = "US$", onSave, onClose, onDelete }) {
   const [f, setF] = useState(item || { k: "", v: 0, spent: 0, tag: "outros" });
   const up = (k, num) => (e) => setF({ ...f, [k]: num ? Number(e.target.value || 0) : e.target.value });
   return (
@@ -16,11 +16,11 @@ export default function BudgetForm({ item, onSave, onClose, onDelete }) {
         <input style={field} value={f.tag} onChange={up("tag")} placeholder="ingressos / comida / transporte…" />
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <label style={lbl}>Planejado (US$)</label>
+            <label style={lbl}>Planejado ({currency})</label>
             <input type="number" style={field} value={f.v} onChange={up("v", true)} />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={lbl}>Gasto (US$)</label>
+            <label style={lbl}>Gasto ({currency})</label>
             <input type="number" style={field} value={f.spent} onChange={up("spent", true)} />
           </div>
         </div>
