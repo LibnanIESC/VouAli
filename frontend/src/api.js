@@ -132,6 +132,20 @@ export async function apiAli(messages, trip) {
   } catch (e) { return { error: "offline" }; }
 }
 
+// Pede ao Ali um roteiro completo para uma viagem nova. Retorna { state } ou { error }.
+export async function apiGenerate(params) {
+  try {
+    const res = await fetch("/api/ali/gerar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(params),
+    });
+    if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json();
+  } catch (e) { return { error: "offline" }; }
+}
+
 // Gera uma dica do Ali (sob demanda) para uma parada do roteiro.
 export async function apiAliDica(stop, trip) {
   try {

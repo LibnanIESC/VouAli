@@ -66,6 +66,20 @@ ALI_SYSTEM = (
     "cálculos nem tarefas. A pessoa tem que sair sorrindo, nunca sem graça nem entediada."
 )
 
+ALI_GERAR_SYSTEM = (
+    "Você é o Ali, guia de viagens experiente. Monte um roteiro de viagem completo e realista. "
+    "Responda APENAS com um objeto JSON válido (sem markdown, sem cercas ```, sem comentários, sem texto fora do JSON), nesta forma EXATA:\n"
+    '{"days":[{"label":"<sigla do dia da semana, ex: SEG>","date":"<ex: 14 SET>","title":"<tema do dia>",'
+    '"sub":"<subtítulo curto>","stops":[{"t":"<horário, ex: 10h>","n":"<nome do lugar>","d":"<resumo de 1 linha>",'
+    '"getting":"<como chegar>","todo":"<o que fazer>","insight":"<dica do Ali, específica e útil>"}]}],'
+    '"budget":[{"k":"<descrição>","v":<número em US$>,"tag":"<ingressos|comida|transporte|hospedagem|outros>"}],'
+    '"prebuy":["<item para reservar/comprar antes>"],'
+    '"notes":[{"title":"<título curto com emoji>","body":"<texto útil>"}]}\n'
+    "Regras: gere EXATAMENTE o número de dias pedido; 3 a 5 paradas por dia, em ordem cronológica; "
+    "valores de orçamento realistas para o destino e o estilo; dicas específicas (não genéricas); tudo em português do Brasil. "
+    "Não inclua campos de id nem 'done' — o app cuida disso."
+)
+
 ALI_DICA_SYSTEM = (
     "Você é o Ali, guia de viagens experiente e simpático. "
     "Gere UMA dica curta e prática (1 a 2 frases, no máximo ~220 caracteres) para a parada indicada, na viagem a Nova York. "
@@ -74,6 +88,73 @@ ALI_DICA_SYSTEM = (
     "Responda APENAS com o texto da dica — sem introdução, sem aspas, sem prefixos como 'Dica:'. "
     "Não invente preços ou horários exatos; se não souber um detalhe, seja geral."
 )
+
+# Paleta de cores de dia (todas escuras o bastante para texto branco na bolinha).
+GEN_PALETTE = ["#365D7A", "#ee352e", "#0039a6", "#b933ad", "#00933c", "#ff6319", "#996633", "#6d6e71", "#F28C28", "#7A5A3A", "#2f6f62", "#8a3b8f"]
+
+def _uid():
+    return uuid.uuid4().hex[:7]
+
+def _extract_json(text: str) -> str:
+    """Isola o objeto JSON de uma resposta (remove cercas markdown e texto ao redor)."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        if t[:4].lower() == "json":
+            t = t[4:]
+    i, j = t.find("{"), t.rfind("}")
+    return t[i:j + 1] if (i >= 0 and j > i) else t
+
+def _normalize_state(raw: dict) -> dict:
+    """Converte o JSON gerado pelo modelo no schema exato do app (ids, done, cores)."""
+    days = []
+    for i, d in enumerate(raw.get("days") or []):
+        stops = []
+        for s in (d.get("stops") or []):
+            if not isinstance(s, dict):
+                continue
+            stops.append({
+                "id": _uid(),
+                "t": str(s.get("t", "")).strip(),
+                "n": str(s.get("n", "")).strip(),
+                "d": str(s.get("d", "")).strip(),
+                "getting": str(s.get("getting", "")).strip(),
+                "todo": str(s.get("todo", "")).strip(),
+                "insight": str(s.get("insight", "")).strip(),
+                "link": str(s.get("link", "")).strip(),
+                "done": False,
+            })
+        days.append({
+            "id": _uid(),
+            "label": (str(d.get("label", "")).strip()[:4] or f"D{i + 1}"),
+            "date": str(d.get("date", "")).strip(),
+            "title": (str(d.get("title", "")).strip() or f"Dia {i + 1}"),
+            "sub": str(d.get("sub", "")).strip(),
+            "color": GEN_PALETTE[i % len(GEN_PALETTE)],
+            "line": str(i + 1),
+            "stops": stops,
+        })
+    budget = []
+    for b in (raw.get("budget") or []):
+        if not isinstance(b, dict):
+            continue
+        try:
+            v = float(b.get("v", 0) or 0)
+        except (TypeError, ValueError):
+            v = 0
+        budget.append({"id": _uid(), "k": str(b.get("k", "")).strip(), "v": v, "spent": 0, "tag": (str(b.get("tag", "outros")).strip() or "outros")})
+    prebuy = []
+    for p in (raw.get("prebuy") or []):
+        txt = p if isinstance(p, str) else (p.get("text", "") if isinstance(p, dict) else "")
+        txt = str(txt).strip()
+        if txt:
+            prebuy.append({"id": _uid(), "text": txt, "done": False})
+    notes = []
+    for n in (raw.get("notes") or []):
+        if not isinstance(n, dict):
+            continue
+        notes.append({"id": _uid(), "title": str(n.get("title", "")).strip(), "body": str(n.get("body", "")).strip()})
+    return {"days": days, "budget": budget, "prebuy": prebuy, "notes": notes}
 
 def _trip_context(trip: dict) -> str:
     parts = []
@@ -359,6 +440,51 @@ async def ali_dica(request: Request):
             return {"error": "refusal"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip().strip('"').strip()
         return {"dica": text}
+    except Exception as e:
+        return {"error": "api_error", "detail": str(e)[:200]}
+
+@app.post("/api/ali/gerar")
+async def ali_gerar(request: Request):
+    check(request)
+    if not _ali_client:
+        return {"error": "not_configured"}
+    if not _rate_ok():
+        return {"error": "rate_limited"}
+    body = await request.json()
+    destination = str(body.get("destination", "")).strip()
+    try:
+        days = int(body.get("days") or 0)
+    except (TypeError, ValueError):
+        days = 0
+    if not destination or days < 1:
+        return {"error": "invalid"}
+    days = min(days, 12)
+    style = str(body.get("style", "")).strip()
+    date_label = str(body.get("dateLabel", "")).strip()
+    budget = body.get("budget")
+    prompt = f"Destino: {destination}\nNúmero de dias: {days}"
+    if date_label:
+        prompt += f"\nPeríodo: {date_label}"
+    if budget:
+        prompt += f"\nOrçamento total aproximado: US$ {budget}"
+    if style:
+        prompt += f"\nEstilo/interesses: {style}"
+    prompt += f"\n\nGere o roteiro completo em JSON com EXATAMENTE {days} dias, seguindo o schema."
+    kwargs = {"model": ALI_MODEL, "max_tokens": 16000, "system": ALI_GERAR_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
+    if _ALI_EFFORT_OK:
+        kwargs["output_config"] = {"effort": "low"}
+    try:
+        resp = await _ali_client.messages.create(**kwargs)
+        if getattr(resp, "stop_reason", None) == "refusal":
+            return {"error": "refusal"}
+        text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+        raw = json.loads(_extract_json(text))
+        state = _normalize_state(raw if isinstance(raw, dict) else {})
+        if not state["days"]:
+            return {"error": "empty"}
+        return {"state": state}
+    except json.JSONDecodeError:
+        return {"error": "parse"}
     except Exception as e:
         return {"error": "api_error", "detail": str(e)[:200]}
 
