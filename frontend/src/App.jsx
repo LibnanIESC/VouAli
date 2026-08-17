@@ -142,6 +142,10 @@ export default function App() {
   const spent = budget.reduce((a, b) => a + Number(b.spent || 0), 0);
   // Moeda e teto vêm da viagem (fallback só para bases antigas sem esses campos).
   const cur = activeMeta.currency || "US$";
+  // Viajantes (só leitura no orçamento — nada é recalculado retroativamente)
+  const nAdults = Number(activeMeta.adults) > 0 ? Number(activeMeta.adults) : 0;
+  const nChildren = Number(activeMeta.children) > 0 ? Number(activeMeta.children) : 0;
+  const nTravelers = nAdults + nChildren;
   const budgetTotal = Number(activeMeta.budget) > 0 ? Number(activeMeta.budget) : (trips.active === "ny" ? TOTAL_BUDGET : 0);
   const hasTeto = budgetTotal > 0;
   const remaining = budgetTotal - planned;
@@ -388,7 +392,7 @@ export default function App() {
 
         {/* Body (superfície sólida areia-clara) */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
-          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes, budgetTotal, currency: cur }} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
+          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes, budgetTotal, currency: cur, adults: nAdults, children: nChildren, groupTypes: activeMeta.groupTypes }} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
           {!booted && tab !== "ali" && <SkeletonList />}
           {booted && tab === "roteiro" && !day && (
             <div style={{ textAlign: "center", marginTop: 50 }}>
@@ -496,6 +500,12 @@ export default function App() {
                           <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY }}>{cur} {v.toLocaleString()}</span>
                         </div>
                       ))}
+                      {nTravelers > 1 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "1px solid #efe9dc", paddingTop: 7 }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: INK3 }}>Por pessoa ({nTravelers})</span>
+                          <span style={{ fontFamily: MONO, fontSize: 13.5, fontWeight: 700, color: STEEL }}>{cur} {Math.round(planned / nTravelers).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div style={{ marginBottom: 18 }}><AliTip>{aliBudgetTip}</AliTip></div>

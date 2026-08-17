@@ -17,9 +17,11 @@ STATIC = Path(__file__).parent / "static"
 # multi-viagem). Espelham o que hoje está fixo no frontend, para nada mudar.
 NY_BG = "https://images.unsplash.com/photo-1557780486-7347b5578a23?fm=jpg&q=70&w=1600&auto=format&fit=crop"
 NY_META = {"id": "ny", "name": "New York", "dateLabel": "6 – 13 Outubro", "destination": "New York", "bg": NY_BG,
-           "currency": "US$", "budget": 3000, "startDate": "2026-10-06", "endDate": "2026-10-13", "interests": ""}
-# Campos de metadados aceitos ao criar/editar uma viagem (texto, exceto budget).
-META_FIELDS = ("name", "dateLabel", "destination", "bg", "currency", "startDate", "endDate", "interests")
+           "currency": "US$", "budget": 3000, "startDate": "2026-10-06", "endDate": "2026-10-13", "interests": "",
+           "adults": 2, "children": 0, "groupTypes": "Casal"}
+# Campos de metadados aceitos ao criar/editar uma viagem.
+META_FIELDS = ("name", "dateLabel", "destination", "bg", "currency", "startDate", "endDate", "interests", "groupTypes")
+META_NUMS = {"budget": 0, "adults": 1, "children": 0}   # campo -> padrão
 EMPTY_STATE = {"days": [], "budget": [], "prebuy": [], "notes": []}
 
 # --- Ali (assistente com IA) ---
@@ -65,6 +67,13 @@ ALI_SYSTEM = (
     "e NUNCA fale em 'hoje' ou 'amanhã' como se fossem dias do roteiro. Só chame um dia de 'hoje'/'amanhã' se a data de hoje realmente "
     "cair entre 06 e 13/10/2026. Ao se referir a um dia do roteiro, use sempre o rótulo e a data dele (ex.: 'o dia do Central Park', "
     "'a quinta, 8/10'), nunca 'amanhã'. "
+    "QUEM VIAJA: adapte tudo ao número de viajantes e ao perfil do grupo informados no contexto. "
+    "Ao citar valores, deixe SEMPRE claro se é por pessoa ou o total do grupo. "
+    "Casal: experiências a dois, jantares e pores do sol bons pra dois, evitar filas longas. "
+    "Família: ritmo mais calmo com pausas, atrações que funcionam com crianças, ingresso infantil, restaurantes acolhedores, evitar programas que varem a noite. "
+    "Amigos: pratos pra compartilhar, vida noturna, atividades em grupo, lembrar que táxi/transporte fica barato dividido. "
+    "Sozinho(a): segurança, passeios em grupo pra conhecer gente, balcões e mesas pra um, liberdade pra mudar o plano. "
+    "Se houver mais de um perfil, combine os dois com bom senso. "
     "FOCO EM VIAGEM: você só ajuda com assuntos de viagem — roteiro, transporte, comida, orçamento, clima, o que fazer, "
     "compras, cultura local e dicas —, com prioridade para esta viagem a Nova York. "
     "Se perguntarem algo fora desse tema (programação, política, contas de matemática, tarefas aleatórias, conselhos gerais etc.), "
@@ -84,6 +93,9 @@ ALI_GERAR_SYSTEM = (
     '"notes":[{"title":"<título curto com emoji>","body":"<texto útil>"}]}\n'
     "Regras: gere EXATAMENTE o número de dias pedido; 3 a 5 paradas por dia, em ordem cronológica; "
     "valores de orçamento realistas para o destino e o estilo; dicas específicas (não genéricas); tudo em português do Brasil. "
+    "Adapte o roteiro ao número de viajantes e ao perfil do grupo (casal, família com crianças, amigos ou sozinho): "
+    "ritmo, tipo de atração, restaurantes e vida noturna mudam conforme isso. "
+    "Os valores do orçamento devem ser o TOTAL DO GRUPO (não por pessoa), e a descrição deve deixar isso claro quando ajudar. "
     "Não inclua campos de id nem 'done' — o app cuida disso."
 )
 
@@ -163,8 +175,26 @@ def _normalize_state(raw: dict) -> dict:
         notes.append({"id": _uid(), "title": str(n.get("title", "")).strip(), "body": str(n.get("body", "")).strip()})
     return {"days": days, "budget": budget, "prebuy": prebuy, "notes": notes}
 
+def _travelers_line(trip: dict) -> str:
+    """Linha 'VIAJANTES' do contexto: composição + tipo de grupo."""
+    try:
+        ad = int(float(trip.get("adults") or 0))
+        ch = int(float(trip.get("children") or 0))
+    except (TypeError, ValueError):
+        ad, ch = 0, 0
+    if ad + ch <= 0:
+        return ""
+    quem = f"{ad} adulto{'s' if ad != 1 else ''}" if ad else ""
+    if ch:
+        quem += (" e " if quem else "") + f"{ch} criança{'s' if ch != 1 else ''}"
+    grupo = str(trip.get("groupTypes") or "").strip()
+    return f"VIAJANTES: {quem} (total {ad + ch})" + (f" — perfil: {grupo}" if grupo else "")
+
 def _trip_context(trip: dict) -> str:
     parts = []
+    tl = _travelers_line(trip)
+    if tl:
+        parts.append(tl)
     days = trip.get("days") or []
     if days:
         parts.append("ROTEIRO:")
@@ -295,7 +325,8 @@ def _with_meta_defaults(trips):
     for m in (trips or {}).get("list", []):
         for k in META_FIELDS:
             m.setdefault(k, "")
-        m.setdefault("budget", 0)
+        for k, default in META_NUMS.items():
+            m.setdefault(k, default)
         if not m.get("currency"):
             m["currency"] = "US$"
     return trips
@@ -319,10 +350,11 @@ async def create_trip(request: Request):
         meta[k] = str(body.get(k) or "").strip()
     meta["name"] = meta["name"] or "Nova viagem"
     meta["currency"] = meta["currency"] or "US$"
-    try:
-        meta["budget"] = float(body.get("budget") or 0)
-    except (TypeError, ValueError):
-        meta["budget"] = 0
+    for k, default in META_NUMS.items():
+        try:
+            meta[k] = float(body[k]) if body.get(k) not in (None, "") else default
+        except (TypeError, ValueError, KeyError):
+            meta[k] = default
     data = body.get("data") if isinstance(body.get("data"), dict) else None
     _write(con, f"trip:{tid}", data or dict(EMPTY_STATE), 0)
     trips["list"].append(meta)
@@ -385,11 +417,12 @@ async def put_trip_meta(request: Request, tid: str):
     for k in META_FIELDS:
         if k in body:
             meta[k] = str(body[k] or "").strip()
-    if "budget" in body:
-        try:
-            meta["budget"] = float(body.get("budget") or 0)
-        except (TypeError, ValueError):
-            meta["budget"] = 0
+    for k, default in META_NUMS.items():
+        if k in body:
+            try:
+                meta[k] = float(body[k]) if body[k] not in (None, "") else default
+            except (TypeError, ValueError):
+                meta[k] = default
     _write(con, "trips", trips, tver + 1)
     con.commit(); con.close()
     return {"trips": trips}
@@ -494,6 +527,9 @@ async def ali_gerar(request: Request):
     budget = body.get("budget")
     cur = str(body.get("currency") or "US$").strip() or "US$"
     prompt = f"Destino: {destination}\nNúmero de dias: {days}\nMoeda: {cur} (use SEMPRE esta moeda nos valores)"
+    tl = _travelers_line(body)
+    if tl:
+        prompt += "\n" + tl
     if date_label:
         prompt += f"\nPeríodo: {date_label}"
     if budget:

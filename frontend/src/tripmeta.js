@@ -54,3 +54,15 @@ export function formatDateLabel(start, end) {
 }
 
 export const INTERESSES = ["Museus", "Praia", "Atrações turísticas", "Restaurantes", "Monumentos", "Vida noturna", "Compras", "Natureza"];
+
+// Perfil do grupo — muda o TIPO de recomendação do Ali (ritmo, comida, noite).
+export const GRUPOS = ["Casal", "Família", "Amigos", "Sozinho(a)"];
+
+// Palpite pelo tamanho/composição do grupo (o usuário pode trocar depois).
+export function suggestGroup(adults, children) {
+  const a = Number(adults || 0), c = Number(children || 0);
+  if (a + c <= 1) return ["Sozinho(a)"];
+  if (c > 0) return ["Família"];
+  if (a === 2) return ["Casal"];
+  return ["Amigos"];
+}

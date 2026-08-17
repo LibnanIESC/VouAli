@@ -4,7 +4,7 @@ import AliAvatar from "./AliAvatar";
 import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
-import { CURRENCIES, INTERESSES, guessCurrency, daysBetween, formatDateLabel } from "../tripmeta";
+import { CURRENCIES, INTERESSES, GRUPOS, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, HELV, INK2, INK3 } from "../theme";
 
 const GEN_MSGS = [
@@ -32,6 +32,21 @@ function GenProgress() {
   );
 }
 
+// Contador -/+ com alvos de toque de 44px (usado em adultos e crianças).
+function Stepper({ value, onChange, min = 0, max = 20, label }) {
+  const btn44 = (txt, on, dis) => (
+    <button type="button" onClick={on} disabled={dis} aria-label={txt === "−" ? `Menos ${label}` : `Mais ${label}`}
+      style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 12, border: "1.5px solid #ddd", background: "#fff", color: NAVY, fontSize: 20, fontWeight: 800, lineHeight: 1, cursor: dis ? "default" : "pointer", opacity: dis ? 0.35 : 1 }}>{txt}</button>
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+      {btn44("−", () => onChange(Math.max(min, value - 1)), value <= min)}
+      <span aria-live="polite" style={{ flex: 1, textAlign: "center", fontSize: 17, fontWeight: 800, color: NAVY, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+      {btn44("+", () => onChange(Math.min(max, value + 1)), value >= max)}
+    </div>
+  );
+}
+
 // Converte a lista de interesses (texto salvo) em {marcados, outros}.
 function parseInteresses(txt) {
   const itens = String(txt || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -43,7 +58,7 @@ function parseInteresses(txt) {
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
 export default function TripForm({ trip, onSave, onClose, onDelete, canDelete }) {
-  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", bg: "", currency: "", budget: "", startDate: "", endDate: "", interests: "" });
+  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", bg: "", currency: "", budget: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" });
   const [mode, setMode] = useState("empty");     // empty | ai (só na criação)
   const [gerando, setGerando] = useState(false);
   const ini = useMemo(() => parseInteresses((trip || {}).interests), [trip]);
@@ -52,6 +67,21 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
   const [dias, setDias] = useState("5");         // usado só quando não há datas
   const isNew = !trip;
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  // Viajantes e perfil do grupo
+  const adults = Number(f.adults) >= 0 ? Number(f.adults) : 1;
+  const children = Number(f.children) > 0 ? Number(f.children) : 0;
+  const totalViajantes = adults + children;
+  const [grupos, setGrupos] = useState(() => String((trip || {}).groupTypes || "").split(",").map((s) => s.trim()).filter(Boolean));
+  const [grupoTocado, setGrupoTocado] = useState(!!String((trip || {}).groupTypes || "").trim());
+  // Enquanto o usuário não escolher, o perfil acompanha a composição do grupo.
+  useEffect(() => {
+    if (!grupoTocado) setGrupos(suggestGroup(adults, children));
+  }, [adults, children, grupoTocado]);
+  const toggleGrupo = (g) => {
+    setGrupoTocado(true);
+    setGrupos((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]));
+  };
 
   const diasCalc = daysBetween(f.startDate, f.endDate);
   const label = formatDateLabel(f.startDate, f.endDate) || f.dateLabel;
@@ -69,7 +99,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
 
   const submit = async () => {
     if (!f.name.trim() || gerando) return;
-    const meta = { ...f, dateLabel: label, interests: interesses, budget: Number(f.budget || 0) };
+    const meta = { ...f, dateLabel: label, interests: interesses, budget: Number(f.budget || 0),
+                   adults, children, groupTypes: grupos.join(", ") };
     if (isNew && mode === "ai") {
       if (nDias < 1) { toast("Informe as datas da viagem (ou o número de dias)."); return; }
       setGerando(true);
@@ -80,6 +111,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         budget: Number(f.budget) > 0 ? Number(f.budget) : undefined,
         currency: f.currency || "US$",
         style: interesses,
+        adults, children, groupTypes: grupos.join(", "),
       });
       setGerando(false);
       if (r && r.state) { onSave({ ...meta, data: r.state }); return; }
@@ -128,6 +160,34 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         {f.startDate && f.endDate && diasCalc === 0 && (
           <div style={{ fontSize: 13, color: "#C62828", fontWeight: 600, marginTop: 8 }}>A data final precisa ser igual ou depois da inicial.</div>
         )}
+
+        {/* Viajantes + perfil do grupo */}
+        <label style={lbl}>Viajantes</label>
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: INK3 }}>Adultos</div>
+            <Stepper value={adults} min={0} label="adultos" onChange={(v) => setF((c) => ({ ...c, adults: v }))} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: INK3 }}>Crianças</div>
+            <Stepper value={children} min={0} label="crianças" onChange={(v) => setF((c) => ({ ...c, children: v }))} />
+          </div>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+          {GRUPOS.filter((g) => (totalViajantes > 1 ? g !== "Sozinho(a)" : g === "Sozinho(a)")).map((g) => {
+            const on = grupos.includes(g);
+            return (
+              <button key={g} type="button" onClick={() => toggleGrupo(g)} aria-pressed={on}
+                style={{ padding: "9px 14px", minHeight: 40, borderRadius: 999, fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer",
+                  border: on ? `2px solid ${NAVY}` : "1.5px solid #ddd", background: on ? SAND : "#fff", color: NAVY }}>{g}</button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>
+          {totalViajantes > 1
+            ? "O Ali adapta ritmo, comida e dicas ao perfil do grupo."
+            : "Viajando só? O Ali foca em segurança e liberdade pra mudar o plano."}
+        </div>
 
         {/* Orçamento + moeda */}
         <div style={{ display: "flex", gap: 12 }}>
