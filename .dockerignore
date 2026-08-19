@@ -4,3 +4,10 @@
 *.pyc
 .git
 data
+# testes e CI não vão para a imagem de produção
+backend/tests
+backend/pytest.ini
+backend/requirements-dev.txt
+**/*.test.js
+.github
+identidade-visual-vouali

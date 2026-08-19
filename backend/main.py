@@ -555,6 +555,16 @@ async def ali_gerar(request: Request):
     except Exception as e:
         return {"error": "api_error", "detail": str(e)[:200]}
 
+@app.get("/api/health")
+def health():
+    """Sem senha, de propósito: usado por monitoramento e pelo deploy."""
+    return {
+        "ok": True,
+        "environment": os.getenv("ENVIRONMENT", "dev"),
+        "ai": bool(_ali_client),
+        "auth": bool(TOKEN),
+    }
+
 # --- SPA + static assets (defined last so /api routes win) ---
 @app.get("/{full_path:path}")
 def spa(full_path: str):
