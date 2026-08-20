@@ -3,6 +3,8 @@
 FastAPI + React (PWA), rodando no Railway. O personagem **Ali** conversa sobre a
 viagem, gera roteiros e dá dicas usando a Claude API.
 
+📍 **Plano de evolução para produto Android:** [`docs/ROADMAP.md`](docs/ROADMAP.md)
+
 ## Estrutura
 - `frontend/` — React + Vite (UI, PWA)
 - `backend/` — FastAPI (API + serve o build do front)
