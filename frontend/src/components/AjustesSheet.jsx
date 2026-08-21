@@ -3,12 +3,24 @@ import Sheet from "./Sheet";
 import { btn, lbl, NAVY, INK2 } from "../theme";
 
 // Ajustes do app (backup por enquanto; ponto natural para futuras configurações).
-export default function AjustesSheet({ onExport, onImportFile, onClose }) {
+export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout }) {
   const fileRef = useRef(null);
   return (
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 30px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>Ajustes</div>
+
+        {user && (
+          <>
+            <label style={{ ...lbl, marginTop: 18 }}>Conta</label>
+            <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: NAVY }}>{user.name || "Você"}</div>
+              <div style={{ fontSize: 13.5, color: INK2, marginTop: 2, wordBreak: "break-all" }}>{user.email}</div>
+              <button onClick={onLogout} style={{ ...btn("#fff", { color: "#C62828", border: "1.5px solid #C62828" }), width: "100%", marginTop: 14 }}>Sair da conta</button>
+            </div>
+          </>
+        )}
+
         <label style={{ ...lbl, marginTop: 18 }}>Backup da viagem</label>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
           <div style={{ fontSize: 14, color: INK2, lineHeight: 1.55, fontWeight: 500, marginBottom: 12 }}>

@@ -1,15 +1,36 @@
 // ---------- Persistência no backend (sincroniza os dois celulares) ----------
 const TOKEN_KEY = "trip-token";
+
+// No modo multiusuário, quem fornece o token é o Firebase (definido pelo App).
+let _tokenGetter = null;
+export function setTokenGetter(fn) { _tokenGetter = fn; }
+
 function authHeaders() {
+  if (_tokenGetter) {
+    const t = _tokenGetter();
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  }
   let t = localStorage.getItem(TOKEN_KEY);
   if (!t) { const q = new URLSearchParams(location.search).get("k"); if (q) { t = q; localStorage.setItem(TOKEN_KEY, q); } }
   return t ? { "X-Trip-Token": t } : {};
+}
+
+// Configuração pública do servidor (modo de login e credenciais do Firebase).
+export async function apiConfig() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) return { authMode: "token", firebase: null };
+    return await res.json();
+  } catch (e) { return { authMode: "token", firebase: null }; }
 }
 // Pedido de senha: avisa o App (que mostra a tela de desbloqueio própria).
 let _authCb = null;
 export function onAuthNeeded(fn) { _authCb = fn; }
 export function setToken(t) { localStorage.setItem(TOKEN_KEY, t); location.reload(); }
-function promptToken() { if (_authCb) _authCb(); }
+function promptToken() {
+  if (_tokenGetter) return;   // modo com contas: 401 é sessão expirada, não senha
+  if (_authCb) _authCb();
+}
 
 // Estado de sincronização observável (pub/sub) — alimenta o indicador no header.
 // synced | saving | offline | reloaded

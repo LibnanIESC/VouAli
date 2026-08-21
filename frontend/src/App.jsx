@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
@@ -10,6 +10,7 @@ import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon,
 import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
 import Welcome from "./components/Welcome";
+import Login from "./components/Login";
 import Sheet from "./components/Sheet";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
@@ -73,6 +74,9 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [needKey, setNeedKey] = useState(false); // servidor pediu a senha (401)
   const [keyInput, setKeyInput] = useState("");
+  const [authMode, setAuthMode] = useState(null);  // null = ainda perguntando ao servidor
+  const [user, setUser] = useState(undefined);     // undefined = carregando · null = deslogado
+  const fbRef = useRef(null);                      // módulo do Firebase (carregado sob demanda)
 
   // aplica um estado do servidor mesclando (só o que veio) — usado no polling/remoto
   const applyState = (s) => {
@@ -100,23 +104,58 @@ export default function App() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3400);
   }), []);
 
+  // 1) Descobre com o servidor como é o login neste ambiente.
   useEffect(() => {
+    (async () => {
+      const cfg = await apiConfig();
+      if (cfg.authMode === "firebase" && cfg.firebase && cfg.firebase.apiKey) {
+        const fb = await import("./firebase");     // SDK só carrega quando usado
+        fbRef.current = fb;
+        setTokenGetter(fb.getToken);
+        await fb.initAuth(cfg.firebase);
+        fb.onUser((u) => setUser(u));
+        setAuthMode("firebase");
+      } else {
+        setAuthMode("token");
+        setUser(null);
+      }
+    })();
+  }, []);
+
+  const autenticado = authMode === "token" || (authMode === "firebase" && !!user);
+
+  // 2) Só busca os dados depois de saber quem é o usuário.
+  useEffect(() => {
+    if (!autenticado) return;
     setRemoteHandler(applyState);
+    let vivo = true;
     (async () => {
       const t = await apiTrips();
-      if (t) setTrips(t);
+      if (vivo && t) setTrips(t);
       const r = await apiGet();
-      if (r && r.state) {
+      if (vivo && r && r.state) {
         applyState(r.state);
         setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "");
       }
-      setBooted(true); // com ou sem resposta, sai do skeleton
+      if (vivo) setBooted(true); // com ou sem resposta, sai do skeleton
     })();
-  }, []);
+    return () => { vivo = false; };
+  }, [autenticado]);
+
+  const sair = async () => {
+    if (!fbRef.current) return;
+    await flushNow();
+    await fbRef.current.logout();
+    setTrips({ active: null, list: [] });
+    replaceState(null);
+    setBooted(false);
+    setOv(null);
+  };
 
   // Polling: o outro aparelho passa a aparecer. Só adota o remoto quando não há
   // edição local pendente, para não descartar algo que você acabou de digitar.
   useEffect(() => {
+    if (!autenticado) return;
     let alive = true;
     const poll = async () => {
       if (document.hidden || isDirty()) return;
@@ -130,7 +169,7 @@ export default function App() {
     window.addEventListener("focus", onVis);
     window.addEventListener("online", onOnline);
     return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", onVis); window.removeEventListener("online", onOnline); };
-  }, []);
+  }, [autenticado]);
 
   const persist = (next) => {
     const snap = { days, budget, prebuy, notes, ...next };
@@ -609,8 +648,15 @@ export default function App() {
         </div>
       </div>
 
+      {/* Tela de entrada (modo com contas), antes de qualquer dado */}
+      {authMode === "firebase" && user === null && (
+        <Login
+          onGoogle={() => fbRef.current.loginGoogle()}
+          onLink={(email) => fbRef.current.enviarLink(email)} />
+      )}
+
       {/* Primeiro acesso: sem nenhuma viagem, cobre tudo com as boas-vindas */}
-      {semViagens && <Welcome onCreate={() => setOv({ kind: "tripForm", trip: null })} />}
+      {autenticado && semViagens && <Welcome onCreate={() => setOv({ kind: "tripForm", trip: null })} />}
 
       {/* FAB: adicionar parada (roteiro) */}
       {booted && tab === "roteiro" && day && !reorder && !ov && (
@@ -623,7 +669,8 @@ export default function App() {
       {/* Overlays */}
       {ov?.kind === "ajustes" && (
         <AjustesSheet onClose={() => setOv(null)} onExport={exportBackup}
-          onImportFile={(f) => { setOv(null); importBackup(f); }} />
+          onImportFile={(f) => { setOv(null); importBackup(f); }}
+          user={user} onLogout={sair} />
       )}
       {ov?.kind === "dayMenu" && day && (
         <ActionSheet title={day.title} onClose={() => setOv(null)} actions={[
