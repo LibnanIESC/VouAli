@@ -40,8 +40,17 @@ SCHEMA = [
         created_at INTEGER,
         PRIMARY KEY (trip_id, uid)
     )""",
+    """CREATE TABLE IF NOT EXISTS trip_invites (
+        trip_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'editor',
+        invited_by TEXT,
+        created_at INTEGER,
+        PRIMARY KEY (trip_id, email)
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_members_uid ON trip_members(uid)",
     "CREATE INDEX IF NOT EXISTS idx_trips_owner ON trips(owner_uid)",
+    "CREATE INDEX IF NOT EXISTS idx_invites_email ON trip_invites(email)",
 ]
 
 EMPTY_STATE = {"days": [], "budget": [], "prebuy": [], "notes": []}
@@ -162,6 +171,63 @@ def remove_member(con, trip_id, uid):
         return False
     con.execute("DELETE FROM trip_members WHERE trip_id=? AND uid=?", (trip_id, uid))
     return True
+
+
+# ---------- convites ----------
+
+def norm_email(email):
+    return str(email or "").strip().lower()
+
+
+def user_by_email(con, email):
+    row = con.execute("SELECT uid FROM users WHERE lower(email)=?", (norm_email(email),)).fetchone()
+    return row[0] if row else None
+
+
+def invite(con, trip_id, email, role="editor", invited_by=None):
+    """Convida por e-mail.
+
+    Se a pessoa já tem conta, entra como membro na hora. Se ainda não tem,
+    fica um convite pendente que é resgatado no primeiro login dela.
+    Retorna "member" ou "pending".
+    """
+    email = norm_email(email)
+    uid = user_by_email(con, email)
+    if uid:
+        add_member(con, trip_id, uid, role)
+        con.execute("DELETE FROM trip_invites WHERE trip_id=? AND email=?", (trip_id, email))
+        return "member"
+    linha = con.execute("SELECT 1 FROM trip_invites WHERE trip_id=? AND email=?", (trip_id, email)).fetchone()
+    if not linha:
+        con.execute(
+            "INSERT INTO trip_invites(trip_id, email, role, invited_by, created_at) VALUES(?,?,?,?,?)",
+            (trip_id, email, role, invited_by, _now()),
+        )
+    return "pending"
+
+
+def pending_invites(con, trip_id):
+    rows = con.execute("SELECT email, role FROM trip_invites WHERE trip_id=? ORDER BY created_at", (trip_id,)).fetchall()
+    return [{"email": r[0], "role": r[1], "pending": True} for r in rows]
+
+
+def cancel_invite(con, trip_id, email):
+    con.execute("DELETE FROM trip_invites WHERE trip_id=? AND email=?", (trip_id, norm_email(email)))
+
+
+def claim_invites(con, uid, email):
+    """Chamado a cada login: transforma convites pendentes em acesso real."""
+    email = norm_email(email)
+    if not email:
+        return 0
+    rows = con.execute("SELECT trip_id, role FROM trip_invites WHERE email=?", (email,)).fetchall()
+    for trip_id, role in rows:
+        existe = con.execute("SELECT 1 FROM trips WHERE id=?", (trip_id,)).fetchone()
+        if existe:
+            add_member(con, trip_id, uid, role)
+    if rows:
+        con.execute("DELETE FROM trip_invites WHERE email=?", (email,))
+    return len(rows)
 
 
 def members_of(con, trip_id):

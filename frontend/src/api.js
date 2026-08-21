@@ -140,6 +140,34 @@ export async function apiDeleteTrip(id) {
   return await res.json(); // { trips }
 }
 
+// ---------- Compartilhamento de viagem ----------
+export async function apiMembers(id) {
+  try {
+    const res = await fetch(`/api/trips/${id}/members`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    return await res.json(); // { role, members, invites }
+  } catch (e) { return null; }
+}
+export async function apiInvite(id, email) {
+  try {
+    const res = await fetch(`/api/trips/${id}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ email }),
+    });
+    if (res.status === 400) return { error: "self" };
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json(); // { status, members, invites }
+  } catch (e) { return { error: "offline" }; }
+}
+export async function apiRemoveMember(id, quem) {
+  try {
+    const res = await fetch(`/api/trips/${id}/members/${encodeURIComponent(quem)}`, { method: "DELETE", headers: authHeaders() });
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json(); // { members, invites }
+  } catch (e) { return { error: "offline" }; }
+}
+
 // ---------- Chat com o Ali (IA) ----------
 export async function apiAli(messages, trip) {
   try {

@@ -1,10 +1,10 @@
 import React from "react";
 import Sheet from "./Sheet";
-import { PencilIcon } from "./Icons";
+import { PencilIcon, PeopleIcon } from "./Icons";
 import { btn, NAVY, ORANGE, SAND, HELV, INK3 } from "../theme";
 
 // Lista de viagens: trocar de viagem, criar nova, editar cada uma.
-export default function TripsSheet({ trips, activeId, onSwitch, onNew, onEdit, onClose }) {
+export default function TripsSheet({ trips, activeId, onSwitch, onNew, onEdit, onShare, onClose, podeCompartilhar }) {
   const list = (trips && trips.list) || [];
   return (
     <Sheet onClose={onClose}>
@@ -27,6 +27,11 @@ export default function TripsSheet({ trips, activeId, onSwitch, onNew, onEdit, o
                 </span>
                 {on && <span style={{ fontSize: 10, fontWeight: 800, color: ORANGE, letterSpacing: 1, flex: "0 0 auto" }}>ATUAL</span>}
               </button>
+              {podeCompartilhar && (
+                <button onClick={() => onShare(t)} aria-label={`Quem vai junto — ${t.name}`} style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: 12, border: "1.5px solid #e2e2e2", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <PeopleIcon color={NAVY} size={19} />
+                </button>
+              )}
               <button onClick={() => onEdit(t)} aria-label={`Editar viagem ${t.name}`} style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: 12, border: "1.5px solid #e2e2e2", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <PencilIcon color={NAVY} size={17} />
               </button>

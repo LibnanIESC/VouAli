@@ -296,10 +296,12 @@ def me(request: Request):
     return usuario
 
 def user_con(usuario):
-    """Conexão pronta com o usuário já registrado (primeiro login cria a conta)."""
+    """Conexão pronta com o usuário já registrado (primeiro login cria a conta)
+    e com eventuais convites pendentes já transformados em acesso."""
     store.ensure_schema()
     con = store.connect()
     store.upsert_user(con, usuario["uid"], usuario["email"], usuario["name"])
+    store.claim_invites(con, usuario["uid"], usuario["email"])
     con.commit()
     return con
 
@@ -530,6 +532,52 @@ async def put_trip_meta(request: Request, tid: str):
     _write(con, "trips", trips, tver + 1)
     con.commit(); con.close()
     return {"trips": trips}
+
+# --- Compartilhamento de viagem ---
+@app.get("/api/trips/{tid}/members")
+def list_members(request: Request, tid: str):
+    usuario = me(request)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="not available")
+    with user_con(usuario) as con:
+        papel = store.role_of(con, tid, usuario["uid"])
+        if not papel:
+            raise HTTPException(status_code=404, detail="trip not found")
+        return {"role": papel, "members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
+
+@app.post("/api/trips/{tid}/members")
+async def add_member_route(request: Request, tid: str):
+    usuario = me(request)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="not available")
+    body = await request.json()
+    email = store.norm_email(body.get("email"))
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="invalid email")
+    with user_con(usuario) as con:
+        if store.role_of(con, tid, usuario["uid"]) != "owner":
+            raise HTTPException(status_code=403, detail="only the owner can invite")
+        if email == store.norm_email(usuario["email"]):
+            raise HTTPException(status_code=400, detail="already a member")
+        situacao = store.invite(con, tid, email, "editor", usuario["uid"])
+        con.commit()
+        return {"status": situacao, "members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
+
+@app.delete("/api/trips/{tid}/members/{quem}")
+def remove_member_route(request: Request, tid: str, quem: str):
+    """`quem` pode ser o uid de um membro ou o e-mail de um convite pendente."""
+    usuario = me(request)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="not available")
+    with user_con(usuario) as con:
+        if store.role_of(con, tid, usuario["uid"]) != "owner":
+            raise HTTPException(status_code=403, detail="only the owner can remove")
+        if "@" in quem:
+            store.cancel_invite(con, tid, quem)
+        elif not store.remove_member(con, tid, quem):
+            raise HTTPException(status_code=400, detail="cannot remove the owner")
+        con.commit()
+        return {"members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
 
 @app.delete("/api/trips/{tid}")
 def delete_trip(request: Request, tid: str):

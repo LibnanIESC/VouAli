@@ -25,6 +25,7 @@ import TextForm from "./components/TextForm";
 import TripsSheet from "./components/TripsSheet";
 import TripForm from "./components/TripForm";
 import TetoForm from "./components/TetoForm";
+import ShareSheet from "./components/ShareSheet";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
 
@@ -699,7 +700,12 @@ export default function App() {
         <TripsSheet trips={trips} activeId={trips.active} onClose={() => setOv(null)}
           onSwitch={switchTrip}
           onNew={() => setOv({ kind: "tripForm", trip: null })}
-          onEdit={(t) => setOv({ kind: "tripForm", trip: t })} />
+          onEdit={(t) => setOv({ kind: "tripForm", trip: t })}
+          onShare={(t) => setOv({ kind: "share", trip: t })}
+          podeCompartilhar={authMode === "firebase"} />
+      )}
+      {ov?.kind === "share" && (
+        <ShareSheet trip={ov.trip} onClose={() => setOv(null)} />
       )}
       {ov?.kind === "tripForm" && (
         <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={() => setOv(null)}
