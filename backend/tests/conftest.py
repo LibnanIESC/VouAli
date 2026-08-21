@@ -4,29 +4,54 @@ O main.py lê configuração (DATA_DIR, TRIP_TOKEN…) no momento do import, ent
 cada teste carrega uma instância nova do módulo apontando para um banco
 temporário. Assim os testes não interferem entre si nem tocam dados reais.
 """
+import importlib
 import importlib.util
 import json
 import os
 import sqlite3
+import sys
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 BACKEND = Path(__file__).resolve().parents[1]
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
 _counter = 0
+
+# Variáveis lidas pelo app. São zeradas antes de cada carga para um teste não
+# herdar a configuração do anterior.
+APP_VARS = [
+    "TRIP_TOKEN", "ANTHROPIC_API_KEY", "ALI_MODEL", "ALI_RATE_MAX", "ALI_RATE_WINDOW",
+    "AUTH_MODE", "DATABASE_URL", "ENVIRONMENT",
+    "FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY",
+    "FIREBASE_AUTH_DOMAIN", "FIREBASE_APP_ID",
+]
 
 
 def load_main(data_dir, **env):
-    """Importa um main.py isolado com o ambiente pedido."""
+    """Importa um main.py isolado com o ambiente pedido.
+
+    `auth` e `store` leem configuração no import; como o Python guarda módulos
+    em cache, eles são recarregados aqui para enxergar o ambiente deste teste.
+    """
     global _counter
     _counter += 1
+    for key in APP_VARS:
+        os.environ.pop(key, None)
     os.environ["DATA_DIR"] = str(data_dir)
     for key, value in env.items():
         if value is None:
             os.environ.pop(key, None)
         else:
             os.environ[key] = str(value)
+
+    import auth
+    import store
+    importlib.reload(auth)
+    importlib.reload(store)
+
     spec = importlib.util.spec_from_file_location(f"vouali_main_{_counter}", BACKEND / "main.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

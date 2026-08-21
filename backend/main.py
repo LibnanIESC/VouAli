@@ -5,6 +5,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import FileResponse
 
+import auth
+import store
+
 mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
@@ -277,8 +280,28 @@ def _active_key(con):
 app = FastAPI(title="VouAli")
 
 def check(request: Request):
-    if TOKEN and request.headers.get("X-Trip-Token") != TOKEN:
+    """Modo legado (produção): senha compartilhada."""
+    if auth.AUTH_MODE != "firebase" and TOKEN and request.headers.get("X-Trip-Token") != TOKEN:
         raise HTTPException(status_code=401, detail="unauthorized")
+
+def me(request: Request):
+    """No modo firebase, exige usuário autenticado e devolve {uid,email,name}.
+    No modo legado devolve None (e apenas confere a senha compartilhada)."""
+    if auth.AUTH_MODE != "firebase":
+        check(request)
+        return None
+    usuario = auth.current_user(request)
+    if not usuario:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    return usuario
+
+def user_con(usuario):
+    """Conexão pronta com o usuário já registrado (primeiro login cria a conta)."""
+    store.ensure_schema()
+    con = store.connect()
+    store.upsert_user(con, usuario["uid"], usuario["email"], usuario["name"])
+    con.commit()
+    return con
 
 def _put_state_key(con, key, body, base):
     """Grava um estado com concorrência otimista. Retorna a nova versão."""
@@ -290,10 +313,18 @@ def _put_state_key(con, key, body, base):
     con.commit()
     return new_ver
 
-# --- Retrocompat: /api/state opera na viagem ATIVA (era a viagem única) ---
+# --- /api/state opera na viagem ATIVA (do usuário, no modo firebase) ---
 @app.get("/api/state")
 def get_state(request: Request):
-    check(request)
+    usuario = me(request)
+    if usuario:
+        with user_con(usuario) as con:
+            viagens = store.list_trips(con, usuario["uid"])
+            ativa = viagens["active"]
+            if not ativa:
+                return {"state": None, "version": 0}
+            got = store.get_trip(con, ativa, usuario["uid"])
+            return {"state": got[0], "version": got[1]} if got else {"state": None, "version": 0}
     con = db()
     key = _active_key(con)
     if not key:
@@ -303,18 +334,29 @@ def get_state(request: Request):
 
 @app.put("/api/state")
 async def put_state(request: Request):
-    check(request)
+    usuario = me(request)
     body = await request.body()
     try:
-        json.loads(body)
+        novo = json.loads(body)
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json")
+    base = request.headers.get("X-Base-Version")
+    if usuario:
+        with user_con(usuario) as con:
+            ativa = store.list_trips(con, usuario["uid"])["active"]
+            if not ativa:
+                raise HTTPException(status_code=409, detail="no active trip")
+            try:
+                nova = store.put_trip(con, ativa, usuario["uid"], novo, base)
+            except store.Conflict as c:
+                raise HTTPException(status_code=409, detail={"version": c.version})
+            return {"ok": True, "version": nova}
     con = db()
     key = _active_key(con)
     if not key:
         con.close(); raise HTTPException(status_code=409, detail="no active trip")
     try:
-        new_ver = _put_state_key(con, key, body, request.headers.get("X-Base-Version"))
+        new_ver = _put_state_key(con, key, body, base)
     finally:
         con.close()
     return {"ok": True, "version": new_ver}
@@ -331,16 +373,41 @@ def _with_meta_defaults(trips):
             m["currency"] = "US$"
     return trips
 
+def _build_meta(body):
+    """Normaliza os metadados enviados pelo app (texto e números)."""
+    meta = {}
+    for k in META_FIELDS:
+        meta[k] = str(body.get(k) or "").strip()
+    meta["name"] = meta["name"] or "Nova viagem"
+    meta["currency"] = meta["currency"] or "US$"
+    for k, default in META_NUMS.items():
+        try:
+            meta[k] = float(body[k]) if body.get(k) not in (None, "") else default
+        except (TypeError, ValueError, KeyError):
+            meta[k] = default
+    return meta
+
 @app.get("/api/trips")
 def list_trips(request: Request):
-    check(request)
+    usuario = me(request)
+    if usuario:
+        with user_con(usuario) as con:
+            return {"trips": _with_meta_defaults(store.list_trips(con, usuario["uid"])), "version": 0}
     con = db(); trips, ver = _read(con, "trips"); con.close()
     return {"trips": _with_meta_defaults(trips or {"active": None, "list": []}), "version": ver}
 
 @app.post("/api/trips")
 async def create_trip(request: Request):
-    check(request)
+    usuario = me(request)
     body = await request.json()
+    if usuario:
+        with user_con(usuario) as con:
+            meta = _build_meta(body)
+            dados = body.get("data") if isinstance(body.get("data"), dict) else None
+            tid = store.create_trip(con, usuario["uid"], meta, dados)
+            meta["id"] = tid
+            con.commit()
+            return {"meta": meta, "trips": _with_meta_defaults(store.list_trips(con, usuario["uid"]))}
     con = db()
     trips, tver = _read(con, "trips")
     trips = trips or {"active": None, "list": []}
@@ -366,9 +433,15 @@ async def create_trip(request: Request):
 
 @app.put("/api/active")
 async def set_active(request: Request):
-    check(request)
+    usuario = me(request)
     body = await request.json()
     tid = body.get("id")
+    if usuario:
+        with user_con(usuario) as con:
+            if not store.set_active(con, usuario["uid"], tid):
+                raise HTTPException(status_code=404, detail="trip not found")
+            con.commit()
+            return {"trips": _with_meta_defaults(store.list_trips(con, usuario["uid"]))}
     con = db()
     trips, tver = _read(con, "trips")
     trips = trips or {"active": None, "list": []}
@@ -381,7 +454,13 @@ async def set_active(request: Request):
 
 @app.get("/api/trips/{tid}")
 def get_trip(request: Request, tid: str):
-    check(request)
+    usuario = me(request)
+    if usuario:
+        with user_con(usuario) as con:
+            got = store.get_trip(con, tid, usuario["uid"])
+            if not got:      # inexistente OU de outro usuário: mesma resposta
+                raise HTTPException(status_code=404, detail="trip not found")
+            return {"state": got[0], "version": got[1]}
     con = db(); data, ver = _read(con, f"trip:{tid}"); con.close()
     if data is None:
         raise HTTPException(status_code=404, detail="trip not found")
@@ -389,12 +468,21 @@ def get_trip(request: Request, tid: str):
 
 @app.put("/api/trips/{tid}")
 async def put_trip(request: Request, tid: str):
-    check(request)
+    usuario = me(request)
     body = await request.body()
     try:
-        json.loads(body)
+        novo = json.loads(body)
     except Exception:
         raise HTTPException(status_code=400, detail="invalid json")
+    if usuario:
+        with user_con(usuario) as con:
+            try:
+                nova = store.put_trip(con, tid, usuario["uid"], novo, request.headers.get("X-Base-Version"))
+            except store.Conflict as c:
+                raise HTTPException(status_code=409, detail={"version": c.version})
+            if nova is None:
+                raise HTTPException(status_code=404, detail="trip not found")
+            return {"ok": True, "version": nova}
     con = db()
     if not con.execute("SELECT 1 FROM kv WHERE k=?", (f"trip:{tid}",)).fetchone():
         con.close(); raise HTTPException(status_code=404, detail="trip not found")
@@ -406,8 +494,24 @@ async def put_trip(request: Request, tid: str):
 
 @app.put("/api/trips/{tid}/meta")
 async def put_trip_meta(request: Request, tid: str):
-    check(request)
+    usuario = me(request)
     body = await request.json()
+    if usuario:
+        patch = {}
+        for k in META_FIELDS:
+            if k in body:
+                patch[k] = str(body[k] or "").strip()
+        for k, default in META_NUMS.items():
+            if k in body:
+                try:
+                    patch[k] = float(body[k]) if body[k] not in (None, "") else default
+                except (TypeError, ValueError):
+                    patch[k] = default
+        with user_con(usuario) as con:
+            if store.update_meta(con, tid, usuario["uid"], patch) is None:
+                raise HTTPException(status_code=404, detail="trip not found")
+            con.commit()
+            return {"trips": _with_meta_defaults(store.list_trips(con, usuario["uid"]))}
     con = db()
     trips, tver = _read(con, "trips")
     trips = trips or {"active": None, "list": []}
@@ -429,7 +533,13 @@ async def put_trip_meta(request: Request, tid: str):
 
 @app.delete("/api/trips/{tid}")
 def delete_trip(request: Request, tid: str):
-    check(request)
+    usuario = me(request)
+    if usuario:
+        with user_con(usuario) as con:
+            if not store.delete_trip(con, tid, usuario["uid"]):
+                raise HTTPException(status_code=404, detail="trip not found")
+            con.commit()
+            return {"trips": _with_meta_defaults(store.list_trips(con, usuario["uid"]))}
     con = db()
     trips, tver = _read(con, "trips")
     trips = trips or {"active": None, "list": []}
@@ -443,7 +553,7 @@ def delete_trip(request: Request, tid: str):
 
 @app.post("/api/ali")
 async def ali_chat(request: Request):
-    check(request)
+    me(request)
     if not _ali_client:
         return {"error": "not_configured"}
     if not _rate_ok():
@@ -477,7 +587,7 @@ async def ali_chat(request: Request):
 
 @app.post("/api/ali/dica")
 async def ali_dica(request: Request):
-    check(request)
+    me(request)
     if not _ali_client:
         return {"error": "not_configured"}
     if not _rate_ok():
@@ -508,7 +618,7 @@ async def ali_dica(request: Request):
 
 @app.post("/api/ali/gerar")
 async def ali_gerar(request: Request):
-    check(request)
+    me(request)
     if not _ali_client:
         return {"error": "not_configured"}
     if not _rate_ok():
@@ -563,7 +673,24 @@ def health():
         "environment": os.getenv("ENVIRONMENT", "dev"),
         "ai": bool(_ali_client),
         "auth": bool(TOKEN),
+        "authMode": auth.status(),
+        "db": "postgres" if store.DATABASE_URL else "sqlite",
     }
+
+@app.get("/api/config")
+def config():
+    """Configuração pública que o app busca ao abrir — evita reconstruir o
+    frontend a cada ambiente. Não expõe segredo algum."""
+    return {"authMode": auth.AUTH_MODE, "firebase": auth.web_config() if auth.AUTH_MODE == "firebase" else None}
+
+@app.get("/api/me")
+def whoami(request: Request):
+    """Quem está logado (e cria a conta no primeiro acesso)."""
+    usuario = me(request)
+    if not usuario:
+        return {"mode": "token", "user": None}
+    with user_con(usuario) as con:
+        return {"mode": "firebase", "user": usuario}
 
 # --- SPA + static assets (defined last so /api routes win) ---
 @app.get("/{full_path:path}")
