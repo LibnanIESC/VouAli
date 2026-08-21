@@ -15,8 +15,27 @@
     <meta name="apple-mobile-web-app-title" content="VouAli" />
     <title>VouAli · New York</title>
   </head>
-  <body>
+  <body style="margin:0;background:#FBF4E9">
     <div id="root"></div>
+
+    <!-- Splash de marca: é a PRIMEIRA coisa pintada, antes mesmo do React.
+         Evita o piscar da interface enquanto o app descobre quem está logado.
+         O React a remove assim que sabe o que mostrar. -->
+    <div id="splash" style="position:fixed;inset:0;background:#FBF4E9;display:flex;align-items:center;justify-content:center;z-index:100;transition:opacity .25s ease">
+      <div style="display:flex;align-items:flex-end;gap:5px;font-family:'Baloo 2','Manrope',system-ui,sans-serif;font-weight:800;font-size:34px;line-height:.9">
+        <span style="color:#223A5E">Vou</span><span style="color:#F28C28">Ali</span>
+        <span style="width:13px;height:13px;margin-bottom:7px;background:#F28C28;clip-path:polygon(0% 0%,100% 50%,0% 100%,22% 50%);display:block"></span>
+      </div>
+    </div>
+    <script>
+      // Rede de segurança: se o app não carregar (rede muito ruim, erro de JS),
+      // a splash sai sozinha em vez de deixar a tela travada.
+      setTimeout(function () {
+        var s = document.getElementById("splash");
+        if (s) { s.style.opacity = "0"; setTimeout(function () { s.remove(); }, 300); }
+      }, 8000);
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
     <script>
       if ("serviceWorker" in navigator) {

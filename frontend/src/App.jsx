@@ -123,6 +123,20 @@ export default function App() {
   }, []);
 
   const autenticado = authMode === "token" || (authMode === "firebase" && !!user);
+  // Enquanto não sabemos quem está logado, nada da interface aparece — a splash
+  // do index.html continua na frente.
+  const conferindoAcesso = authMode === null || (authMode === "firebase" && user === undefined);
+  const precisaLogin = authMode === "firebase" && user === null;
+
+  // Tira a splash assim que já dá para mostrar login ou app.
+  useEffect(() => {
+    if (conferindoAcesso) return;
+    const s = document.getElementById("splash");
+    if (!s) return;
+    s.style.opacity = "0";
+    const t = setTimeout(() => s.remove(), 300);
+    return () => clearTimeout(t);
+  }, [conferindoAcesso]);
 
   // 2) Só busca os dados depois de saber quem é o usuário.
   useEffect(() => {
@@ -378,7 +392,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: CREAM, display: "flex", justifyContent: "center", fontFamily: HELV }}>
       <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} .bub{position:relative} .bub-in::after{content:"";position:absolute;left:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(100% 0,100% 100%,0 100%)} .bub-out::after{content:"";position:absolute;right:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(0 0,0 100%,100% 100%)} button{transition:transform .08s ease} button:active{transform:scale(.96)} button:focus-visible,a:focus-visible{outline:3px solid #F28C28;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
-      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)", visibility: semViagens ? "hidden" : "visible" }}>
+      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)", visibility: (semViagens || conferindoAcesso || precisaLogin) ? "hidden" : "visible" }}>
 
         {/* Hero: foto da viagem contida no topo + header compacto */}
         <div style={{ position: "relative", overflow: "hidden", background: NAVY, flex: "0 0 auto" }}>
@@ -649,7 +663,7 @@ export default function App() {
       </div>
 
       {/* Tela de entrada (modo com contas), antes de qualquer dado */}
-      {authMode === "firebase" && user === null && (
+      {precisaLogin && (
         <Login
           onGoogle={() => fbRef.current.loginGoogle()}
           onLink={(email) => fbRef.current.enviarLink(email)} />
