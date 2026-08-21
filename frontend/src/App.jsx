@@ -670,7 +670,9 @@ export default function App() {
       )}
 
       {/* Primeiro acesso: sem nenhuma viagem, cobre tudo com as boas-vindas */}
-      {autenticado && semViagens && <Welcome onCreate={() => setOv({ kind: "tripForm", trip: null })} />}
+      {autenticado && semViagens && (
+        <Welcome onCreate={() => setOv({ kind: "tripForm", trip: null })} user={user} onLogout={sair} />
+      )}
 
       {/* FAB: adicionar parada (roteiro) */}
       {booted && tab === "roteiro" && day && !reorder && !ov && (

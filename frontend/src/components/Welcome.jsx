@@ -1,11 +1,11 @@
 import React from "react";
 import AliAvatar from "./AliAvatar";
 import { MapIcon, MoneyIcon, SparkIcon } from "./Icons";
-import { btn, CREAM, NAVY, ORANGE, DISPLAY, INK2, INK3, SAND } from "../theme";
+import { btn, CREAM, NAVY, ORANGE, STEEL, DISPLAY, HELV, INK2, INK3, SAND } from "../theme";
 
 // Primeiro acesso: nenhuma viagem ainda. Cobre a tela inteira para o usuário
 // novo não ver conteúdo de exemplo de outra pessoa.
-export default function Welcome({ onCreate }) {
+export default function Welcome({ onCreate, user, onLogout }) {
   const item = (Icon, titulo, texto) => (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start", textAlign: "left" }}>
       <span style={{ width: 38, height: 38, borderRadius: 11, background: SAND, display: "flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto" }}>
@@ -43,6 +43,17 @@ export default function Welcome({ onCreate }) {
           Criar minha primeira viagem
         </button>
         <div style={{ fontSize: 12.5, color: INK3, marginTop: 12 }}>Leva menos de um minuto.</div>
+
+        {/* Saída sempre disponível: sem isto, quem entra com a conta errada
+            fica preso nesta tela (não há viagem nem acesso aos Ajustes). */}
+        {user && (
+          <div style={{ marginTop: 34, fontSize: 12.5, color: INK3, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <span>Conectado como <strong style={{ color: INK2, fontWeight: 700 }}>{user.email || user.name}</strong></span>
+            <button onClick={onLogout} style={{ background: "none", border: "none", padding: "8px 6px", minHeight: 40, color: STEEL, fontSize: 12.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer", textDecoration: "underline" }}>
+              Trocar de conta
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
