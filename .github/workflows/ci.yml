@@ -28,7 +28,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Mesma versão do ambiente de desenvolvimento: o package-lock é
+          # gerado por ela, e npm de versões diferentes resolve dependências
+          # de formas diferentes (foi o que deixava o `npm ci` vermelho).
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Instalar dependências
