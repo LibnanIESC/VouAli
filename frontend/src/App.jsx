@@ -3,10 +3,13 @@ import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
-import { seedDays, seedBudget, seedPrebuy, seedNotes, TOTAL_BUDGET } from "./seed";
+// Teto herdado da época em que o app era só da viagem de NY (antes de o teto
+// virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
+const NY_TETO_LEGADO = 3000;
 import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon, PlusIcon, PencilIcon } from "./components/Icons";
 import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
+import Welcome from "./components/Welcome";
 import Sheet from "./components/Sheet";
 import Skyline from "./components/Skyline";
 import SyncPill from "./components/SyncPill";
@@ -54,11 +57,13 @@ function ProgressRing({ pct }) {
 }
 
 export default function App() {
-  const [days, setDays] = useState(seedDays);
-  const [budget, setBudget] = useState(seedBudget);
-  const [prebuy, setPrebuy] = useState(seedPrebuy);
-  const [notes, setNotes] = useState(seedNotes);
-  const [active, setActive] = useState("qua");
+  // Começa vazio: o conteúdo vem sempre do servidor. Nada de dados de exemplo,
+  // para um usuário novo nunca ver a viagem de outra pessoa.
+  const [days, setDays] = useState([]);
+  const [budget, setBudget] = useState([]);
+  const [prebuy, setPrebuy] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [active, setActive] = useState("");
   const [tab, setTab] = useState("roteiro");
   const [ov, setOv] = useState(null);
   const [reorder, setReorder] = useState(false);
@@ -103,7 +108,7 @@ export default function App() {
       const r = await apiGet();
       if (r && r.state) {
         applyState(r.state);
-        setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "qua");
+        setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "");
       }
       setBooted(true); // com ou sem resposta, sai do skeleton
     })();
@@ -133,6 +138,7 @@ export default function App() {
   };
 
   const activeMeta = (trips.list || []).find((t) => t.id === trips.active) || {};
+  const semViagens = booted && (trips.list || []).length === 0;   // primeiro acesso
   const day = days.find((d) => d.id === active) || days[0];
   const dc = readable((day && day.color) || NAVY); // acento legível do dia
   const totalStops = days.reduce((a, d) => a + d.stops.length, 0);
@@ -146,7 +152,7 @@ export default function App() {
   const nAdults = Number(activeMeta.adults) > 0 ? Number(activeMeta.adults) : 0;
   const nChildren = Number(activeMeta.children) > 0 ? Number(activeMeta.children) : 0;
   const nTravelers = nAdults + nChildren;
-  const budgetTotal = Number(activeMeta.budget) > 0 ? Number(activeMeta.budget) : (trips.active === "ny" ? TOTAL_BUDGET : 0);
+  const budgetTotal = Number(activeMeta.budget) > 0 ? Number(activeMeta.budget) : (trips.active === "ny" ? NY_TETO_LEGADO : 0);
   const hasTeto = budgetTotal > 0;
   const remaining = budgetTotal - planned;
 
@@ -333,7 +339,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: CREAM, display: "flex", justifyContent: "center", fontFamily: HELV }}>
       <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} .bub{position:relative} .bub-in::after{content:"";position:absolute;left:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(100% 0,100% 100%,0 100%)} .bub-out::after{content:"";position:absolute;right:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(0 0,0 100%,100% 100%)} button{transition:transform .08s ease} button:active{transform:scale(.96)} button:focus-visible,a:focus-visible{outline:3px solid #F28C28;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
-      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)" }}>
+      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)", visibility: semViagens ? "hidden" : "visible" }}>
 
         {/* Hero: foto da viagem contida no topo + header compacto */}
         <div style={{ position: "relative", overflow: "hidden", background: NAVY, flex: "0 0 auto" }}>
@@ -602,6 +608,9 @@ export default function App() {
           })}
         </div>
       </div>
+
+      {/* Primeiro acesso: sem nenhuma viagem, cobre tudo com as boas-vindas */}
+      {semViagens && <Welcome onCreate={() => setOv({ kind: "tripForm", trip: null })} />}
 
       {/* FAB: adicionar parada (roteiro) */}
       {booted && tab === "roteiro" && day && !reorder && !ov && (
