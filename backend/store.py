@@ -48,6 +48,17 @@ SCHEMA = [
         created_at INTEGER,
         PRIMARY KEY (trip_id, email)
     )""",
+    """CREATE TABLE IF NOT EXISTS ai_usage (
+        uid TEXT NOT NULL,
+        period TEXT NOT NULL,
+        chat INTEGER NOT NULL DEFAULT 0,
+        gen INTEGER NOT NULL DEFAULT 0,
+        tip INTEGER NOT NULL DEFAULT 0,
+        tokens_in INTEGER NOT NULL DEFAULT 0,
+        tokens_out INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER,
+        PRIMARY KEY (uid, period)
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_members_uid ON trip_members(uid)",
     "CREATE INDEX IF NOT EXISTS idx_trips_owner ON trips(owner_uid)",
     "CREATE INDEX IF NOT EXISTS idx_invites_email ON trip_invites(email)",
@@ -342,6 +353,63 @@ def delete_trip(con, trip_id, uid):
         con.execute("DELETE FROM trip_members WHERE trip_id=? AND uid=?", (trip_id, uid))
     con.execute("UPDATE users SET active_trip=NULL WHERE active_trip=?", (trip_id,))
     return True
+
+
+# ---------- uso da IA (cotas e custo) ----------
+
+TIPOS_USO = ("chat", "gen", "tip")
+
+
+def periodo_atual():
+    """Cota é mensal: 'AAAA-MM' em UTC."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def uso_do_usuario(con, uid, period=None):
+    period = period or periodo_atual()
+    row = con.execute(
+        "SELECT chat, gen, tip, tokens_in, tokens_out FROM ai_usage WHERE uid=? AND period=?",
+        (uid, period),
+    ).fetchone()
+    if not row:
+        return {"chat": 0, "gen": 0, "tip": 0, "tokens_in": 0, "tokens_out": 0, "period": period}
+    return {"chat": row[0], "gen": row[1], "tip": row[2], "tokens_in": row[3], "tokens_out": row[4], "period": period}
+
+
+def registrar_uso(con, uid, tipo, tokens_in=0, tokens_out=0, period=None):
+    """Conta uma chamada bem-sucedida. Só é chamado DEPOIS da IA responder."""
+    if tipo not in TIPOS_USO:
+        return
+    period = period or periodo_atual()
+    atual = uso_do_usuario(con, uid, period)
+    novo = dict(atual)
+    novo[tipo] = atual[tipo] + 1
+    novo["tokens_in"] = atual["tokens_in"] + int(tokens_in or 0)
+    novo["tokens_out"] = atual["tokens_out"] + int(tokens_out or 0)
+    existe = con.execute("SELECT 1 FROM ai_usage WHERE uid=? AND period=?", (uid, period)).fetchone()
+    if existe:
+        con.execute(
+            "UPDATE ai_usage SET chat=?, gen=?, tip=?, tokens_in=?, tokens_out=?, updated_at=? WHERE uid=? AND period=?",
+            (novo["chat"], novo["gen"], novo["tip"], novo["tokens_in"], novo["tokens_out"], _now(), uid, period),
+        )
+    else:
+        con.execute(
+            "INSERT INTO ai_usage(uid, period, chat, gen, tip, tokens_in, tokens_out, updated_at) VALUES(?,?,?,?,?,?,?,?)",
+            (uid, period, novo["chat"], novo["gen"], novo["tip"], novo["tokens_in"], novo["tokens_out"], _now()),
+        )
+
+
+def uso_total(con, period=None):
+    """Soma de todos os usuários no período — alimenta o fusível global."""
+    period = period or periodo_atual()
+    row = con.execute(
+        "SELECT COALESCE(SUM(chat),0), COALESCE(SUM(gen),0), COALESCE(SUM(tip),0), "
+        "COALESCE(SUM(tokens_in),0), COALESCE(SUM(tokens_out),0) FROM ai_usage WHERE period=?",
+        (period,),
+    ).fetchone()
+    return {"chat": row[0], "gen": row[1], "tip": row[2], "tokens_in": row[3], "tokens_out": row[4],
+            "chamadas": row[0] + row[1] + row[2], "period": period}
 
 
 class Conflict(Exception):

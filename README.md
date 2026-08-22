@@ -57,7 +57,11 @@ Volume em `/app/data` guarda o SQLite.
 | `TRIP_TOKEN` | Senha do app. Vazio = sem autenticação (só para dev). |
 | `ANTHROPIC_API_KEY` | Liga o Ali. Sem ela, o app funciona e a IA responde "não configurada". |
 | `ALI_MODEL` | Modelo da Claude (padrão `claude-opus-5`; em produção usamos `claude-sonnet-5`). |
-| `ALI_RATE_MAX` / `ALI_RATE_WINDOW` | Limite de chamadas de IA por janela (padrão 20/60s). |
+| `ALI_MODEL_CHAT` / `ALI_MODEL_GEN` | Opcionais: modelo separado para conversa/dicas e para gerar roteiro. Sem eles, tudo usa `ALI_MODEL`. |
+| `ALI_RATE_MAX` / `ALI_RATE_WINDOW` | Limite global de chamadas de IA por janela (padrão 20/60s). |
+| `ALI_RATE_MAX_USER` | Limite por conta na mesma janela (padrão 8) — evita que uma pessoa consuma a fila de todos. |
+| `QUOTA_CHAT` / `QUOTA_GEN` / `QUOTA_TIP` | Cota mensal por usuário (padrão 50 / 3 / 30). Só vale no modo com contas. |
+| `ALI_MONTHLY_CAP` | Fusível global: total de chamadas de IA no mês para o app inteiro. `0` = sem teto. |
 | `ENVIRONMENT` | Rótulo do ambiente, exposto em `/api/health`. |
 | `DATA_DIR` | Pasta do SQLite (padrão `/app/data`). |
 | `PORT` | Definido automaticamente pelo Railway. |

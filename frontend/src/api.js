@@ -140,6 +140,16 @@ export async function apiDeleteTrip(id) {
   return await res.json(); // { trips }
 }
 
+// Consumo de IA do mês (cotas). null = ambiente sem cota (modo antigo).
+export async function apiUsage() {
+  try {
+    const res = await fetch("/api/usage", { headers: authHeaders() });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j.quotas ? j : null;
+  } catch (e) { return null; }
+}
+
 // ---------- Compartilhamento de viagem ----------
 export async function apiMembers(id) {
   try {

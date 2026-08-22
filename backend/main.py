@@ -38,19 +38,75 @@ try:
 except Exception:
     _ali_client = None
 
-# Rate limit simples (janela deslizante, em memória) para as rotas de IA —
-# fusível contra loop/abuso que gastaria crédito de API. Configurável por env.
+# Roteamento de modelo: conversa e dicas podem usar um modelo mais barato que
+# a geração de roteiro. Sem configurar, tudo segue no ALI_MODEL de sempre.
+ALI_MODEL_CHAT = os.getenv("ALI_MODEL_CHAT", "") or ALI_MODEL
+ALI_MODEL_GEN = os.getenv("ALI_MODEL_GEN", "") or ALI_MODEL
+
+def _efeito_ok(modelo: str) -> bool:
+    return any(k in modelo for k in ("opus-5", "opus-4-8", "opus-4-7", "opus-4-6", "sonnet-5", "sonnet-4-6", "fable-5", "mythos-5"))
+
+# Cotas mensais por usuário (modo com contas). Generosas de propósito.
+QUOTAS = {
+    "chat": int(os.getenv("QUOTA_CHAT", "50")),
+    "gen": int(os.getenv("QUOTA_GEN", "3")),
+    "tip": int(os.getenv("QUOTA_TIP", "30")),
+}
+# Fusível global do mês: se o app inteiro passar disso, a IA descansa.
+# 0 = sem teto global.
+AI_MONTHLY_CAP = int(os.getenv("ALI_MONTHLY_CAP", "0"))
+
+# Rate limit (janela deslizante, em memória): um global, contra loop/abuso, e
+# um POR CONTA, para um usuário sozinho não consumir a fila de todo mundo.
 AI_RATE_MAX = int(os.getenv("ALI_RATE_MAX", "20"))       # nº de chamadas
 AI_RATE_WINDOW = int(os.getenv("ALI_RATE_WINDOW", "60"))  # por janela de segundos
+AI_RATE_MAX_USER = int(os.getenv("ALI_RATE_MAX_USER", "8"))
 _ai_calls = deque()
-def _rate_ok() -> bool:
-    now = time.time()
-    while _ai_calls and now - _ai_calls[0] > AI_RATE_WINDOW:
-        _ai_calls.popleft()
-    if len(_ai_calls) >= AI_RATE_MAX:
+_ai_calls_user = {}
+
+def _janela_ok(fila, maximo):
+    agora = time.time()
+    while fila and agora - fila[0] > AI_RATE_WINDOW:
+        fila.popleft()
+    if len(fila) >= maximo:
         return False
-    _ai_calls.append(now)
+    fila.append(agora)
     return True
+
+def _rate_ok(uid=None) -> bool:
+    if not _janela_ok(_ai_calls, AI_RATE_MAX):
+        return False
+    if uid:
+        fila = _ai_calls_user.setdefault(uid, deque())
+        if not _janela_ok(fila, AI_RATE_MAX_USER):
+            return False
+    return True
+
+def _tokens(resp):
+    """Lê o consumo da resposta da IA (para custo por usuário)."""
+    uso = getattr(resp, "usage", None)
+    return (int(getattr(uso, "input_tokens", 0) or 0), int(getattr(uso, "output_tokens", 0) or 0))
+
+def _cota(usuario, tipo):
+    """Devolve (pode_usar, detalhe). Sem contas (modo antigo), não há cota."""
+    if not usuario:
+        return True, None
+    limite = QUOTAS.get(tipo, 0)
+    with user_con(usuario) as con:
+        if AI_MONTHLY_CAP > 0 and store.uso_total(con)["chamadas"] >= AI_MONTHLY_CAP:
+            return False, {"error": "ai_paused"}
+        usado = store.uso_do_usuario(con, usuario["uid"])[tipo]
+    if limite and usado >= limite:
+        return False, {"error": "quota", "tipo": tipo, "usado": usado, "limite": limite}
+    return True, None
+
+def _contar(usuario, tipo, resp):
+    if not usuario:
+        return
+    entrada, saida = _tokens(resp)
+    with user_con(usuario) as con:
+        store.registrar_uso(con, usuario["uid"], tipo, entrada, saida)
+        con.commit()
 
 ALI_SYSTEM = (
     "Você é o Ali, o assistente de viagens do app VouAli. "
@@ -601,11 +657,14 @@ def delete_trip(request: Request, tid: str):
 
 @app.post("/api/ali")
 async def ali_chat(request: Request):
-    me(request)
+    usuario = me(request)
     if not _ali_client:
         return {"error": "not_configured"}
-    if not _rate_ok():
+    if not _rate_ok(usuario and usuario["uid"]):
         return {"error": "rate_limited"}
+    pode, motivo = _cota(usuario, "chat")
+    if not pode:
+        return motivo
     body = await request.json()
     msgs = body.get("messages") or []
     trip = body.get("trip") or {}
@@ -621,11 +680,12 @@ async def ali_chat(request: Request):
         return {"error": "empty"}
     today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {today}.\n\nDados atuais da viagem:\n" + _trip_context(trip)
-    kwargs = {"model": ALI_MODEL, "max_tokens": 700, "system": system, "messages": conv}
-    if _ALI_EFFORT_OK:
+    kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": system, "messages": conv}
+    if _efeito_ok(ALI_MODEL_CHAT):
         kwargs["output_config"] = {"effort": "low"}
     try:
         resp = await _ali_client.messages.create(**kwargs)
+        _contar(usuario, "chat", resp)
         if getattr(resp, "stop_reason", None) == "refusal":
             return {"reply": "Sobre isso eu prefiro não opinar — mas posso ajudar com qualquer coisa do roteiro, orçamento ou dicas da viagem. 🙂"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
@@ -635,11 +695,14 @@ async def ali_chat(request: Request):
 
 @app.post("/api/ali/dica")
 async def ali_dica(request: Request):
-    me(request)
+    usuario = me(request)
     if not _ali_client:
         return {"error": "not_configured"}
-    if not _rate_ok():
+    if not _rate_ok(usuario and usuario["uid"]):
         return {"error": "rate_limited"}
+    pode, motivo = _cota(usuario, "tip")
+    if not pode:
+        return motivo
     body = await request.json()
     stop = body.get("stop") or {}
     trip = body.get("trip") or {}
@@ -652,11 +715,12 @@ async def ali_dica(request: Request):
         if v:
             prompt += f"\n{label}: {v}"
     prompt += "\n\nContexto geral da viagem:\n" + _trip_context(trip) + "\n\nGere a dica do Ali para essa parada."
-    kwargs = {"model": ALI_MODEL, "max_tokens": 600, "system": ALI_DICA_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
-    if _ALI_EFFORT_OK:
+    kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 600, "system": ALI_DICA_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
+    if _efeito_ok(ALI_MODEL_CHAT):
         kwargs["output_config"] = {"effort": "low"}
     try:
         resp = await _ali_client.messages.create(**kwargs)
+        _contar(usuario, "tip", resp)
         if getattr(resp, "stop_reason", None) == "refusal":
             return {"error": "refusal"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip().strip('"').strip()
@@ -666,11 +730,14 @@ async def ali_dica(request: Request):
 
 @app.post("/api/ali/gerar")
 async def ali_gerar(request: Request):
-    me(request)
+    usuario = me(request)
     if not _ali_client:
         return {"error": "not_configured"}
-    if not _rate_ok():
+    if not _rate_ok(usuario and usuario["uid"]):
         return {"error": "rate_limited"}
+    pode, motivo = _cota(usuario, "gen")
+    if not pode:
+        return motivo
     body = await request.json()
     destination = str(body.get("destination", "")).strip()
     try:
@@ -695,11 +762,12 @@ async def ali_gerar(request: Request):
     if style:
         prompt += f"\nEstilo/interesses: {style}"
     prompt += f"\n\nGere o roteiro completo em JSON com EXATAMENTE {days} dias, seguindo o schema."
-    kwargs = {"model": ALI_MODEL, "max_tokens": 16000, "system": ALI_GERAR_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
-    if _ALI_EFFORT_OK:
+    kwargs = {"model": ALI_MODEL_GEN, "max_tokens": 16000, "system": ALI_GERAR_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
+    if _efeito_ok(ALI_MODEL_GEN):
         kwargs["output_config"] = {"effort": "low"}
     try:
         resp = await _ali_client.messages.create(**kwargs)
+        _contar(usuario, "gen", resp)
         if getattr(resp, "stop_reason", None) == "refusal":
             return {"error": "refusal"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
@@ -730,6 +798,18 @@ def config():
     """Configuração pública que o app busca ao abrir — evita reconstruir o
     frontend a cada ambiente. Não expõe segredo algum."""
     return {"authMode": auth.AUTH_MODE, "firebase": auth.web_config() if auth.AUTH_MODE == "firebase" else None}
+
+@app.get("/api/usage")
+def usage(request: Request):
+    """Quanto o usuário já usou da IA neste mês, e os limites."""
+    usuario = me(request)
+    if not usuario:
+        return {"quotas": None}      # modo antigo: sem cota
+    with user_con(usuario) as con:
+        uso = store.uso_do_usuario(con, usuario["uid"])
+    return {"period": uso["period"], "quotas": QUOTAS,
+            "used": {k: uso[k] for k in store.TIPOS_USO},
+            "tokens": {"in": uso["tokens_in"], "out": uso["tokens_out"]}}
 
 @app.get("/api/me")
 def whoami(request: Request):

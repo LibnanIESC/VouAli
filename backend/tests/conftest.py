@@ -23,8 +23,12 @@ _counter = 0
 # Variáveis lidas pelo app. São zeradas antes de cada carga para um teste não
 # herdar a configuração do anterior.
 APP_VARS = [
-    "TRIP_TOKEN", "ANTHROPIC_API_KEY", "ALI_MODEL", "ALI_RATE_MAX", "ALI_RATE_WINDOW",
-    "AUTH_MODE", "DATABASE_URL", "ENVIRONMENT",
+    "TRIP_TOKEN", "ANTHROPIC_API_KEY", "AUTH_MODE", "DATABASE_URL", "ENVIRONMENT",
+    # IA: modelos, limites e cotas
+    "ALI_MODEL", "ALI_MODEL_CHAT", "ALI_MODEL_GEN",
+    "ALI_RATE_MAX", "ALI_RATE_WINDOW", "ALI_RATE_MAX_USER", "ALI_MONTHLY_CAP",
+    "QUOTA_CHAT", "QUOTA_GEN", "QUOTA_TIP",
+    # Firebase
     "FIREBASE_CREDENTIALS", "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY",
     "FIREBASE_AUTH_DOMAIN", "FIREBASE_APP_ID",
 ]

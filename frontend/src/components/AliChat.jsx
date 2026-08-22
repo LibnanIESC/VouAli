@@ -65,6 +65,8 @@ export default function AliChat({ trip, destino, currency = "US$", status = "syn
     if (r && r.reply) reply = r.reply;
     else if (r && r.error === "not_configured") reply = "A IA ainda não está ligada aqui — falta configurar a chave ANTHROPIC_API_KEY no servidor. Enquanto isso, sigo bom de dicas no roteiro. 🙂";
     else if (r && r.error === "rate_limited") reply = "Ê, quanta pergunta boa de uma vez! 😄 Dá uns segundinhos e manda de novo.";
+    else if (r && r.error === "quota") reply = `Por hoje o papo comigo chegou no limite do mês (${r.limite} conversas) 😅 Ele renova no dia 1º — e o roteiro, o orçamento e as dicas que já estão salvos continuam todos aqui.`;
+    else if (r && r.error === "ai_paused") reply = "Estou de recesso rapidinho por aqui ⏸️ Volto já — o app segue funcionando normalmente.";
     else reply = "Ops, não consegui responder agora. Tenta de novo em instantes.";
     setMsgs((m) => [...m, { role: "assistant", content: reply, at: Date.now() }]);
   };

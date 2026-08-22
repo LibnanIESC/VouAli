@@ -19,6 +19,8 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
     if (r && r.dica) setF((cur) => ({ ...cur, insight: r.dica }));
     else if (r && r.error === "not_configured") toast("A IA ainda não está ligada — falta a chave no servidor.");
     else if (r && r.error === "rate_limited") toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂");
+    else if (r && r.error === "quota") toast(`Você já usou as ${r.limite} dicas do mês. Escreva a sua — renova no dia 1º. 🙂`);
+    else if (r && r.error === "ai_paused") toast("O Ali está de recesso rapidinho. Escreva a dica manualmente por enquanto.");
     else toast("Não consegui gerar a dica agora. Tenta de novo em instantes.");
   };
 

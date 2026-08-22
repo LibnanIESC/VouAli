@@ -117,6 +117,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
       if (r && r.state) { onSave({ ...meta, data: r.state }); return; }
       if (r && r.error === "not_configured") { toast("A IA ainda não está ligada — falta a chave no servidor."); return; }
       if (r && r.error === "rate_limited") { toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂"); return; }
+      if (r && r.error === "quota") { toast(`Você já usou os ${r.limite} roteiros do mês. Crie a viagem vazia e monte com o Ali aos poucos. 🙂`); return; }
+      if (r && r.error === "ai_paused") { toast("O Ali está de recesso rapidinho. Crie a viagem vazia por enquanto."); return; }
       if (r && r.error === "invalid") { toast("Informe o destino e o número de dias (pelo menos 1)."); return; }
       toast("Não consegui gerar o roteiro agora. Tenta de novo, ou crie a viagem vazia."); return;
     }

@@ -1,10 +1,30 @@
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
-import { btn, lbl, NAVY, INK2 } from "../theme";
+import { apiUsage } from "../api";
+import { btn, lbl, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
+
+// Barrinha de consumo de um recurso da IA no mês.
+function Consumo({ rotulo, usado, limite }) {
+  const pct = limite > 0 ? Math.min(100, Math.round((usado / limite) * 100)) : 0;
+  const acabou = limite > 0 && usado >= limite;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: NAVY }}>{rotulo}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: acabou ? "#C62828" : INK3 }}>{usado} de {limite}</span>
+      </div>
+      <span style={{ display: "block", height: 6, background: SAND_L, borderRadius: 3, overflow: "hidden" }}>
+        <span style={{ display: "block", height: "100%", width: `${pct}%`, background: acabou ? "#C62828" : (pct > 80 ? ORANGE : STEEL), borderRadius: 3, transition: "width .3s ease" }} />
+      </span>
+    </div>
+  );
+}
 
 // Ajustes do app (backup por enquanto; ponto natural para futuras configurações).
 export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout }) {
   const fileRef = useRef(null);
+  const [uso, setUso] = useState(null);
+  useEffect(() => { (async () => setUso(await apiUsage()))(); }, []);
   return (
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 30px" }}>
@@ -17,6 +37,18 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
               <div style={{ fontSize: 15, fontWeight: 700, color: NAVY }}>{user.name || "Você"}</div>
               <div style={{ fontSize: 13.5, color: INK2, marginTop: 2, wordBreak: "break-all" }}>{user.email}</div>
               <button onClick={onLogout} style={{ ...btn("#fff", { color: "#C62828", border: "1.5px solid #C62828" }), width: "100%", marginTop: 14 }}>Sair da conta</button>
+            </div>
+          </>
+        )}
+
+        {uso && (
+          <>
+            <label style={{ ...lbl, marginTop: 18 }}>Ali este mês</label>
+            <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
+              <Consumo rotulo="Conversas" usado={uso.used.chat} limite={uso.quotas.chat} />
+              <Consumo rotulo="Roteiros gerados" usado={uso.used.gen} limite={uso.quotas.gen} />
+              <Consumo rotulo="Dicas geradas" usado={uso.used.tip} limite={uso.quotas.tip} />
+              <div style={{ fontSize: 12.5, color: INK3, marginTop: 2 }}>Renova no dia 1º de cada mês.</div>
             </div>
           </>
         )}
