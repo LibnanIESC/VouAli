@@ -204,6 +204,51 @@ export async function apiAli(messages, trip) {
   } catch (e) { return { error: "offline" }; }
 }
 
+// Conversa com o Ali recebendo o texto conforme ele sai (streaming).
+// `onDelta(pedaco)` é chamado a cada trecho. Se o streaming não funcionar,
+// devolve { fallback: true } para o chamador usar apiAli() do jeito antigo.
+export async function apiAliStream(messages, trip, onDelta) {
+  let res;
+  try {
+    res = await fetch("/api/ali/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ messages, trip }),
+    });
+  } catch (e) { return { fallback: true }; }
+
+  if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
+  if (!res.ok || !res.body || !(res.headers.get("Content-Type") || "").includes("event-stream")) {
+    return { fallback: true };
+  }
+
+  const leitor = res.body.getReader();
+  const decodificador = new TextDecoder();
+  let sobra = "";
+  let texto = "";
+  let recebeuAlgo = false;
+  try {
+    while (true) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      sobra += decodificador.decode(value, { stream: true });
+      const partes = sobra.split("\n\n");
+      sobra = partes.pop() || "";
+      for (const parte of partes) {
+        const linha = parte.split("\n").find((l) => l.startsWith("data:"));
+        if (!linha) continue;
+        let evento;
+        try { evento = JSON.parse(linha.slice(5).trim()); } catch (e) { continue; }
+        if (evento.delta) { texto += evento.delta; recebeuAlgo = true; onDelta && onDelta(evento.delta); }
+        else if (evento.error) return recebeuAlgo ? { reply: texto } : { error: evento.error, ...evento };
+      }
+    }
+  } catch (e) {
+    return recebeuAlgo ? { reply: texto } : { fallback: true };
+  }
+  return recebeuAlgo ? { reply: texto } : { fallback: true };
+}
+
 // Pede ao Ali um roteiro completo para uma viagem nova. Retorna { state } ou { error }.
 export async function apiGenerate(params) {
   try {

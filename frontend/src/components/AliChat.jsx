@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import AliAvatar from "./AliAvatar";
-import { apiAli } from "../api";
+import { apiAli, apiAliStream } from "../api";
 import { NAVY, STEEL, ORANGE, SAND_L, HELV, INK3 } from "../theme";
 
 const WELCOME = "Oi! Sou o Ali 👋 Pode perguntar o que quiser sobre a viagem — o que fazer se chover num dia, onde comer perto de uma parada, como cortar gastos, o que priorizar... tô aqui pra isso.";
@@ -59,7 +59,36 @@ export default function AliChat({ trip, destino, currency = "US$", status = "syn
     setMsgs(next);
     setInput("");
     setLoading(true);
-    const r = await apiAli(toHistory(next), trip);
+
+    // Primeiro tenta receber a resposta conforme ela sai: a bolha do Ali
+    // aparece já no primeiro trecho e vai crescendo enquanto ele escreve.
+    let primeiro = true;
+    const historico = toHistory(next);
+    let r = await apiAliStream(historico, trip, (pedaco) => {
+      setMsgs((m) => {
+        if (primeiro) {
+          primeiro = false;
+          setLoading(false);
+          return [...m, { role: "assistant", content: pedaco, at: Date.now(), streaming: true }];
+        }
+        const copia = [...m];
+        const ultima = copia[copia.length - 1];
+        copia[copia.length - 1] = { ...ultima, content: ultima.content + pedaco };
+        return copia;
+      });
+    });
+
+    if (r && r.fallback) r = await apiAli(historico, trip);   // servidor sem streaming
+    else if (r && r.reply && !primeiro) {                     // streaming completou
+      setMsgs((m) => {
+        const copia = [...m];
+        copia[copia.length - 1] = { ...copia[copia.length - 1], content: r.reply, streaming: false };
+        return copia;
+      });
+      setLoading(false);
+      return;
+    }
+
     setLoading(false);
     let reply;
     if (r && r.reply) reply = r.reply;

@@ -3,7 +3,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 import auth
 import store
@@ -691,6 +691,66 @@ def delete_trip(request: Request, tid: str):
     con.commit(); con.close()
     return {"trips": trips}
 
+def _preparar_chat(body):
+    """Monta (histórico, system) a partir do corpo do pedido. None se vazio."""
+    msgs = body.get("messages") or []
+    trip = body.get("trip") or {}
+    conv = [
+        {"role": m.get("role"), "content": str(m.get("content", ""))}
+        for m in msgs
+        if m.get("role") in ("user", "assistant") and str(m.get("content", "")).strip()
+    ][-24:]
+    while conv and conv[0]["role"] != "user":
+        conv.pop(0)
+    if not conv:
+        return None
+    hoje = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {hoje}.\n\nDados atuais da viagem:\n" + _trip_context(trip)
+    return conv, system
+
+def _sse(dado):
+    return f"data: {json.dumps(dado, ensure_ascii=False)}\n\n"
+
+@app.post("/api/ali/stream")
+async def ali_stream(request: Request):
+    """Mesma conversa do /api/ali, mas devolvendo o texto conforme ele sai.
+    A pessoa começa a ler na hora, em vez de encarar um 'digitando…' longo."""
+    usuario = me(request)
+    body = await request.json()
+
+    async def eventos():
+        if not _ali_client:
+            yield _sse({"error": "not_configured"}); return
+        if not _rate_ok(usuario and usuario["uid"]):
+            yield _sse({"error": "rate_limited"}); return
+        pode, motivo = _cota(usuario, "chat")
+        if not pode:
+            yield _sse(motivo); return
+        preparo = _preparar_chat(body)
+        if not preparo:
+            yield _sse({"error": "empty"}); return
+        conv, system = preparo
+        kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": _system(system), "messages": conv}
+        if _efeito_ok(ALI_MODEL_CHAT):
+            kwargs["output_config"] = {"effort": "low"}
+        try:
+            async with _ali_client.messages.stream(**kwargs) as fluxo:
+                async for pedaco in fluxo.text_stream:
+                    if pedaco:
+                        yield _sse({"delta": pedaco})
+                final = await fluxo.get_final_message()
+            _contar(usuario, "chat", final)
+            if getattr(final, "stop_reason", None) == "refusal":
+                yield _sse({"error": "refusal"})
+            yield _sse({"done": True})
+        except Exception as e:
+            yield _sse({"error": "api_error", "detail": str(e)[:200]})
+
+    return StreamingResponse(eventos(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",     # impede o proxy de segurar os pedaços
+    })
+
 @app.post("/api/ali")
 async def ali_chat(request: Request):
     usuario = me(request)
@@ -702,20 +762,10 @@ async def ali_chat(request: Request):
     if not pode:
         return motivo
     body = await request.json()
-    msgs = body.get("messages") or []
-    trip = body.get("trip") or {}
-    # normaliza, mantém só turnos válidos, limita o histórico e começa por 'user'
-    conv = [
-        {"role": m.get("role"), "content": str(m.get("content", ""))}
-        for m in msgs
-        if m.get("role") in ("user", "assistant") and str(m.get("content", "")).strip()
-    ][-24:]
-    while conv and conv[0]["role"] != "user":
-        conv.pop(0)
-    if not conv:
+    preparo = _preparar_chat(body)
+    if not preparo:
         return {"error": "empty"}
-    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-    system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {today}.\n\nDados atuais da viagem:\n" + _trip_context(trip)
+    conv, system = preparo
     kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": _system(system), "messages": conv}
     if _efeito_ok(ALI_MODEL_CHAT):
         kwargs["output_config"] = {"effort": "low"}

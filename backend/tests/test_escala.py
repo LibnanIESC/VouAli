@@ -126,6 +126,115 @@ def test_prompt_pequeno_nao_pede_cache(tmp_path):
     assert isinstance(fake.ultimo["system"], str)
 
 
+# ---------- streaming: a resposta aparece enquanto o Ali escreve ----------
+
+class _FluxoFake:
+    """Imita o streaming do SDK: pedaços de texto + mensagem final."""
+
+    def __init__(self, pedacos):
+        self.pedacos = pedacos
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    @property
+    def text_stream(self):
+        async def gerar():
+            for p in self.pedacos:
+                yield p
+        return gerar()
+
+    async def get_final_message(self):
+        return _Resposta("".join(self.pedacos))
+
+
+class _ClienteStream:
+    def __init__(self, pedacos):
+        self.pedacos = pedacos
+        self.ultimo = None
+        self.messages = self
+
+    def stream(self, **kwargs):
+        self.ultimo = kwargs
+        return _FluxoFake(self.pedacos)
+
+
+def _eventos(resposta):
+    """Extrai os eventos JSON de uma resposta SSE."""
+    import json as _json
+    fora = []
+    for bloco in resposta.text.split("\n\n"):
+        linha = next((l for l in bloco.split("\n") if l.startswith("data:")), None)
+        if linha:
+            fora.append(_json.loads(linha[5:].strip()))
+    return fora
+
+
+def test_stream_entrega_o_texto_em_pedacos(tmp_path):
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    modulo._ali_client = _ClienteStream(["Vá ", "cedo ", "ao museu."])
+    client = TestClient(modulo.app)
+    r = client.post("/api/ali/stream", json={"messages": [{"role": "user", "content": "dica?"}], "trip": {}})
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers["content-type"]
+    eventos = _eventos(r)
+    assert [e["delta"] for e in eventos if "delta" in e] == ["Vá ", "cedo ", "ao museu."]
+    assert eventos[-1] == {"done": True}
+
+
+def test_stream_conta_uso_ao_terminar(tmp_path):
+    modulo = load_main(tmp_path, AUTH_MODE="firebase", DATABASE_URL="", ANTHROPIC_API_KEY=None, QUOTA_CHAT="5")
+    modulo.auth.verify_token = lambda t: ANA if t == ANA["uid"] else None
+    modulo._ali_client = _ClienteStream(["oi", " tudo bem"])
+    client = TestClient(modulo.app)
+    cab = {"Authorization": f"Bearer {ANA['uid']}"}
+    client.post("/api/ali/stream", headers=cab, json={"messages": [{"role": "user", "content": "oi"}], "trip": {}})
+    assert client.get("/api/usage", headers=cab).json()["used"]["chat"] == 1
+
+
+def test_stream_respeita_cota(tmp_path):
+    modulo = load_main(tmp_path, AUTH_MODE="firebase", DATABASE_URL="", ANTHROPIC_API_KEY=None, QUOTA_CHAT="1")
+    modulo.auth.verify_token = lambda t: ANA if t == ANA["uid"] else None
+    modulo._ali_client = _ClienteStream(["ok"])
+    client = TestClient(modulo.app)
+    cab = {"Authorization": f"Bearer {ANA['uid']}"}
+    corpo = {"messages": [{"role": "user", "content": "oi"}], "trip": {}}
+    client.post("/api/ali/stream", headers=cab, json=corpo)
+    eventos = _eventos(client.post("/api/ali/stream", headers=cab, json=corpo))
+    assert eventos[0]["error"] == "quota"
+
+
+def test_stream_sem_chave_avisa_pelo_proprio_fluxo(tmp_path):
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    client = TestClient(modulo.app)
+    eventos = _eventos(client.post("/api/ali/stream", json={"messages": [{"role": "user", "content": "oi"}]}))
+    assert eventos == [{"error": "not_configured"}]
+
+
+def test_stream_e_rota_antiga_usam_o_mesmo_preparo(tmp_path):
+    """As duas rotas precisam mandar o mesmo contexto para a IA."""
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    viagem = {"adults": 2, "groupTypes": "Casal", "currency": "€", "budget": [{"k": "Trem", "v": 30}], "budgetTotal": 900}
+    corpo = {"messages": [{"role": "assistant", "content": "boas-vindas"},
+                          {"role": "user", "content": "e se chover?"}], "trip": viagem}
+    client = TestClient(modulo.app)
+
+    fluxo = _ClienteStream(["ok"])
+    modulo._ali_client = fluxo
+    client.post("/api/ali/stream", json=corpo)
+
+    normal = _ClienteFake("ok")
+    modulo._ali_client = normal
+    client.post("/api/ali", json=corpo)
+
+    assert fluxo.ultimo["messages"] == normal.ultimo["messages"]
+    assert fluxo.ultimo["system"] == normal.ultimo["system"]
+    assert fluxo.ultimo["model"] == normal.ultimo["model"]
+
+
 def test_tokens_de_cache_entram_na_contabilidade(tmp_path):
     modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
 
