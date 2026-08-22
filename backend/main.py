@@ -3,6 +3,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 import auth
@@ -350,6 +351,21 @@ def _active_key(con):
     return f"trip:{active}" if active else None
 
 app = FastAPI(title="VouAli")
+
+# O app Android roda a interface embarcada no aparelho, então as chamadas à
+# API vêm de outra origem. Sem isto, o navegador do app bloqueia tudo.
+# ORIGENS_EXTRA permite acrescentar domínios (ex.: um site próprio).
+ORIGENS_APP = ["capacitor://localhost", "ionic://localhost", "http://localhost", "https://localhost"]
+ORIGENS_EXTRA = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGENS_APP + ORIGENS_EXTRA,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Trip-Token", "X-Base-Version", "If-None-Match"],
+    # Sem expor o ETag, o app não consegue lê-lo e perderíamos o 304.
+    expose_headers=["ETag"],
+)
 
 def check(request: Request):
     """Modo legado (produção): senha compartilhada."""

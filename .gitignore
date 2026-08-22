@@ -6,3 +6,9 @@ __pycache__/
 backend/data/
 backend/static/
 .env
+
+# Android (Capacitor)
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/.env.production.local

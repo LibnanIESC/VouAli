@@ -1,4 +1,12 @@
 // ---------- Persistência no backend (sincroniza os dois celulares) ----------
+
+// No site, a API é a mesma origem (base vazia). No app Android a interface
+// roda embarcada no aparelho, então precisa do endereço absoluto do servidor
+// — definido em VITE_API_BASE na hora de gerar o app.
+export const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
+export const url = (caminho) => API_BASE + caminho;
+export const noApp = () => !!(typeof window !== "undefined" && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
 const TOKEN_KEY = "trip-token";
 
 // No modo multiusuário, quem fornece o token é o Firebase (definido pelo App).
@@ -18,7 +26,7 @@ function authHeaders() {
 // Configuração pública do servidor (modo de login e credenciais do Firebase).
 export async function apiConfig() {
   try {
-    const res = await fetch("/api/config");
+    const res = await fetch(url("/api/config"));
     if (!res.ok) return { authMode: "token", firebase: null };
     return await res.json();
   } catch (e) { return { authMode: "token", firebase: null }; }
@@ -53,7 +61,7 @@ export async function apiGet() {
   try {
     const headers = { ...authHeaders() };
     if (_etag) headers["If-None-Match"] = _etag;   // pergunta leve: "mudou?"
-    const res = await fetch("/api/state", { headers, cache: "no-store" });
+    const res = await fetch(url("/api/state"), { headers, cache: "no-store" });
     if (res.status === 401) { promptToken(); return null; }
     if (res.status === 304) {                      // nada mudou: sem corpo
       if (_status === "offline") setStatus("synced");
@@ -77,7 +85,7 @@ export function apiPut(state) {
   clearTimeout(putTimer);
   putTimer = setTimeout(async () => {
     try {
-      const res = await fetch("/api/state", {
+      const res = await fetch(url("/api/state"), {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-Base-Version": String(_version), ...authHeaders() },
         body: JSON.stringify(state),
@@ -111,7 +119,7 @@ export async function flushNow() {
   clearTimeout(putTimer);
   if (!(_dirty && _pending)) return;
   try {
-    const res = await fetch("/api/state", {
+    const res = await fetch(url("/api/state"), {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-Base-Version": String(_version), ...authHeaders() },
       body: JSON.stringify(_pending),
@@ -125,7 +133,7 @@ export async function flushNow() {
 // ---------- Gestão de viagens (multi-viagem) ----------
 export async function apiTrips() {
   try {
-    const res = await fetch("/api/trips", { headers: authHeaders() });
+    const res = await fetch(url("/api/trips"), { headers: authHeaders() });
     if (res.status === 401) { promptToken(); return null; }
     if (!res.ok) { setStatus("offline"); return null; }
     const j = await res.json();
@@ -133,21 +141,21 @@ export async function apiTrips() {
   } catch (e) { setStatus("offline"); return null; }
 }
 export async function apiCreateTrip(meta) {
-  const res = await fetch("/api/trips", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
+  const res = await fetch(url("/api/trips"), { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
   if (!res.ok) return null;
   return await res.json(); // { meta, trips }
 }
 export async function apiSetActive(id) {
   _etag = "";               // outra viagem: a marca anterior não serve
-  try { await fetch("/api/active", { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) }); } catch (e) {}
+  try { await fetch(url("/api/active"), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) }); } catch (e) {}
 }
 export async function apiTripMeta(id, meta) {
-  const res = await fetch(`/api/trips/${id}/meta`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
+  const res = await fetch(url(`/api/trips/${id}/meta`), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
   if (!res.ok) return null;
   return await res.json(); // { trips }
 }
 export async function apiDeleteTrip(id) {
-  const res = await fetch(`/api/trips/${id}`, { method: "DELETE", headers: authHeaders() });
+  const res = await fetch(url(`/api/trips/${id}`), { method: "DELETE", headers: authHeaders() });
   if (!res.ok) return null;
   return await res.json(); // { trips }
 }
@@ -155,7 +163,7 @@ export async function apiDeleteTrip(id) {
 // Consumo de IA do mês (cotas). null = ambiente sem cota (modo antigo).
 export async function apiUsage() {
   try {
-    const res = await fetch("/api/usage", { headers: authHeaders() });
+    const res = await fetch(url("/api/usage"), { headers: authHeaders() });
     if (!res.ok) return null;
     const j = await res.json();
     return j.quotas ? j : null;
@@ -165,14 +173,14 @@ export async function apiUsage() {
 // ---------- Compartilhamento de viagem ----------
 export async function apiMembers(id) {
   try {
-    const res = await fetch(`/api/trips/${id}/members`, { headers: authHeaders() });
+    const res = await fetch(url(`/api/trips/${id}/members`), { headers: authHeaders() });
     if (!res.ok) return null;
     return await res.json(); // { role, members, invites }
   } catch (e) { return null; }
 }
 export async function apiInvite(id, email) {
   try {
-    const res = await fetch(`/api/trips/${id}/members`, {
+    const res = await fetch(url(`/api/trips/${id}/members`), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ email }),
@@ -184,7 +192,7 @@ export async function apiInvite(id, email) {
 }
 export async function apiRemoveMember(id, quem) {
   try {
-    const res = await fetch(`/api/trips/${id}/members/${encodeURIComponent(quem)}`, { method: "DELETE", headers: authHeaders() });
+    const res = await fetch(url(`/api/trips/${id}/members/${encodeURIComponent(quem)}`), { method: "DELETE", headers: authHeaders() });
     if (!res.ok) return { error: "http_" + res.status };
     return await res.json(); // { members, invites }
   } catch (e) { return { error: "offline" }; }
@@ -193,7 +201,7 @@ export async function apiRemoveMember(id, quem) {
 // ---------- Chat com o Ali (IA) ----------
 export async function apiAli(messages, trip) {
   try {
-    const res = await fetch("/api/ali", {
+    const res = await fetch(url("/api/ali"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ messages, trip }),
@@ -210,7 +218,7 @@ export async function apiAli(messages, trip) {
 export async function apiAliStream(messages, trip, onDelta) {
   let res;
   try {
-    res = await fetch("/api/ali/stream", {
+    res = await fetch(url("/api/ali/stream"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ messages, trip }),
@@ -252,7 +260,7 @@ export async function apiAliStream(messages, trip, onDelta) {
 // Pede ao Ali um roteiro completo para uma viagem nova. Retorna { state } ou { error }.
 export async function apiGenerate(params) {
   try {
-    const res = await fetch("/api/ali/gerar", {
+    const res = await fetch(url("/api/ali/gerar"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(params),
@@ -266,7 +274,7 @@ export async function apiGenerate(params) {
 // Gera uma dica do Ali (sob demanda) para uma parada do roteiro.
 export async function apiAliDica(stop, trip) {
   try {
-    const res = await fetch("/api/ali/dica", {
+    const res = await fetch(url("/api/ali/dica"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ stop, trip }),

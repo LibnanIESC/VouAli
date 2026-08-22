@@ -3,6 +3,7 @@ import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
+import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
 const NY_TETO_LEGADO = 3000;
@@ -132,12 +133,31 @@ export default function App() {
   // Tira a splash assim que já dá para mostrar login ou app.
   useEffect(() => {
     if (conferindoAcesso) return;
+    esconderSplashNativa();
     const s = document.getElementById("splash");
     if (!s) return;
     s.style.opacity = "0";
     const t = setTimeout(() => s.remove(), 300);
     return () => clearTimeout(t);
   }, [conferindoAcesso]);
+
+  // Ajustes que só valem dentro do app instalado (no site não fazem nada).
+  useEffect(() => { ajustarBarraDeStatus(); }, []);
+
+  // Botão voltar do Android: fecha o que está aberto antes de sair do app.
+  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false });
+  estadoRef.current = { ov, tab, reorder };
+  useEffect(() => {
+    let remover = () => {};
+    tratarBotaoVoltar(
+      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder, aba: estadoRef.current.tab }),
+      {
+        fecharOverlay: () => { if (estadoRef.current.ov) setOv(null); else setReorder(false); },
+        irParaRoteiro: () => setTab("roteiro"),
+      },
+    ).then((f) => { remover = f; });
+    return () => remover();
+  }, []);
 
   // 2) Só busca os dados depois de saber quem é o usuário.
   useEffect(() => {
@@ -270,8 +290,10 @@ export default function App() {
     toastMsg("Backup importado. ✅");
   };
 
-  const toggleStop = (sid) =>
+  const toggleStop = (sid) => {
+    vibrar();   // no app, um toque curto confirma a ação (no site, nada)
     setDaysP(days.map((d) => d.id === day.id ? { ...d, stops: d.stops.map((s) => s.id === sid ? { ...s, done: !s.done } : s) } : d));
+  };
 
   // Próxima parada em aberto do dia (ganha destaque na timeline).
   const nextStopId = (((day && day.stops) || []).find((s) => !s.done) || {}).id;

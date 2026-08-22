@@ -235,6 +235,52 @@ def test_stream_e_rota_antiga_usam_o_mesmo_preparo(tmp_path):
     assert fluxo.ultimo["model"] == normal.ultimo["model"]
 
 
+# ---------- CORS: o app Android chama a API de outra origem ----------
+
+def test_app_android_pode_chamar_a_api(tmp_path):
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    client = TestClient(modulo.app)
+    r = client.get("/api/health", headers={"Origin": "capacitor://localhost"})
+    assert r.headers.get("access-control-allow-origin") == "capacitor://localhost"
+
+
+def test_etag_e_visivel_para_o_app(tmp_path):
+    """Sem expor o ETag, o app não consegue lê-lo e perderíamos o 304."""
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    client = TestClient(modulo.app)
+    r = client.get("/api/state", headers={"Origin": "capacitor://localhost"})
+    assert "etag" in r.headers.get("access-control-expose-headers", "").lower()
+
+
+def test_preflight_libera_os_cabecalhos_que_usamos(tmp_path):
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    client = TestClient(modulo.app)
+    r = client.options("/api/state", headers={
+        "Origin": "capacitor://localhost",
+        "Access-Control-Request-Method": "PUT",
+        "Access-Control-Request-Headers": "authorization,content-type,if-none-match,x-base-version",
+    })
+    assert r.status_code == 200
+    liberados = r.headers.get("access-control-allow-headers", "").lower()
+    for cabecalho in ["authorization", "content-type", "if-none-match", "x-base-version"]:
+        assert cabecalho in liberados, cabecalho
+
+
+def test_origem_desconhecida_nao_e_liberada(tmp_path):
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    client = TestClient(modulo.app)
+    r = client.get("/api/health", headers={"Origin": "https://site-aleatorio.com"})
+    assert r.headers.get("access-control-allow-origin") is None
+
+
+def test_origem_extra_configuravel(tmp_path):
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None,
+                       ALLOWED_ORIGINS="https://vouali.com.br, https://outro.app")
+    client = TestClient(modulo.app)
+    r = client.get("/api/health", headers={"Origin": "https://vouali.com.br"})
+    assert r.headers.get("access-control-allow-origin") == "https://vouali.com.br"
+
+
 def test_tokens_de_cache_entram_na_contabilidade(tmp_path):
     modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
 
