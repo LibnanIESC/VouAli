@@ -13,4 +13,9 @@ ext {
     androidxJunitVersion = '1.3.0'
     androidxEspressoCoreVersion = '3.7.0'
     cordovaAndroidVersion = '14.0.1'
+
+    // Login com Google no app. Sem esta linha, o plugin de autenticação NÃO
+    // inclui as bibliotecas do Google (o padrão é false) e o login falha só
+    // na hora de usar, com erro genérico e difícil de diagnosticar.
+    rgcfaIncludeGoogle = true
 }
