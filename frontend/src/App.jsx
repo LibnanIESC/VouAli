@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
@@ -689,7 +689,8 @@ export default function App() {
       {precisaLogin && (
         <Login
           onGoogle={() => fbRef.current.loginGoogle()}
-          onLink={(email) => fbRef.current.enviarLink(email)} />
+          onLink={(email) => fbRef.current.enviarLink(email)}
+          permiteEmail={!noApp()} />
       )}
 
       {/* Primeiro acesso: sem nenhuma viagem, cobre tudo com as boas-vindas */}

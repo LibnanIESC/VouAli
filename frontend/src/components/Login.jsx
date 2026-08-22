@@ -13,7 +13,7 @@ const GoogleIcon = ({ size = 18 }) => (
 );
 
 // Tela de entrada: Google (1 toque) ou link mágico por e-mail (sem senha).
-export default function Login({ onGoogle, onLink }) {
+export default function Login({ onGoogle, onLink, permiteEmail = true }) {
   const [email, setEmail] = useState("");
   const [modo, setModo] = useState("inicio");     // inicio | email | enviado
   const [ocupado, setOcupado] = useState(false);
@@ -70,7 +70,7 @@ export default function Login({ onGoogle, onLink }) {
                 <GoogleIcon />Entrar com Google
               </button>
 
-              {modo === "inicio" ? (
+              {!permiteEmail ? null : modo === "inicio" ? (
                 <button onClick={() => setModo("email")} disabled={ocupado}
                   style={{ background: "none", border: "none", color: INK2, fontSize: 14, fontWeight: 700, fontFamily: HELV, cursor: "pointer", minHeight: 44 }}>
                   ou entrar com e-mail

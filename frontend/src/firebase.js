@@ -5,11 +5,12 @@
 // carregado quando o servidor diz que o modo de autenticação é "firebase".
 import { initializeApp } from "firebase/app";
 import {
-  getAuth, setPersistence, browserLocalPersistence,
-  GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+  getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence,
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithCredential,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
   onIdTokenChanged, signOut as fbSignOut,
 } from "firebase/auth";
+import { noApp } from "./api";
 
 const EMAIL_KEY = "vouali-login-email";
 let _auth = null;
@@ -28,7 +29,13 @@ export async function initAuth(config) {
   if (_auth) return _auth;
   const app = initializeApp(config);
   _auth = getAuth(app);
-  try { await setPersistence(_auth, browserLocalPersistence); } catch (e) {}
+  // No WebView do app, o armazenamento local pode ser limpo com mais
+  // facilidade; o IndexedDB segura melhor a sessão entre aberturas.
+  try {
+    await setPersistence(_auth, noApp() ? indexedDBLocalPersistence : browserLocalPersistence);
+  } catch (e) {
+    try { await setPersistence(_auth, browserLocalPersistence); } catch (e2) {}
+  }
 
   // Espera a primeira resposta do Firebase antes de decidir a tela a mostrar.
   await new Promise((resolve) => {
@@ -46,7 +53,32 @@ export async function initAuth(config) {
 }
 
 // ---------- Google ----------
+
+/**
+ * Dentro do app instalado, a janelinha de login do navegador não funciona
+ * (o WebView bloqueia). Aqui usamos a tela de contas NATIVA do Android e
+ * depois entregamos a credencial ao Firebase do JavaScript — assim o resto
+ * do app (token, sessão, logout) continua funcionando igual ao site.
+ */
+async function loginGoogleNativo() {
+  const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
+  const r = await FirebaseAuthentication.signInWithGoogle();
+  const idToken = r && r.credential && r.credential.idToken;
+  if (!idToken) throw new Error("sem credencial do Google");
+  await signInWithCredential(_auth, GoogleAuthProvider.credential(idToken));
+}
+
 export async function loginGoogle() {
+  if (noApp()) {
+    try {
+      await loginGoogleNativo();
+      return { ok: true };
+    } catch (e) {
+      const code = (e && (e.code || e.message)) || "";
+      if (/cancel|closed|12501/i.test(String(code))) return { ok: false, cancelado: true };
+      return { ok: false, erro: String(code).slice(0, 120) };
+    }
+  }
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
   try {
@@ -95,5 +127,13 @@ export async function completeMagicLink() {
 }
 
 export async function logout() {
+  // No app, sair do Firebase do JavaScript não basta: a sessão nativa
+  // continuaria valendo e o próximo login entraria sozinho na mesma conta.
+  if (noApp()) {
+    try {
+      const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
+      await FirebaseAuthentication.signOut();
+    } catch (e) {}
+  }
   try { await fbSignOut(_auth); } catch (e) {}
 }
