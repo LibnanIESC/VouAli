@@ -60,34 +60,14 @@ export default function AliChat({ trip, destino, currency = "US$", status = "syn
     setInput("");
     setLoading(true);
 
-    // Primeiro tenta receber a resposta conforme ela sai: a bolha do Ali
-    // aparece já no primeiro trecho e vai crescendo enquanto ele escreve.
-    let primeiro = true;
+    // A resposta vem por streaming, mas só aparece quando está PRONTA.
+    // Isto é intencional: a tela imita uma conversa de mensageiro, onde a
+    // pessoa "digita" e a mensagem chega inteira. Texto surgindo palavra a
+    // palavra é a linguagem de ferramenta de IA e quebra essa metáfora —
+    // ainda mais com as respostas do Ali sendo curtas (até 3 frases).
     const historico = toHistory(next);
-    let r = await apiAliStream(historico, trip, (pedaco) => {
-      setMsgs((m) => {
-        if (primeiro) {
-          primeiro = false;
-          setLoading(false);
-          return [...m, { role: "assistant", content: pedaco, at: Date.now(), streaming: true }];
-        }
-        const copia = [...m];
-        const ultima = copia[copia.length - 1];
-        copia[copia.length - 1] = { ...ultima, content: ultima.content + pedaco };
-        return copia;
-      });
-    });
-
+    let r = await apiAliStream(historico, trip);
     if (r && r.fallback) r = await apiAli(historico, trip);   // servidor sem streaming
-    else if (r && r.reply && !primeiro) {                     // streaming completou
-      setMsgs((m) => {
-        const copia = [...m];
-        copia[copia.length - 1] = { ...copia[copia.length - 1], content: r.reply, streaming: false };
-        return copia;
-      });
-      setLoading(false);
-      return;
-    }
 
     setLoading(false);
     let reply;
