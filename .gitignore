@@ -14,3 +14,5 @@ frontend/android/local.properties
 frontend/.env.production.local
 
 frontend/android/app/google-services.json
+frontend/android/app/src/main/assets/public/
+frontend/android/app/src/main/res/xml/config.xml
