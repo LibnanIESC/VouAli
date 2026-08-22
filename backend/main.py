@@ -2,8 +2,8 @@ import json, os, sqlite3, mimetypes, time, uuid
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi.responses import FileResponse, JSONResponse
 
 import auth
 import store
@@ -82,10 +82,26 @@ def _rate_ok(uid=None) -> bool:
             return False
     return True
 
+# A persona do Ali + o contexto da viagem são reenviados a CADA mensagem.
+# Marcando esse trecho para cache, as mensagens seguintes da mesma conversa
+# pagam uma fração pelo mesmo conteúdo. Abaixo do mínimo de tokens o cache
+# não vale, então só marcamos quando o texto é grande o bastante.
+CACHE_MIN_CHARS = int(os.getenv("ALI_CACHE_MIN_CHARS", "4000"))
+
+def _system(texto):
+    """Monta o system prompt, pedindo cache quando compensa."""
+    if len(texto) < CACHE_MIN_CHARS:
+        return texto
+    return [{"type": "text", "text": texto, "cache_control": {"type": "ephemeral"}}]
+
 def _tokens(resp):
-    """Lê o consumo da resposta da IA (para custo por usuário)."""
+    """Lê o consumo da resposta da IA (para custo por usuário).
+    Tokens lidos do cache contam como entrada, mas custam bem menos."""
     uso = getattr(resp, "usage", None)
-    return (int(getattr(uso, "input_tokens", 0) or 0), int(getattr(uso, "output_tokens", 0) or 0))
+    entrada = int(getattr(uso, "input_tokens", 0) or 0)
+    entrada += int(getattr(uso, "cache_read_input_tokens", 0) or 0)
+    entrada += int(getattr(uso, "cache_creation_input_tokens", 0) or 0)
+    return (entrada, int(getattr(uso, "output_tokens", 0) or 0))
 
 def _cota(usuario, tipo):
     """Devolve (pode_usar, detalhe). Sem contas (modo antigo), não há cota."""
@@ -372,6 +388,16 @@ def _put_state_key(con, key, body, base):
     return new_ver
 
 # --- /api/state opera na viagem ATIVA (do usuário, no modo firebase) ---
+def _etag(chave, versao):
+    return f'W/"{chave}-{versao}"'
+
+def _sem_mudanca(request, chave, versao):
+    """O app pergunta 'mudou?' a cada poucos segundos. Quando nada mudou,
+    responde 304 sem corpo — economiza banda e processamento."""
+    if request.headers.get("If-None-Match") == _etag(chave, versao):
+        return Response(status_code=304, headers={"ETag": _etag(chave, versao), "Cache-Control": "no-cache"})
+    return None
+
 @app.get("/api/state")
 def get_state(request: Request):
     usuario = me(request)
@@ -382,13 +408,23 @@ def get_state(request: Request):
             if not ativa:
                 return {"state": None, "version": 0}
             got = store.get_trip(con, ativa, usuario["uid"])
-            return {"state": got[0], "version": got[1]} if got else {"state": None, "version": 0}
+            if not got:
+                return {"state": None, "version": 0}
+            igual = _sem_mudanca(request, ativa, got[1])
+            if igual:
+                return igual
+            return JSONResponse({"state": got[0], "version": got[1]},
+                                headers={"ETag": _etag(ativa, got[1]), "Cache-Control": "no-cache"})
     con = db()
     key = _active_key(con)
     if not key:
         con.close(); return {"state": None, "version": 0}
     data, ver = _read(con, key); con.close()
-    return {"state": data, "version": ver}
+    igual = _sem_mudanca(request, key, ver)
+    if igual:
+        return igual
+    return JSONResponse({"state": data, "version": ver},
+                        headers={"ETag": _etag(key, ver), "Cache-Control": "no-cache"})
 
 @app.put("/api/state")
 async def put_state(request: Request):
@@ -680,7 +716,7 @@ async def ali_chat(request: Request):
         return {"error": "empty"}
     today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {today}.\n\nDados atuais da viagem:\n" + _trip_context(trip)
-    kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": system, "messages": conv}
+    kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": _system(system), "messages": conv}
     if _efeito_ok(ALI_MODEL_CHAT):
         kwargs["output_config"] = {"effort": "low"}
     try:
@@ -821,9 +857,24 @@ def whoami(request: Request):
         return {"mode": "firebase", "user": usuario}
 
 # --- SPA + static assets (defined last so /api routes win) ---
+# Arquivos de /assets/ levam hash no nome: mudou o conteúdo, mudou o nome.
+# Por isso podem ser guardados "para sempre" pelo navegador (e por uma CDN).
+# O index.html e o service worker precisam ser sempre conferidos, senão o
+# app fica preso numa versão antiga.
+UM_ANO = "public, max-age=31536000, immutable"
+SEM_CACHE = "no-cache"
+UM_DIA = "public, max-age=86400"
+
+def _cache_de(caminho: str) -> str:
+    if caminho.startswith("assets/"):
+        return UM_ANO
+    if caminho in ("sw.js", "index.html", "") or caminho.endswith(".webmanifest"):
+        return SEM_CACHE
+    return UM_DIA          # ícones e imagens da marca
+
 @app.get("/{full_path:path}")
 def spa(full_path: str):
     candidate = (STATIC / full_path).resolve()
     if full_path and candidate.is_file() and str(candidate).startswith(str(STATIC.resolve())):
-        return FileResponse(candidate)
-    return FileResponse(STATIC / "index.html")
+        return FileResponse(candidate, headers={"Cache-Control": _cache_de(full_path)})
+    return FileResponse(STATIC / "index.html", headers={"Cache-Control": SEM_CACHE})

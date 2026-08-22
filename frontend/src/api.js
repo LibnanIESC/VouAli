@@ -45,12 +45,22 @@ let _onRemote = null;      // handler que aplica estado vindo do servidor
 export function setRemoteHandler(fn) { _onRemote = fn; }
 export function isDirty() { return _dirty; }
 
-// Busca o estado do servidor. Retorna { state, version } ou null em falha.
+let _etag = "";            // marca da última versão que já temos
+
+// Busca o estado do servidor. Retorna { state, version }, { naoMudou: true }
+// quando nada mudou desde a última consulta, ou null em falha.
 export async function apiGet() {
   try {
-    const res = await fetch("/api/state", { headers: authHeaders() });
+    const headers = { ...authHeaders() };
+    if (_etag) headers["If-None-Match"] = _etag;   // pergunta leve: "mudou?"
+    const res = await fetch("/api/state", { headers, cache: "no-store" });
     if (res.status === 401) { promptToken(); return null; }
+    if (res.status === 304) {                      // nada mudou: sem corpo
+      if (_status === "offline") setStatus("synced");
+      return { naoMudou: true, version: _version };
+    }
     if (!res.ok) { setStatus("offline"); return null; }
+    _etag = res.headers.get("ETag") || "";
     const j = await res.json();
     if (typeof j.version === "number") _version = j.version;
     if (_status === "offline") setStatus("synced");
@@ -84,6 +94,7 @@ export function apiPut(state) {
       if (!res.ok) { setStatus("offline"); return; }
       const j = await res.json();
       if (typeof j.version === "number") _version = j.version;
+      _etag = "";            // gravamos: a marca antiga não vale mais
       _dirty = false;
       _pending = null;
       setStatus("synced");
@@ -127,6 +138,7 @@ export async function apiCreateTrip(meta) {
   return await res.json(); // { meta, trips }
 }
 export async function apiSetActive(id) {
+  _etag = "";               // outra viagem: a marca anterior não serve
   try { await fetch("/api/active", { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) }); } catch (e) {}
 }
 export async function apiTripMeta(id, meta) {
