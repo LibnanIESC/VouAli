@@ -38,6 +38,14 @@ export const INK = NAVY;        // texto principal sobre superfícies claras
 export const INK2 = "#4A5A6E";  // texto de apoio (≈7:1 sobre branco)
 export const INK3 = "#66738A";  // rótulos/caps (≈4.8:1 sobre branco)
 
+// ---------- Área segura (barra de status do celular) ----------
+// Dentro do app, o conteúdo desenha POR BAIXO da barra do sistema (hora,
+// bateria, sinal). Não é escolha nossa: a partir do Android 15 o sistema impõe
+// isso e a opção de desligar deixou de existir no Android 16. Então toda tela
+// que encosta no topo precisa reservar esse espaço por conta própria.
+// No site, `env(safe-area-inset-top)` vale 0 e sobra só o respiro normal.
+export const safeTop = (respiro = 0) => `calc(${respiro}px + env(safe-area-inset-top))`;
+
 // ---------- Helpers de estilo ----------
 export const btn = (bg, extra = {}) => ({ background: bg, color: "#fff", border: "none", borderRadius: 12, padding: "12px 18px", minHeight: 44, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: HELV, ...extra });
 export const field = { width: "100%", boxSizing: "border-box", border: "1.5px solid #ddd", borderRadius: 12, padding: "12px 14px", minHeight: 44, fontSize: 15, fontFamily: HELV, marginTop: 4, resize: "vertical" };

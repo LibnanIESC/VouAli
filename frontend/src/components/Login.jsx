@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import AliAvatar from "./AliAvatar";
-import { btn, field, CREAM, NAVY, ORANGE, DISPLAY, HELV, INK2, INK3 } from "../theme";
+import { btn, field, CREAM, NAVY, ORANGE, DISPLAY, HELV, INK2, INK3, safeTop } from "../theme";
 
 // Ícone do Google (multicolorido, como manda a marca deles).
 const GoogleIcon = ({ size = 18 }) => (
@@ -38,7 +38,7 @@ export default function Login({ onGoogle, onLink, permiteEmail = true }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: CREAM, zIndex: 40, display: "flex", justifyContent: "center", overflowY: "auto" }}>
-      <div style={{ width: "100%", maxWidth: 440, padding: "52px 26px calc(32px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+      <div style={{ width: "100%", maxWidth: 440, padding: `${safeTop(52)} 26px calc(32px + env(safe-area-inset-bottom))`, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 5, marginBottom: 30 }}>
           <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, lineHeight: 0.9, color: NAVY }}>Vou</span>
           <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, lineHeight: 0.9, color: ORANGE }}>Ali</span>

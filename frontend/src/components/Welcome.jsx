@@ -1,7 +1,7 @@
 import React from "react";
 import AliAvatar from "./AliAvatar";
 import { MapIcon, MoneyIcon, SparkIcon } from "./Icons";
-import { btn, CREAM, NAVY, ORANGE, STEEL, DISPLAY, HELV, INK2, INK3, SAND } from "../theme";
+import { btn, CREAM, NAVY, ORANGE, STEEL, DISPLAY, HELV, INK2, INK3, SAND, safeTop } from "../theme";
 
 // Primeiro acesso: nenhuma viagem ainda. Cobre a tela inteira para o usuário
 // novo não ver conteúdo de exemplo de outra pessoa.
@@ -20,7 +20,7 @@ export default function Welcome({ onCreate, user, onLogout }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: CREAM, zIndex: 30, display: "flex", justifyContent: "center", overflowY: "auto" }}>
-      <div style={{ width: "100%", maxWidth: 440, padding: "48px 26px calc(32px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+      <div style={{ width: "100%", maxWidth: 440, padding: `${safeTop(48)} 26px calc(32px + env(safe-area-inset-bottom))`, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 5, marginBottom: 28 }}>
           <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, lineHeight: 0.9, color: NAVY }}>Vou</span>
           <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, lineHeight: 0.9, color: ORANGE }}>Ali</span>

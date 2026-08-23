@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
-import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable } from "./theme";
+import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
@@ -426,25 +426,34 @@ export default function App() {
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(18,30,52,0.52) 0%, rgba(18,30,52,0.62) 55%, rgba(18,30,52,0.85) 100%)" }} />
           </div>
 
-          <div style={{ position: "relative", padding: "14px 16px 12px", color: "#fff" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 0.9, color: CREAM }}>Vou</span>
-                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 0.9, color: ORANGE }}>Ali</span>
-                <span style={{ width: 9, height: 9, marginBottom: 4, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
+          <div style={{ position: "relative", padding: `${safeTop(10)} 16px 12px`, color: "#fff" }}>
+            {/* Barra do app: a marca no centro, âncoras de 44px nas pontas.
+                O slot da esquerda fica vazio por ora — é onde entra a seta de
+                voltar para a lista de viagens. */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span aria-hidden="true" style={{ width: 44, height: 44, flex: "0 0 auto" }} />
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 5 }}>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: CREAM }}>Vou</span>
+                <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: ORANGE }}>Ali</span>
+                <span style={{ width: 11, height: 11, marginBottom: 4, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button onClick={() => setOv({ kind: "ajustes" })} aria-label="Ajustes" style={{ width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <GearIcon color="rgba(255,255,255,0.92)" size={19} />
-                </button>
-                <ProgressRing pct={overallPct} />
-              </div>
+              <button onClick={() => setOv({ kind: "ajustes" })} aria-label="Ajustes" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <GearIcon color="rgba(255,255,255,0.92)" size={19} />
+              </button>
             </div>
-            <button onClick={() => setOv({ kind: "trips" })} aria-label="Trocar de viagem" style={{ marginTop: 8, background: "rgba(255,255,255,0.14)", border: "1.5px solid rgba(255,255,255,0.35)", borderRadius: 999, padding: "8px 16px", minHeight: 42, display: "inline-flex", alignItems: "center", gap: 8, color: "#fff", cursor: "pointer", fontFamily: HELV, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>
-              <span style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>{activeMeta.name || "Minha viagem"}</span>
-              <ChevronIcon color="rgba(255,255,255,0.85)" size={14} dir="down" />
-            </button>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", fontWeight: 700, marginTop: 7 }}>{activeMeta.dateLabel || "toque no nome para escolher a viagem"}</div>
+
+            {/* Identidade da viagem. O anel de progresso vive aqui, e não junto
+                da engrenagem: o progresso é da viagem, não do aplicativo. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <button onClick={() => setOv({ kind: "trips" })} aria-label="Trocar de viagem" style={{ maxWidth: "100%", background: "rgba(255,255,255,0.14)", border: "1.5px solid rgba(255,255,255,0.35)", borderRadius: 999, padding: "8px 16px", minHeight: 42, display: "inline-flex", alignItems: "center", gap: 8, color: "#fff", cursor: "pointer", fontFamily: HELV, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>
+                  <span style={{ minWidth: 0, fontSize: 17, fontWeight: 800, letterSpacing: -0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeMeta.name || "Minha viagem"}</span>
+                  <ChevronIcon color="rgba(255,255,255,0.85)" size={14} dir="down" />
+                </button>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", fontWeight: 700, marginTop: 7 }}>{activeMeta.dateLabel || "toque no nome para escolher a viagem"}</div>
+              </div>
+              <ProgressRing pct={overallPct} />
+            </div>
             {sync !== "synced" && <SyncPill status={sync} />}
           </div>
 

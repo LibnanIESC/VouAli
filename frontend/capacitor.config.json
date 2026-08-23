@@ -17,8 +17,7 @@
       "showSpinner": false
     },
     "StatusBar": {
-      "style": "DARK",
-      "backgroundColor": "#1b2f4d"
+      "style": "DARK"
     }
   }
 }

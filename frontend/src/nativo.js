@@ -6,13 +6,22 @@ export function estaNoApp() {
   return noApp();
 }
 
-// Barra de status combinando com o topo marinho do app.
+/**
+ * Barra de status.
+ *
+ * Só dá para mandar na COR DOS ÍCONES. Pintar o fundo da barra não funciona
+ * mais: o Android desenha o conteúdo por baixo dela (comportamento imposto a
+ * partir do Android 15, sem opção de desligar no 16), então quem aparece atrás
+ * dos ícones é o próprio topo do app. Quem reserva esse espaço é o CSS, via
+ * `safeTop()` — ver theme.js.
+ *
+ * Ícones claros porque o topo do app é escuro (foto da viagem + véu marinho).
+ */
 export async function ajustarBarraDeStatus() {
   if (!estaNoApp()) return;
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar");
     await StatusBar.setStyle({ style: Style.Dark });      // ícones claros
-    await StatusBar.setBackgroundColor({ color: "#1b2f4d" });
   } catch (e) {}
 }
 
