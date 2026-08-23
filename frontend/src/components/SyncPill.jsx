@@ -4,7 +4,8 @@ import React from "react";
 const SYNC_UI = {
   synced:   { label: "Salvo", dot: "#5bd08a" },
   saving:   { label: "Salvando…", dot: "#F28C28" },
-  offline:  { label: "Offline — mudanças salvas ao reconectar", dot: "#ef4444" },
+  // Sem rede o app fica só para consulta, então não prometemos salvar depois.
+  offline:  { label: "Sem internet — modo leitura", dot: "#ef4444" },
   reloaded: { label: "Atualizado em outro aparelho", dot: "#7ab6ff" },
 };
 

@@ -4,7 +4,7 @@ import AliTip from "./AliTip";
 import { btn } from "../theme";
 
 // Detalhe de uma parada do roteiro (como chegar, o que fazer, insight).
-export default function StopDetail({ stop, color, onEdit, onDelete, onClose }) {
+export default function StopDetail({ stop, color, onEdit, onDelete, onClose, somenteLeitura }) {
   const Section = ({ title, children }) => children ? (
     <div style={{ marginTop: 18 }}>
       <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, color, textTransform: "uppercase" }}>{title}</div>
@@ -32,10 +32,12 @@ export default function StopDetail({ stop, color, onEdit, onDelete, onClose }) {
             <a href={stop.link} target="_blank" rel="noreferrer" style={{ ...btn(color), display: "inline-block", textDecoration: "none" }}>Abrir link oficial ↗</a>
           </div>
         )}
-        <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-          <button onClick={onEdit} style={{ ...btn("#223A5E"), flex: 1 }}>Editar</button>
-          <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>
-        </div>
+        {!somenteLeitura && (
+          <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
+            <button onClick={onEdit} style={{ ...btn("#223A5E"), flex: 1 }}>Editar</button>
+            <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>
+          </div>
+        )}
       </div>
     </Sheet>
   );

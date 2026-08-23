@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
+import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
@@ -81,6 +82,10 @@ export default function App() {
   const [authMode, setAuthMode] = useState(null);  // null = ainda perguntando ao servidor
   const [user, setUser] = useState(undefined);     // undefined = carregando · null = deslogado
   const fbRef = useRef(null);                      // módulo do Firebase (carregado sob demanda)
+  // Qual viagem está aberta, legível de dentro de callbacks antigos (polling,
+  // handler remoto) que senão gravariam a cópia local na viagem errada.
+  const ativaRef = useRef(null);
+  ativaRef.current = trips.active;
 
   // aplica um estado do servidor mesclando (só o que veio) — usado no polling/remoto
   const applyState = (s) => {
@@ -163,16 +168,29 @@ export default function App() {
   }, []);
 
   // 2) Só busca os dados depois de saber quem é o usuário.
+  //    A cópia guardada no aparelho entra primeiro: assim o app abre com o
+  //    roteiro na mão mesmo sem rede, e o servidor só corrige por cima.
   useEffect(() => {
     if (!autenticado) return;
-    setRemoteHandler(applyState);
+    definirDono(user && user.uid);
+    setRemoteHandler((s) => { applyState(s); guardarEstado(ativaRef.current, s); });
     let vivo = true;
+
+    const guardadas = lerViagens();
+    if (guardadas) {
+      setTrips(guardadas);
+      const guardado = lerEstado(guardadas.active);
+      if (guardado) { replaceState(guardado); setBooted(true); }
+    }
+
     (async () => {
       const t = await apiTrips();
-      if (vivo && t) setTrips(t);
+      if (vivo && t) { setTrips(t); guardarViagens(t); }
+      const ativa = (t && t.active) || (guardadas && guardadas.active);
       const r = await apiGet();
       if (vivo && r && r.state) {
         applyState(r.state);
+        guardarEstado(ativa, r.state);
         setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "");
       }
       if (vivo) setBooted(true); // com ou sem resposta, sai do skeleton
@@ -180,9 +198,24 @@ export default function App() {
     return () => { vivo = false; };
   }, [autenticado]);
 
+  // A lista de viagens só era buscada na abertura do app: uma viagem criada no
+  // outro celular só aparecia depois de fechar e abrir. Agora que a lista é a
+  // tela inicial, ela se atualiza toda vez que a pessoa volta para ela.
+  const jaAbriuUmaViagem = useRef(false);
+  useEffect(() => {
+    if (!autenticado || vista !== "lista" || !jaAbriuUmaViagem.current) return;
+    let vivo = true;
+    (async () => {
+      const t = await apiTrips();
+      if (vivo && t) { setTrips(t); guardarViagens(t); }
+    })();
+    return () => { vivo = false; };
+  }, [autenticado, vista]);
+
   const sair = async () => {
     if (!fbRef.current) return;
     await flushNow();
+    limparCache();                 // a próxima conta não pode ver esta viagem
     await fbRef.current.logout();
     setTrips({ active: null, list: [] });
     replaceState(null);
@@ -199,20 +232,30 @@ export default function App() {
     const poll = async () => {
       if (document.hidden || isDirty()) return;
       const r = await apiGet();
-      if (alive && r && r.state) applyState(r.state);
+      if (alive && r && r.state) { applyState(r.state); guardarEstado(ativaRef.current, r.state); }
     };
     const iv = setInterval(poll, 12000);
-    const onVis = () => { if (!document.hidden) { flushPending(); poll(); } };
-    const onOnline = () => flushPending();
+    // Ao voltar a atenção (ou a rede), acerta primeiro qual viagem está aberta
+    // no servidor — senão o poll traria o roteiro da viagem errada.
+    const onVis = async () => { if (!document.hidden) { flushPending(); await flushActive(); poll(); } };
+    const onOnline = async () => { flushPending(); await flushActive(); poll(); };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
     window.addEventListener("online", onOnline);
     return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", onVis); window.removeEventListener("online", onOnline); };
   }, [autenticado]);
 
+  // Sem internet o app fica só para consulta. É decisão de projeto, não
+  // limitação: guardar uma edição feita offline e mandá-la horas depois faz o
+  // servidor recusá-la (a versão já mudou) e o trabalho some sem aviso — pior
+  // do que não deixar editar. Ler continua liberado, que é o que se faz na rua.
+  const somenteLeitura = sync === "offline";
+
   const persist = (next) => {
+    if (somenteLeitura) return;   // rede de segurança: os controles já ficam ocultos
     const snap = { days, budget, prebuy, notes, ...next };
     apiPut(snap);
+    guardarEstado(ativaRef.current, snap);   // a cópia local acompanha a edição
   };
 
   const activeMeta = (trips.list || []).find((t) => t.id === trips.active) || {};
@@ -266,10 +309,17 @@ export default function App() {
     ? `conic-gradient(${tags.map((t) => { const from = (_acc / planned) * 100; _acc += tagTotals[t]; const to = (_acc / planned) * 100; return `${tagColor(t)} ${from}% ${to}%`; }).join(", ")})`
     : SAND_L;
 
-  const setDaysP = (nd) => { setDays(nd); persist({ days: nd }); };
-  const setBudgetP = (nb) => { setBudget(nb); persist({ budget: nb }); };
-  const setPrebuyP = (np) => { setPrebuy(np); persist({ prebuy: np }); };
-  const setNotesP = (nn) => { setNotes(nn); persist({ notes: nn }); };
+  // Toda alteração passa por aqui. Se estiver sem rede, nada muda nem na tela:
+  // deixar a marcação aparecer e sumir depois seria pior do que recusá-la.
+  const bloqueado = () => {
+    if (!somenteLeitura) return false;
+    toastMsg("Sem internet — dá para consultar, mas não para editar. 📴");
+    return true;
+  };
+  const setDaysP = (nd) => { if (bloqueado()) return; setDays(nd); persist({ days: nd }); };
+  const setBudgetP = (nb) => { if (bloqueado()) return; setBudget(nb); persist({ budget: nb }); };
+  const setPrebuyP = (np) => { if (bloqueado()) return; setPrebuy(np); persist({ prebuy: np }); };
+  const setNotesP = (nn) => { if (bloqueado()) return; setNotes(nn); persist({ notes: nn }); };
 
   // ---------- Backup (export / import JSON — acionado pelo sheet Ajustes) ----------
   const exportBackup = () => {
@@ -297,9 +347,12 @@ export default function App() {
     reader.readAsText(file);
   };
   const doImport = (obj) => {
-    applyState(obj);
-    apiPut({ days: obj.days || days, budget: obj.budget || budget, prebuy: obj.prebuy || prebuy, notes: obj.notes || notes });
     setOv(null);
+    if (bloqueado()) return;
+    applyState(obj);
+    const snap = { days: obj.days || days, budget: obj.budget || budget, prebuy: obj.prebuy || prebuy, notes: obj.notes || notes };
+    apiPut(snap);
+    guardarEstado(ativaRef.current, snap);
     toastMsg("Backup importado. ✅");
   };
 
@@ -399,9 +452,12 @@ export default function App() {
       await apiSetActive(id);
       setTrips((t) => ({ ...t, active: id }));
       const r = await apiGet();
-      replaceState(r && r.state);
+      if (r && r.state) guardarEstado(id, r.state);   // passa a abrir offline daqui em diante
+      // Sem rede, abre pela cópia guardada — é para isso que ela existe.
+      replaceState((r && r.state) || lerEstado(id));
       setAbrindo(null);
     }
+    jaAbriuUmaViagem.current = true;
     setTab("roteiro"); setReorder(false); setVista("viagem");
   };
   const createTrip = async (meta) => {
@@ -490,10 +546,12 @@ export default function App() {
                 </button>
               );
             })}
-            <button onClick={() => setOv({ kind: "dayForm", day: null })} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "rgba(255,255,255,0.12)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, lineHeight: 1, border: "2px dashed rgba(255,255,255,0.55)" }}>+</div>
-              <div style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Dia</div>
-            </button>
+            {!somenteLeitura && (
+              <button onClick={() => setOv({ kind: "dayForm", day: null })} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 42, height: 42, borderRadius: "50%", background: "rgba(255,255,255,0.12)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, lineHeight: 1, border: "2px dashed rgba(255,255,255,0.55)" }}>+</div>
+                <div style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>Dia</div>
+              </button>
+            )}
           </div>
         )}
         </div>
@@ -501,12 +559,22 @@ export default function App() {
         {/* Body (superfície sólida areia-clara) */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
           {tab === "ali" && <AliChat trip={aliTrip} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
+          {/* Explica o que sumiu: sem esta linha, os botões de edição
+              desaparecem e a pessoa acha que o app quebrou. */}
+          {somenteLeitura && tab !== "ali" && (
+            <div role="status" style={{ display: "flex", gap: 10, alignItems: "flex-start", background: "#fdece9", border: "1px solid #f6cfc7", borderRadius: 12, padding: "11px 13px", marginBottom: 16 }}>
+              <span aria-hidden="true" style={{ fontSize: 15, lineHeight: 1.4 }}>📴</span>
+              <span style={{ fontSize: 13, color: "#8c3a2c", fontWeight: 600, lineHeight: 1.45 }}>
+                Sem internet. Dá para consultar tudo — a edição volta assim que a conexão voltar.
+              </span>
+            </div>
+          )}
           {!booted && tab !== "ali" && <SkeletonList />}
           {booted && tab === "roteiro" && !day && (
             <div style={{ textAlign: "center", marginTop: 50 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: NAVY, marginBottom: 6 }}>Esta viagem ainda não tem dias.</div>
               <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginBottom: 18 }}>Adicione o primeiro dia para começar o roteiro.</div>
-              <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>
+              {!somenteLeitura && <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>}
             </div>
           )}
           {booted && tab === "roteiro" && day && (
@@ -516,7 +584,7 @@ export default function App() {
                 <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: NAVY, letterSpacing: -0.3, fontFamily: DISPLAY }}>{day.title}</h2>
                 {reorder ? (
                   <button onClick={() => setReorder(false)} style={btn(dc, { padding: "8px 18px", minHeight: 40, flex: "0 0 auto", fontSize: 14 })}>Concluir</button>
-                ) : (
+                ) : !somenteLeitura && (
                   <button onClick={() => setOv({ kind: "dayMenu" })} aria-label="Opções do dia" style={{ flex: "0 0 auto", width: 44, height: 44, borderRadius: 22, border: "none", background: "rgba(34,58,94,0.08)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <DotsIcon color={NAVY} size={20} />
                   </button>
@@ -574,13 +642,13 @@ export default function App() {
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Orçamento</h2>
-                <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Item</button>
+                {!somenteLeitura && <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Item</button>}
               </div>
 
               {budget.length === 0 ? (
                 <>
                   <AliTip>Bora planejar os gastos? Adicione o primeiro item — ingressos, comida, transporte — e eu te ajudo a ficar de olho no teto.</AliTip>
-                  <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={{ ...btn("#fff", { color: NAVY, border: `1.5px dashed ${STEEL}` }), width: "100%", marginTop: 14 }}>+ Adicionar item</button>
+                  {!somenteLeitura && <button onClick={() => setOv({ kind: "budgetForm", item: null })} style={{ ...btn("#fff", { color: NAVY, border: `1.5px dashed ${STEEL}` }), width: "100%", marginTop: 14 }}>+ Adicionar item</button>}
                 </>
               ) : (
                 <>
@@ -598,8 +666,8 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <button onClick={() => setOv({ kind: "tetoForm" })} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: HELV, minHeight: 28 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: INK3, display: "inline-flex", alignItems: "center", gap: 5 }}>Teto <PencilIcon color={INK3} size={13} /></span>
+                      <button onClick={() => !somenteLeitura && setOv({ kind: "tetoForm" })} disabled={somenteLeitura} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, background: "none", border: "none", padding: 0, cursor: somenteLeitura ? "default" : "pointer", fontFamily: HELV, minHeight: 28 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: INK3, display: "inline-flex", alignItems: "center", gap: 5 }}>Teto {!somenteLeitura && <PencilIcon color={INK3} size={13} />}</span>
                         <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: hasTeto ? NAVY : STEEL }}>{hasTeto ? `${cur} ${budgetTotal.toLocaleString()}` : "definir"}</span>
                       </button>
                       {[["Planejado", planned], ["Já gasto", spent]].map(([l, v]) => (
@@ -627,7 +695,7 @@ export default function App() {
                       {budget.filter((b) => tagOf(b) === t).map((b) => {
                         const v = Number(b.v || 0), sp = Number(b.spent || 0);
                         return (
-                          <button key={b.id} onClick={() => setOv({ kind: "budgetForm", item: b })} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: "pointer" }}>
+                          <button key={b.id} onClick={() => !somenteLeitura && setOv({ kind: "budgetForm", item: b })} disabled={somenteLeitura} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: somenteLeitura ? "default" : "pointer" }}>
                             <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                               <span style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{b.k}</span>
                               <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: NAVY, flex: "0 0 auto" }}>{cur} {v.toLocaleString()}</span>
@@ -654,7 +722,7 @@ export default function App() {
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Comprar antes</h2>
-                <button onClick={() => setOv({ kind: "prebuyForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Item</button>
+                {!somenteLeitura && <button onClick={() => setOv({ kind: "prebuyForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Item</button>}
               </div>
               {prebuy.length === 0 && (
                 <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginBottom: 8 }}>Nada por aqui ainda — adicione o que precisa reservar ou comprar antes de viajar.</div>
@@ -665,22 +733,22 @@ export default function App() {
                     style={{ width: 44, height: 44, flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                     <span style={{ width: 24, height: 24, borderRadius: 7, background: p.done ? ORANGE : "#fff", border: `2px solid ${p.done ? ORANGE : "#ccc"}`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900 }}>{p.done && <span style={{ animation: "pop .25s ease" }}>✓</span>}</span>
                   </button>
-                  <button onClick={() => setOv({ kind: "prebuyForm", item: p })} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: HELV, textAlign: "left" }}>
+                  <button onClick={() => !somenteLeitura && setOv({ kind: "prebuyForm", item: p })} disabled={somenteLeitura} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "none", border: "none", padding: 0, cursor: somenteLeitura ? "default" : "pointer", fontFamily: HELV, textAlign: "left" }}>
                     <span style={{ fontSize: 14, fontWeight: 600, color: NAVY, textDecoration: p.done ? "line-through" : "none", opacity: p.done ? 0.5 : 1 }}>{p.text}</span>
-                    <ChevronIcon color="#b6bfcc" size={15} />
+                    {!somenteLeitura && <ChevronIcon color="#b6bfcc" size={15} />}
                   </button>
                 </div>
               ))}
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "26px 0 14px" }}>
                 <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY }}>Notas</h2>
-                <button onClick={() => setOv({ kind: "noteForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Nota</button>
+                {!somenteLeitura && <button onClick={() => setOv({ kind: "noteForm", item: null })} style={btn(NAVY, { padding: "8px 16px", minHeight: 40 })}>+ Nota</button>}
               </div>
               {notes.length === 0 && (
                 <div style={{ fontSize: 14, color: INK2, fontWeight: 500 }}>Nenhuma nota ainda — guarde aqui lembretes, regras do metrô, clima…</div>
               )}
               {notes.map((nt) => (
-                <button key={nt.id} onClick={() => setOv({ kind: "noteForm", item: nt })} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 14, padding: "14px 16px", marginBottom: 10, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                <button key={nt.id} onClick={() => !somenteLeitura && setOv({ kind: "noteForm", item: nt })} disabled={somenteLeitura} style={{ width: "100%", textAlign: "left", fontFamily: HELV, background: "#fff", border: "none", borderRadius: 14, padding: "14px 16px", marginBottom: 10, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", cursor: somenteLeitura ? "default" : "pointer", display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontWeight: 800, fontSize: 14, color: NAVY, marginBottom: 5 }}>{nt.title}</span>
                     <span style={{ display: "block", fontSize: 13, color: INK2, lineHeight: 1.5, fontWeight: 500 }}>{nt.body}</span>
@@ -721,7 +789,7 @@ export default function App() {
 
       {/* Tela inicial: a lista de viagens (e as boas-vindas, quando não há nenhuma) */}
       {autenticado && vista === "lista" && (
-        <TripsHome trips={trips} booted={booted} abrindo={abrindo}
+        <TripsHome trips={trips} booted={booted} abrindo={abrindo} somenteLeitura={somenteLeitura}
           onOpen={abrirViagem}
           onNew={() => setOv({ kind: "tripForm", trip: null })}
           onEdit={(t) => setOv({ kind: "tripForm", trip: t })}
@@ -732,7 +800,7 @@ export default function App() {
       )}
 
       {/* FAB: adicionar parada (roteiro) */}
-      {vista === "viagem" && booted && tab === "roteiro" && day && !reorder && !ov && (
+      {vista === "viagem" && booted && tab === "roteiro" && day && !reorder && !ov && !somenteLeitura && (
         <button onClick={() => setOv({ kind: "stopForm", stop: null })} aria-label="Adicionar parada"
           style={{ position: "fixed", right: "max(16px, calc(50% - 204px))", bottom: "calc(84px + env(safe-area-inset-bottom))", width: 56, height: 56, borderRadius: 28, border: "none", background: ORANGE, boxShadow: "0 8px 20px rgba(221,125,28,0.45)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15 }}>
           <PlusIcon color={NAVY} size={24} />
@@ -777,7 +845,7 @@ export default function App() {
           ]} />
       )}
       {ov?.kind === "detail" && (
-        <StopDetail stop={ov.stop} color={dc} onClose={() => setOv(null)}
+        <StopDetail stop={ov.stop} color={dc} onClose={() => setOv(null)} somenteLeitura={somenteLeitura}
           onEdit={() => setOv({ kind: "stopForm", stop: ov.stop })}
           onDelete={() => deleteStop(ov.stop.id)} />
       )}

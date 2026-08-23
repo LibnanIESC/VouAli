@@ -32,7 +32,7 @@ function Topo({ onAjustes }) {
 // Card de uma viagem: foto grande, nome, período e selo de situação.
 // Os botões de ação ficam sobrepostos (irmãos, não filhos) — botão dentro de
 // botão é HTML inválido e quebra o toque no Android.
-function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo }) {
+function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo, somenteLeitura }) {
   const st = tripStatus(t.startDate, t.endDate);
   const selo = SELO[st.estado];
   const acao = (rotulo, Icon, onClick) => (
@@ -65,10 +65,12 @@ function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo
         </span>
       )}
 
-      <div style={{ position: "absolute", top: 10, right: 12, display: "flex", gap: 8 }}>
-        {podeCompartilhar && acao("Quem vai junto", PeopleIcon, onShare)}
-        {acao("Editar viagem", PencilIcon, onEdit)}
-      </div>
+      {!somenteLeitura && (
+        <div style={{ position: "absolute", top: 10, right: 12, display: "flex", gap: 8 }}>
+          {podeCompartilhar && acao("Quem vai junto", PeopleIcon, onShare)}
+          {acao("Editar viagem", PencilIcon, onEdit)}
+        </div>
+      )}
     </div>
   );
 }
@@ -79,7 +81,7 @@ function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo
  * É por onde o app começa. Quando não há nenhuma viagem, ela mesma faz as
  * boas-vindas — sem uma segunda tela só para isso.
  */
-export default function TripsHome({ trips, booted, abrindo, onOpen, onNew, onEdit, onShare, onAjustes, podeCompartilhar, user, onLogout }) {
+export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOpen, onNew, onEdit, onShare, onAjustes, podeCompartilhar, user, onLogout }) {
   const list = (trips && trips.list) || [];
   const vazia = booted && list.length === 0;
 
@@ -112,16 +114,26 @@ export default function TripsHome({ trips, booted, abrindo, onOpen, onNew, onEdi
               {beneficio(MoneyIcon, "Orçamento no controle", "Acompanhe o planejado, o gasto e quanto sobra.")}
               {beneficio(SparkIcon, "Dicas sob medida", "Do que priorizar ao que evitar, no seu ritmo.")}
             </div>
-            <button onClick={onNew} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", maxWidth: 340, fontSize: 16 }}>
-              Criar minha primeira viagem
-            </button>
-            <div style={{ fontSize: 12.5, color: INK3, marginTop: 12 }}>Leva menos de um minuto.</div>
+            {somenteLeitura ? (
+              <div style={{ fontSize: 14, color: "#8c3a2c", fontWeight: 600, lineHeight: 1.5, maxWidth: 320 }}>
+                📴 Sem internet. Conecte-se para criar sua primeira viagem.
+              </div>
+            ) : (
+              <>
+                <button onClick={onNew} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", maxWidth: 340, fontSize: 16 }}>
+                  Criar minha primeira viagem
+                </button>
+                <div style={{ fontSize: 12.5, color: INK3, marginTop: 12 }}>Leva menos de um minuto.</div>
+              </>
+            )}
           </div>
         ) : (
           <>
             <h1 style={{ margin: "22px 0 4px", fontSize: 26, fontWeight: 800, color: NAVY, fontFamily: DISPLAY, letterSpacing: -0.4 }}>Minhas viagens</h1>
             <div style={{ fontSize: 13.5, color: INK2, fontWeight: 600, marginBottom: 18 }}>
-              {booted ? "Toque em uma viagem para abrir o roteiro." : "Carregando…"}
+              {!booted ? "Carregando…"
+                : somenteLeitura ? "📴 Sem internet — abrindo a última cópia salva no aparelho."
+                : "Toque em uma viagem para abrir o roteiro."}
             </div>
 
             {!booted && [0, 1].map((i) => (
@@ -130,12 +142,12 @@ export default function TripsHome({ trips, booted, abrindo, onOpen, onNew, onEdi
 
             {list.map((t) => (
               <TripCard key={t.id} t={t} atual={t.id === (trips && trips.active)}
-                abrindo={abrindo === t.id}
+                abrindo={abrindo === t.id} somenteLeitura={somenteLeitura}
                 onOpen={() => onOpen(t.id)} onEdit={() => onEdit(t)} onShare={() => onShare(t)}
                 podeCompartilhar={podeCompartilhar} />
             ))}
 
-            {booted && (
+            {booted && !somenteLeitura && (
               <button onClick={onNew} style={{ ...btn("#fff", { color: NAVY, border: `1.5px dashed ${STEEL}` }), width: "100%", marginTop: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <PlusIcon color={NAVY} size={18} />Nova viagem
               </button>

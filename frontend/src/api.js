@@ -145,9 +145,21 @@ export async function apiCreateTrip(meta) {
   if (!res.ok) return null;
   return await res.json(); // { meta, trips }
 }
+// Qual viagem está aberta é decidido no servidor. Se a troca não chegou lá
+// (sem rede), guardamos o pedido: senão, ao reconectar, o servidor mandaria o
+// roteiro da viagem ANTIGA por cima da que a pessoa está olhando.
+let _activePendente = null;
 export async function apiSetActive(id) {
   _etag = "";               // outra viagem: a marca anterior não serve
-  try { await fetch(url("/api/active"), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) }); } catch (e) {}
+  _activePendente = id;
+  try {
+    const res = await fetch(url("/api/active"), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) });
+    if (res.ok) _activePendente = null;
+  } catch (e) {}
+}
+/** Reenvia a troca de viagem que não chegou ao servidor. */
+export async function flushActive() {
+  if (_activePendente) await apiSetActive(_activePendente);
 }
 export async function apiTripMeta(id, meta) {
   const res = await fetch(url(`/api/trips/${id}/meta`), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
