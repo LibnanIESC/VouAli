@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
+import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, diaDeHoje, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
 
 describe("daysBetween", () => {
   it("conta os dias de forma inclusiva", () => {
@@ -98,6 +98,39 @@ describe("tripStatus", () => {
   it("fica em silêncio quando não há data de início", () => {
     expect(tripStatus("", "2026-10-13").estado).toBe("");
     expect(tripStatus("qualquer", "coisa").texto).toBe("");
+  });
+});
+
+describe("diaDeHoje", () => {
+  // New York: 8 dias de roteiro a partir de 6 de outubro de 2026.
+  const ny = (dia, total = 8) => diaDeHoje("2026-10-06", total, new Date(dia));
+
+  it("abre no dia correspondente durante a viagem", () => {
+    expect(ny("2026-10-06T08:00")).toBe(0);   // dia 1
+    expect(ny("2026-10-09T14:00")).toBe(3);   // dia 4
+    expect(ny("2026-10-13T23:30")).toBe(7);   // último dia
+  });
+
+  it("abre no primeiro dia fora do período da viagem", () => {
+    expect(ny("2026-08-23T10:00")).toBe(0, "antes de viajar");
+    expect(ny("2026-10-14T00:10")).toBe(0, "depois de voltar");
+  });
+
+  it("não passa do fim quando há menos dias no roteiro do que no período", () => {
+    // A viagem dura 8 dias, mas só 3 foram montados.
+    expect(ny("2026-10-11T12:00", 3)).toBe(0);
+    expect(ny("2026-10-08T12:00", 3)).toBe(2);
+  });
+
+  it("usa a virada do dia local, não o horário", () => {
+    expect(ny("2026-10-08T23:59")).toBe(2);
+    expect(ny("2026-10-09T00:01")).toBe(3);
+  });
+
+  it("cai no primeiro dia quando não dá para saber", () => {
+    expect(diaDeHoje("", 5)).toBe(0);
+    expect(diaDeHoje("qualquer", 5)).toBe(0);
+    expect(diaDeHoje("2026-10-06", 0)).toBe(0, "roteiro sem dias");
   });
 });
 

@@ -74,6 +74,25 @@ export function tripStatus(start, end, hoje = new Date()) {
   return { estado: "futura", dias, texto: dias === 1 ? "Amanhã" : `Faltam ${dias} dias` };
 }
 
+/**
+ * Qual dia do roteiro corresponde a hoje — devolve o ÍNDICE na lista de dias.
+ *
+ * Cada dia guarda a data como texto livre ("26 NOV"), escrito pela pessoa ou
+ * pelo Ali: não dá para fazer conta em cima disso. O que é confiável é a
+ * ordem — o dia N do roteiro é o N-ésimo dia a partir da data de início.
+ *
+ * Fora do período da viagem (antes, depois, ou sem data de início), devolve o
+ * primeiro dia. Nunca chuta: na dúvida, começa do começo.
+ */
+export function diaDeHoje(start, totalDias, hoje = new Date()) {
+  const a = parse(start);
+  if (!a || !(totalDias > 0)) return 0;
+  const inicio = Date.UTC(a.y, a.mo, a.d);
+  const hj = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const i = Math.round((hj - inicio) / 86400000);
+  return i >= 0 && i < totalDias ? i : 0;
+}
+
 export const INTERESSES = ["Museus", "Praia", "Atrações turísticas", "Restaurantes", "Monumentos", "Vida noturna", "Compras", "Natureza"];
 
 // Como a pessoa chega ao destino. Muda o primeiro e o último dia do roteiro e

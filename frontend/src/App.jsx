@@ -4,6 +4,7 @@ import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, I
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
+import { diaDeHoje } from "./tripmeta";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
@@ -95,14 +96,21 @@ export default function App() {
     if (s.prebuy) setPrebuy(s.prebuy);
     if (s.notes) setNotes(s.notes);
   };
+  // Em que dia o roteiro abre. Durante a viagem, no dia de hoje: no quarto dia
+  // em Nápoles ninguém quer rolar até lá toda vez que abre o app.
+  const diaInicial = (s, meta) => {
+    const dias = (s && s.days) || [];
+    if (!dias.length) return "";
+    return dias[diaDeHoje(meta && meta.startDate, dias.length)].id;
+  };
   // substitui o estado inteiro (usado ao trocar/criar viagem)
-  const replaceState = (s) => {
+  const replaceState = (s, meta) => {
     s = s || {};
     setDays(s.days || []);
     setBudget(s.budget || []);
     setPrebuy(s.prebuy || []);
     setNotes(s.notes || []);
-    setActive((s.days && s.days[0] && s.days[0].id) || "");
+    setActive(diaInicial(s, meta));
   };
 
   useEffect(() => onStatus(setSync), []);
@@ -176,22 +184,25 @@ export default function App() {
     setRemoteHandler((s) => { applyState(s); guardarEstado(ativaRef.current, s); });
     let vivo = true;
 
+    const metaDe = (idx, id) => ((idx && idx.list) || []).find((x) => x.id === id);
+
     const guardadas = lerViagens();
     if (guardadas) {
       setTrips(guardadas);
       const guardado = lerEstado(guardadas.active);
-      if (guardado) { replaceState(guardado); setBooted(true); }
+      if (guardado) { replaceState(guardado, metaDe(guardadas, guardadas.active)); setBooted(true); }
     }
 
     (async () => {
       const t = await apiTrips();
       if (vivo && t) { setTrips(t); guardarViagens(t); }
-      const ativa = (t && t.active) || (guardadas && guardadas.active);
+      const idx = t || guardadas;
+      const ativa = idx && idx.active;
       const r = await apiGet();
       if (vivo && r && r.state) {
         applyState(r.state);
         guardarEstado(ativa, r.state);
-        setActive((r.state.days && r.state.days[0] && r.state.days[0].id) || "");
+        setActive(diaInicial(r.state, metaDe(idx, ativa)));
       }
       if (vivo) setBooted(true); // com ou sem resposta, sai do skeleton
     })();
@@ -447,6 +458,7 @@ export default function App() {
     if (abrindo) return;
     setOv(null);
     if (id !== trips.active) {
+      const meta = (trips.list || []).find((t) => t.id === id);
       setAbrindo(id);
       await flushNow();               // grava pendências na viagem atual antes de trocar
       await apiSetActive(id);
@@ -454,7 +466,7 @@ export default function App() {
       const r = await apiGet();
       if (r && r.state) guardarEstado(id, r.state);   // passa a abrir offline daqui em diante
       // Sem rede, abre pela cópia guardada — é para isso que ela existe.
-      replaceState((r && r.state) || lerEstado(id));
+      replaceState((r && r.state) || lerEstado(id), meta);
       setAbrindo(null);
     }
     jaAbriuUmaViagem.current = true;
@@ -465,9 +477,10 @@ export default function App() {
     await flushNow();
     const r = await apiCreateTrip(meta); // já vira a ativa no servidor
     if (!r) { toastMsg("Não consegui criar a viagem agora. Tenta de novo."); return; }
-    if (r.trips) setTrips(r.trips);
+    if (r.trips) { setTrips(r.trips); guardarViagens(r.trips); }
     const s = await apiGet();
-    replaceState(s && s.state);
+    if (s && s.state) guardarEstado(r.meta && r.meta.id, s.state);
+    replaceState(s && s.state, r.meta);
     setTab("roteiro"); setReorder(false); setVista("viagem");  // já entra na viagem nova
   };
   const saveTripMeta = async (meta) => {
@@ -482,8 +495,10 @@ export default function App() {
     const r = await apiDeleteTrip(id);
     if (r && r.trips) {
       setTrips(r.trips);
+      guardarViagens(r.trips);
       const s = await apiGet();       // backend já ajustou a ativa; carrega a nova
-      replaceState(s && s.state);
+      const nova = (r.trips.list || []).find((t) => t.id === r.trips.active);
+      replaceState(s && s.state, nova);
       setTab("roteiro"); setReorder(false); setVista("lista");
     }
   };
