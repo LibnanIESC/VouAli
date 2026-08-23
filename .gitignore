@@ -11,6 +11,9 @@ backend/static/
 frontend/android/app/build/
 frontend/android/.gradle/
 frontend/android/local.properties
+
+# Preferências pessoais do Android Studio (não fazem parte do app)
+frontend/android/.idea/
 frontend/.env.production.local
 
 frontend/android/app/google-services.json
