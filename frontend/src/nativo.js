@@ -26,23 +26,31 @@ export async function ajustarBarraDeStatus() {
 }
 
 /**
- * Botão "voltar" do Android.
+ * Decide o que o botão "voltar" do Android faz, dado o estado da tela.
  *
  * No Android o voltar é sagrado: se ele fechar o app quando havia algo aberto,
- * a pessoa perde o que estava fazendo. A ordem aqui é a esperada:
- * fecha o que está por cima → volta para o Roteiro → só então sai do app.
+ * a pessoa perde o que estava fazendo. Desfaz-se um degrau por vez, e sair é
+ * sempre o último — fecha o que está por cima → volta para o Roteiro → volta
+ * para a lista de viagens → só então sai.
  *
- * `estado()` devolve { temOverlay, aba } e as ações fecham/navegam.
+ * Fica separado da instalação do ouvinte de propósito: é a regra mais fácil de
+ * quebrar sem querer e a única testável fora de um celular.
  */
+export function passoDoVoltar({ temOverlay, aba, vista }) {
+  if (temOverlay) return "fecharOverlay";
+  if (vista !== "lista") return aba !== "roteiro" ? "irParaRoteiro" : "irParaLista";
+  return "sair";
+}
+
+/** Liga o botão voltar do Android. `estado()` devolve { temOverlay, aba, vista }. */
 export async function tratarBotaoVoltar(estado, acoes) {
   if (!estaNoApp()) return () => {};
   try {
     const { App } = await import("@capacitor/app");
     const ouvinte = await App.addListener("backButton", () => {
-      const { temOverlay, aba } = estado();
-      if (temOverlay) return acoes.fecharOverlay();
-      if (aba !== "roteiro") return acoes.irParaRoteiro();
-      App.exitApp();
+      const passo = passoDoVoltar(estado());
+      if (passo === "sair") return App.exitApp();
+      acoes[passo]();
     });
     return () => ouvinte.remove();
   } catch (e) {

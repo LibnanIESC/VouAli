@@ -10,7 +10,6 @@ const NY_TETO_LEGADO = 3000;
 import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon, PlusIcon, PencilIcon } from "./components/Icons";
 import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
-import Welcome from "./components/Welcome";
 import Login from "./components/Login";
 import Sheet from "./components/Sheet";
 import Skyline from "./components/Skyline";
@@ -23,7 +22,7 @@ import StopForm from "./components/StopForm";
 import DayForm from "./components/DayForm";
 import BudgetForm from "./components/BudgetForm";
 import TextForm from "./components/TextForm";
-import TripsSheet from "./components/TripsSheet";
+import TripsHome from "./components/TripsHome";
 import TripForm from "./components/TripForm";
 import TetoForm from "./components/TetoForm";
 import ShareSheet from "./components/ShareSheet";
@@ -68,6 +67,9 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [active, setActive] = useState("");
   const [tab, setTab] = useState("roteiro");
+  // O app começa pela lista de viagens; só entra numa delas quando escolhida.
+  const [vista, setVista] = useState("lista");   // lista | viagem
+  const [abrindo, setAbrindo] = useState(null);  // id da viagem sendo carregada
   const [ov, setOv] = useState(null);
   const [reorder, setReorder] = useState(false);
   const [sync, setSync] = useState("synced");
@@ -145,15 +147,16 @@ export default function App() {
   useEffect(() => { ajustarBarraDeStatus(); }, []);
 
   // Botão voltar do Android: fecha o que está aberto antes de sair do app.
-  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false });
-  estadoRef.current = { ov, tab, reorder };
+  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false, vista: "lista" });
+  estadoRef.current = { ov, tab, reorder, vista };
   useEffect(() => {
     let remover = () => {};
     tratarBotaoVoltar(
-      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder, aba: estadoRef.current.tab }),
+      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder, aba: estadoRef.current.tab, vista: estadoRef.current.vista }),
       {
         fecharOverlay: () => { if (estadoRef.current.ov) setOv(null); else setReorder(false); },
         irParaRoteiro: () => setTab("roteiro"),
+        irParaLista: () => setVista("lista"),
       },
     ).then((f) => { remover = f; });
     return () => remover();
@@ -185,6 +188,7 @@ export default function App() {
     replaceState(null);
     setBooted(false);
     setOv(null);
+    setVista("lista");
   };
 
   // Polling: o outro aparelho passa a aparecer. Só adota o remoto quando não há
@@ -212,7 +216,6 @@ export default function App() {
   };
 
   const activeMeta = (trips.list || []).find((t) => t.id === trips.active) || {};
-  const semViagens = booted && (trips.list || []).length === 0;   // primeiro acesso
   const day = days.find((d) => d.id === active) || days[0];
   const dc = readable((day && day.color) || NAVY); // acento legível do dia
   const totalStops = days.reduce((a, d) => a + d.stops.length, 0);
@@ -375,15 +378,21 @@ export default function App() {
   };
 
   // ---------- Viagens (multi-viagem) ----------
-  const switchTrip = async (id) => {
+  // Abre uma viagem a partir da lista. Se já é a ativa, o estado dela veio no
+  // carregamento inicial — entra na hora, sem ida ao servidor.
+  const abrirViagem = async (id) => {
+    if (abrindo) return;
     setOv(null);
-    if (id === trips.active) return;
-    await flushNow();                 // grava pendências na viagem atual antes de trocar
-    await apiSetActive(id);
-    setTrips((t) => ({ ...t, active: id }));
-    const r = await apiGet();
-    replaceState(r && r.state);
-    setTab("roteiro"); setReorder(false);
+    if (id !== trips.active) {
+      setAbrindo(id);
+      await flushNow();               // grava pendências na viagem atual antes de trocar
+      await apiSetActive(id);
+      setTrips((t) => ({ ...t, active: id }));
+      const r = await apiGet();
+      replaceState(r && r.state);
+      setAbrindo(null);
+    }
+    setTab("roteiro"); setReorder(false); setVista("viagem");
   };
   const createTrip = async (meta) => {
     setOv(null);
@@ -393,13 +402,14 @@ export default function App() {
     if (r.trips) setTrips(r.trips);
     const s = await apiGet();
     replaceState(s && s.state);
-    setTab("roteiro"); setReorder(false);
+    setTab("roteiro"); setReorder(false); setVista("viagem");  // já entra na viagem nova
   };
   const saveTripMeta = async (meta) => {
     setOv(null);
     const r = await apiTripMeta(meta.id, meta);
     if (r && r.trips) setTrips(r.trips);
   };
+  // Excluir só acontece a partir da lista — e é lá que a pessoa continua.
   const deleteTrip = async (id) => {
     setOv(null);
     await flushNow();
@@ -408,14 +418,14 @@ export default function App() {
       setTrips(r.trips);
       const s = await apiGet();       // backend já ajustou a ativa; carrega a nova
       replaceState(s && s.state);
-      setTab("roteiro"); setReorder(false);
+      setTab("roteiro"); setReorder(false); setVista("lista");
     }
   };
 
   return (
     <div style={{ minHeight: "100vh", background: CREAM, display: "flex", justifyContent: "center", fontFamily: HELV }}>
       <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} .bub{position:relative} .bub-in::after{content:"";position:absolute;left:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(100% 0,100% 100%,0 100%)} .bub-out::after{content:"";position:absolute;right:-6px;bottom:0;width:13px;height:13px;background:inherit;clip-path:polygon(0 0,0 100%,100% 100%)} button{transition:transform .08s ease} button:active{transform:scale(.96)} button:focus-visible,a:focus-visible{outline:3px solid #F28C28;outline-offset:2px} @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}`}</style>
-      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)", visibility: (semViagens || conferindoAcesso || precisaLogin) ? "hidden" : "visible" }}>
+      <div style={{ width: "100%", maxWidth: 440, minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", background: CREAM, boxShadow: "0 0 40px rgba(20,32,56,0.18)", visibility: (vista === "lista" || conferindoAcesso || precisaLogin) ? "hidden" : "visible" }}>
 
         {/* Hero: foto da viagem contida no topo + header compacto */}
         <div style={{ position: "relative", overflow: "hidden", background: NAVY, flex: "0 0 auto" }}>
@@ -427,11 +437,11 @@ export default function App() {
           </div>
 
           <div style={{ position: "relative", padding: `${safeTop(10)} 16px 12px`, color: "#fff" }}>
-            {/* Barra do app: a marca no centro, âncoras de 44px nas pontas.
-                O slot da esquerda fica vazio por ora — é onde entra a seta de
-                voltar para a lista de viagens. */}
+            {/* Barra do app: a marca no centro, âncoras de 44px nas pontas. */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <span aria-hidden="true" style={{ width: 44, height: 44, flex: "0 0 auto" }} />
+              <button onClick={() => setVista("lista")} aria-label="Voltar para minhas viagens" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ChevronIcon color="rgba(255,255,255,0.92)" size={20} dir="left" />
+              </button>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 5 }}>
                 <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: CREAM }}>Vou</span>
                 <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: ORANGE }}>Ali</span>
@@ -446,11 +456,8 @@ export default function App() {
                 da engrenagem: o progresso é da viagem, não do aplicativo. */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <button onClick={() => setOv({ kind: "trips" })} aria-label="Trocar de viagem" style={{ maxWidth: "100%", background: "rgba(255,255,255,0.14)", border: "1.5px solid rgba(255,255,255,0.35)", borderRadius: 999, padding: "8px 16px", minHeight: 42, display: "inline-flex", alignItems: "center", gap: 8, color: "#fff", cursor: "pointer", fontFamily: HELV, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}>
-                  <span style={{ minWidth: 0, fontSize: 17, fontWeight: 800, letterSpacing: -0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeMeta.name || "Minha viagem"}</span>
-                  <ChevronIcon color="rgba(255,255,255,0.85)" size={14} dir="down" />
-                </button>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.92)", fontWeight: 700, marginTop: 7 }}>{activeMeta.dateLabel || "toque no nome para escolher a viagem"}</div>
+                <h1 style={{ margin: 0, fontFamily: DISPLAY, fontSize: 25, fontWeight: 800, letterSpacing: -0.4, lineHeight: 1.15, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.35)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{activeMeta.name || "Minha viagem"}</h1>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.92)", fontWeight: 700, marginTop: 4, textShadow: "0 1px 5px rgba(0,0,0,0.35)" }}>{activeMeta.dateLabel || "sem datas definidas"}</div>
               </div>
               <ProgressRing pct={overallPct} />
             </div>
@@ -702,13 +709,20 @@ export default function App() {
           permiteEmail={!noApp()} />
       )}
 
-      {/* Primeiro acesso: sem nenhuma viagem, cobre tudo com as boas-vindas */}
-      {autenticado && semViagens && (
-        <Welcome onCreate={() => setOv({ kind: "tripForm", trip: null })} user={user} onLogout={sair} />
+      {/* Tela inicial: a lista de viagens (e as boas-vindas, quando não há nenhuma) */}
+      {autenticado && vista === "lista" && (
+        <TripsHome trips={trips} booted={booted} abrindo={abrindo}
+          onOpen={abrirViagem}
+          onNew={() => setOv({ kind: "tripForm", trip: null })}
+          onEdit={(t) => setOv({ kind: "tripForm", trip: t })}
+          onShare={(t) => setOv({ kind: "share", trip: t })}
+          onAjustes={() => setOv({ kind: "ajustes" })}
+          podeCompartilhar={authMode === "firebase"}
+          user={user} onLogout={sair} />
       )}
 
       {/* FAB: adicionar parada (roteiro) */}
-      {booted && tab === "roteiro" && day && !reorder && !ov && (
+      {vista === "viagem" && booted && tab === "roteiro" && day && !reorder && !ov && (
         <button onClick={() => setOv({ kind: "stopForm", stop: null })} aria-label="Adicionar parada"
           style={{ position: "fixed", right: "max(16px, calc(50% - 204px))", bottom: "calc(84px + env(safe-area-inset-bottom))", width: 56, height: 56, borderRadius: 28, border: "none", background: ORANGE, boxShadow: "0 8px 20px rgba(221,125,28,0.45)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15 }}>
           <PlusIcon color={NAVY} size={24} />
@@ -727,14 +741,6 @@ export default function App() {
           { icon: <DragIcon color={NAVY} size={18} />, label: "Reordenar paradas", onClick: () => { setReorder(true); setOv(null); } },
           { icon: <PlusIcon color={NAVY} size={18} />, label: "Adicionar parada", onClick: () => setOv({ kind: "stopForm", stop: null }) },
         ]} />
-      )}
-      {ov?.kind === "trips" && (
-        <TripsSheet trips={trips} activeId={trips.active} onClose={() => setOv(null)}
-          onSwitch={switchTrip}
-          onNew={() => setOv({ kind: "tripForm", trip: null })}
-          onEdit={(t) => setOv({ kind: "tripForm", trip: t })}
-          onShare={(t) => setOv({ kind: "share", trip: t })}
-          podeCompartilhar={authMode === "firebase"} />
       )}
       {ov?.kind === "share" && (
         <ShareSheet trip={ov.trip} onClose={() => setOv(null)} />

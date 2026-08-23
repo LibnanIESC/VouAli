@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
+import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
 
 describe("daysBetween", () => {
   it("conta os dias de forma inclusiva", () => {
@@ -69,6 +69,35 @@ describe("suggestGroup", () => {
         suggestGroup(a, c).forEach((g) => expect(GRUPOS).toContain(g));
       }
     }
+  });
+});
+
+describe("tripStatus", () => {
+  // Viagem de referência: New York, 6 a 13 de outubro de 2026.
+  const ny = (dia) => tripStatus("2026-10-06", "2026-10-13", new Date(dia));
+
+  it("conta os dias que faltam", () => {
+    expect(ny("2026-10-01T09:00")).toEqual({ estado: "futura", dias: 5, texto: "Faltam 5 dias" });
+    expect(ny("2026-08-23T09:00").texto).toBe("Faltam 44 dias");
+  });
+  it("trata a véspera e o dia da partida", () => {
+    expect(ny("2026-10-05T23:59").texto).toBe("Amanhã");
+    expect(ny("2026-10-06T00:01")).toEqual({ estado: "andamento", dias: 0, texto: "Começa hoje" });
+  });
+  it("reconhece a viagem em andamento, inclusive no último dia", () => {
+    expect(ny("2026-10-09T14:00").texto).toBe("Em viagem");
+    expect(ny("2026-10-13T23:00").texto).toBe("Em viagem");
+  });
+  it("marca como concluída só depois do fim", () => {
+    expect(ny("2026-10-14T00:30")).toEqual({ estado: "passada", dias: 0, texto: "Concluída" });
+  });
+  it("aceita viagem de um dia só (sem data de fim)", () => {
+    expect(tripStatus("2026-10-06", "", new Date("2026-10-06T10:00")).texto).toBe("Começa hoje");
+    expect(tripStatus("2026-10-06", "", new Date("2026-10-07T10:00")).estado).toBe("passada");
+  });
+  it("fica em silêncio quando não há data de início", () => {
+    expect(tripStatus("", "2026-10-13").estado).toBe("");
+    expect(tripStatus("qualquer", "coisa").texto).toBe("");
   });
 });
 

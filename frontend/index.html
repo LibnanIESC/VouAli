@@ -37,8 +37,12 @@
     </script>
 
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
+    <script type="module">
+      // O service worker guarda os assets em cache — ótimo em produção, onde os
+      // nomes têm hash. Em desenvolvimento os arquivos mantêm o mesmo endereço,
+      // então ele passaria a servir código velho e as alterações "não
+      // apareceriam". Por isso só registra no build de produção.
+      if (import.meta.env.PROD && "serviceWorker" in navigator) {
         window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
       }
     </script>

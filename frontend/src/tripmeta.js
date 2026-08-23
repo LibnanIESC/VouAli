@@ -53,6 +53,27 @@ export function formatDateLabel(start, end) {
   return `${a.d} ${abbr(a.mo)} – ${b.d} ${abbr(b.mo)}`;
 }
 
+/**
+ * Situação da viagem em relação a hoje — alimenta o selo nos cards da home.
+ *
+ * Compara só a data (sem hora), no fuso do aparelho: quem viaja pensa em "que
+ * dia é hoje", não em instantes. Sem data de início não há selo — melhor não
+ * mostrar nada do que mostrar um palpite.
+ */
+export function tripStatus(start, end, hoje = new Date()) {
+  const a = parse(start);
+  if (!a) return { estado: "", texto: "", dias: 0 };
+  const b = parse(end);
+  const inicio = Date.UTC(a.y, a.mo, a.d);
+  const fim = b ? Date.UTC(b.y, b.mo, b.d) : inicio;
+  const hj = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  if (hj > fim) return { estado: "passada", texto: "Concluída", dias: 0 };
+  if (hj === inicio) return { estado: "andamento", texto: "Começa hoje", dias: 0 };
+  if (hj > inicio) return { estado: "andamento", texto: "Em viagem", dias: 0 };
+  const dias = Math.round((inicio - hj) / 86400000);
+  return { estado: "futura", dias, texto: dias === 1 ? "Amanhã" : `Faltam ${dias} dias` };
+}
+
 export const INTERESSES = ["Museus", "Praia", "Atrações turísticas", "Restaurantes", "Monumentos", "Vida noturna", "Compras", "Natureza"];
 
 // Perfil do grupo — muda o TIPO de recomendação do Ali (ritmo, comida, noite).
