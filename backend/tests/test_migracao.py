@@ -47,6 +47,8 @@ def test_ny_migra_com_metadados_esperados(legacy):
     assert ny["currency"] == "US$" and ny["budget"] == 3000
     assert ny["adults"] == 2 and ny["children"] == 0 and ny["groupTypes"] == "Casal"
     assert ny["startDate"] == "2026-10-06" and ny["endDate"] == "2026-10-13"
+    # Campos criados depois da NY: aparecem vazios, nunca com palpite.
+    assert ny["origin"] == "" and ny["transport"] == ""
 
 
 def test_banco_muito_antigo_sem_coluna_de_versao(tmp_path, ny_state):

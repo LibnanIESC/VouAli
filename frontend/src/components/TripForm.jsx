@@ -4,7 +4,7 @@ import AliAvatar from "./AliAvatar";
 import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
-import { CURRENCIES, INTERESSES, GRUPOS, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
+import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, HELV, INK2, INK3 } from "../theme";
 
 const GEN_MSGS = [
@@ -58,7 +58,7 @@ function parseInteresses(txt) {
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
 export default function TripForm({ trip, onSave, onClose, onDelete, canDelete }) {
-  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", bg: "", currency: "", budget: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" });
+  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", budget: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" });
   const [mode, setMode] = useState("empty");     // empty | ai (só na criação)
   const [gerando, setGerando] = useState(false);
   const ini = useMemo(() => parseInteresses((trip || {}).interests), [trip]);
@@ -83,6 +83,13 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
     setGrupos((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]));
   };
 
+  // Meio de transporte: um dos conhecidos OU o que a pessoa escrever em "Outro".
+  // Guardar num campo só mantém o dado simples para o Ali e para o orçamento.
+  const transpSalvo = String((trip || {}).transport || "").trim();
+  const [transp, setTransp] = useState(ehTransporteConhecido(transpSalvo) ? transpSalvo : "");
+  const [outroTransp, setOutroTransp] = useState(ehTransporteConhecido(transpSalvo) ? "" : transpSalvo);
+  const transporte = transp || outroTransp.trim();
+
   const diasCalc = daysBetween(f.startDate, f.endDate);
   const label = formatDateLabel(f.startDate, f.endDate) || f.dateLabel;
   const nDias = diasCalc || Number(dias || 0);
@@ -100,7 +107,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
   const submit = async () => {
     if (!f.name.trim() || gerando) return;
     const meta = { ...f, dateLabel: label, interests: interesses, budget: Number(f.budget || 0),
-                   adults, children, groupTypes: grupos.join(", ") };
+                   adults, children, groupTypes: grupos.join(", "),
+                   origin: String(f.origin || "").trim(), transport: transporte };
     if (isNew && mode === "ai") {
       if (nDias < 1) { toast("Informe as datas da viagem (ou o número de dias)."); return; }
       setGerando(true);
@@ -112,6 +120,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         currency: f.currency || "US$",
         style: interesses,
         adults, children, groupTypes: grupos.join(", "),
+        origin: String(f.origin || "").trim(), transport: transporte,
       });
       setGerando(false);
       if (r && r.state) { onSave({ ...meta, data: r.state }); return; }
@@ -142,6 +151,34 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         <input style={field} value={f.name} onChange={up("name")} placeholder="Ex: New York" />
         <label style={lbl}>Destino</label>
         <input style={field} value={f.destination} onChange={up("destination")} placeholder="Ex: New York, EUA" />
+
+        {/* Origem e meio: sem isso o roteiro começa com você já no destino,
+            sem embarque, sem tempo de viagem e sem o custo de chegar lá. */}
+        <label style={lbl}>Saindo de</label>
+        <input style={field} value={f.origin || ""} onChange={up("origin")} placeholder="Ex: Belo Horizonte, MG" />
+
+        <label style={lbl}>Meio de transporte</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+          {TRANSPORTES.map((t) => {
+            const on = transp === t.id;
+            return (
+              <button key={t.id} type="button" aria-pressed={on}
+                onClick={() => { setTransp(on ? "" : t.id); if (!on) setOutroTransp(""); }}
+                style={{ padding: "9px 14px", minHeight: 40, borderRadius: 999, fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                  border: on ? `2px solid ${NAVY}` : "1.5px solid #ddd", background: on ? SAND : "#fff", color: NAVY }}>
+                <span aria-hidden="true">{t.emoji}</span>{t.id}
+              </button>
+            );
+          })}
+        </div>
+        <input style={{ ...field, marginTop: 10 }} value={outroTransp}
+          onChange={(e) => { setOutroTransp(e.target.value); if (e.target.value.trim()) setTransp(""); }}
+          placeholder="Outro (ex: van, motorhome)" aria-label="Outro meio de transporte" />
+        {(f.origin || "").trim() && transporte && (
+          <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>
+            O Ali inclui a ida e a volta no roteiro e estima o custo do deslocamento.
+          </div>
+        )}
 
         {/* Datas com seletor de calendário */}
         <div style={{ display: "flex", gap: 12 }}>

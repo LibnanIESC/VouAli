@@ -18,6 +18,31 @@ def test_linha_de_viajantes(fresh):
     assert m._travelers_line({}) == "", "sem viajantes não deve poluir o prompt"
 
 
+def test_linha_de_deslocamento(fresh):
+    m, _, _ = fresh
+    assert m._route_line({"origin": "Belo Horizonte", "transport": "Avião"}) == \
+        "DESLOCAMENTO: saindo de Belo Horizonte, de avião"
+    assert m._route_line({"origin": "Curitiba"}) == "DESLOCAMENTO: saindo de Curitiba"
+    assert m._route_line({"transport": "Carro"}) == "DESLOCAMENTO: de carro"
+    assert m._route_line({}) == "", "sem origem nem meio não deve poluir o prompt"
+    assert m._route_line({"origin": "  ", "transport": " "}) == "", "espaços em branco não contam"
+
+
+def test_contexto_conhece_destino_origem_e_meio(fresh):
+    """Sem o destino no contexto, o Ali dava dica do lugar errado."""
+    m, _, _ = fresh
+    ctx = m._trip_context({"destination": "Nápoles, Itália", "origin": "São Paulo", "transport": "Avião"})
+    assert "DESTINO: Nápoles, Itália" in ctx
+    assert "saindo de São Paulo" in ctx and "de avião" in ctx
+
+
+def test_prompt_da_dica_nao_fixa_um_destino(fresh):
+    """O destino tem que vir do contexto da viagem, nunca escrito no prompt."""
+    m, _, _ = fresh
+    assert "Nova York" not in m.ALI_DICA_SYSTEM
+    assert "Nova Iorque" not in m.ALI_DICA_SYSTEM
+
+
 def test_contexto_usa_moeda_e_teto_da_viagem(fresh):
     m, _, _ = fresh
     ctx = m._trip_context({"currency": "€", "budgetTotal": 2500, "budget": [{"k": "Trem", "v": 30}]})

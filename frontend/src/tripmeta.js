@@ -76,6 +76,18 @@ export function tripStatus(start, end, hoje = new Date()) {
 
 export const INTERESSES = ["Museus", "Praia", "Atrações turísticas", "Restaurantes", "Monumentos", "Vida noturna", "Compras", "Natureza"];
 
+// Como a pessoa chega ao destino. Muda o primeiro e o último dia do roteiro e
+// o custo de ida e volta — de avião não há pedágio, de carro não há check-in.
+// A lista cobre o comum; o que faltar vai no campo livre "Outro".
+export const TRANSPORTES = [
+  { id: "Avião", emoji: "✈️" },
+  { id: "Carro", emoji: "🚗" },
+  { id: "Ônibus", emoji: "🚌" },
+  { id: "Trem", emoji: "🚆" },
+  { id: "Navio", emoji: "🚢" },
+];
+export const ehTransporteConhecido = (v) => TRANSPORTES.some((t) => t.id === String(v || "").trim());
+
 // Perfil do grupo — muda o TIPO de recomendação do Ali (ritmo, comida, noite).
 export const GRUPOS = ["Casal", "Família", "Amigos", "Sozinho(a)"];
 

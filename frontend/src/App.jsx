@@ -233,6 +233,16 @@ export default function App() {
   const hasTeto = budgetTotal > 0;
   const remaining = budgetTotal - planned;
 
+  // Tudo que o Ali precisa saber da viagem. Um objeto só, usado pelo chat e
+  // pelas dicas de parada — se um deles recebesse menos, daria conselho no
+  // escuro (já aconteceu: dica de Nova York numa viagem à Itália).
+  const aliTrip = {
+    days, budget, prebuy, notes, budgetTotal, currency: cur,
+    destination: activeMeta.destination || activeMeta.name,
+    origin: activeMeta.origin, transport: activeMeta.transport,
+    adults: nAdults, children: nChildren, groupTypes: activeMeta.groupTypes,
+  };
+
   // Dica do Ali para o dia: a primeira parada com insight vira o "briefing".
   const aliDayTip = (((day && day.stops) || []).find((s) => s.insight && s.insight.trim()) || {}).insight;
   // Observação proativa do Ali sobre o orçamento (calculada, não armazenada).
@@ -490,7 +500,7 @@ export default function App() {
 
         {/* Body (superfície sólida areia-clara) */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
-          {tab === "ali" && <AliChat trip={{ days, budget, prebuy, notes, budgetTotal, currency: cur, adults: nAdults, children: nChildren, groupTypes: activeMeta.groupTypes }} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
+          {tab === "ali" && <AliChat trip={aliTrip} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
           {!booted && tab !== "ali" && <SkeletonList />}
           {booted && tab === "roteiro" && !day && (
             <div style={{ textAlign: "center", marginTop: 50 }}>
@@ -772,7 +782,7 @@ export default function App() {
           onDelete={() => deleteStop(ov.stop.id)} />
       )}
       {ov?.kind === "stopForm" && (
-        <StopForm stop={ov.stop} color={dc} trip={{ days, budget, prebuy, notes }} onClose={() => setOv(null)} onSave={saveStop} />
+        <StopForm stop={ov.stop} color={dc} trip={aliTrip} onClose={() => setOv(null)} onSave={saveStop} />
       )}
       {ov?.kind === "dayForm" && (
         <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1}

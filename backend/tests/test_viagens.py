@@ -13,10 +13,21 @@ def test_criar_viagem_com_todos_os_metadados(fresh):
     meta = criar(client, name="Bruxelas", destination="Bruxelas, Bélgica", currency="€",
                  budget=2500, startDate="2026-11-01", endDate="2026-11-12",
                  dateLabel="1 – 12 novembro", interests="Museus, Restaurantes",
-                 adults=2, children=1, groupTypes="Família")["meta"]
+                 adults=2, children=1, groupTypes="Família",
+                 origin="Belo Horizonte, MG", transport="Avião")["meta"]
     assert meta["currency"] == "€" and meta["budget"] == 2500
     assert meta["adults"] == 2 and meta["children"] == 1
     assert meta["groupTypes"] == "Família" and meta["interests"] == "Museus, Restaurantes"
+    assert meta["origin"] == "Belo Horizonte, MG" and meta["transport"] == "Avião"
+
+
+def test_origem_e_meio_sobrevivem_a_edicao_parcial(fresh):
+    """Editar só o orçamento não pode apagar de onde a pessoa sai nem como vai."""
+    _, client, _ = fresh
+    tid = criar(client, name="Roma", origin="Curitiba", transport="Avião")["meta"]["id"]
+    client.put(f"/api/trips/{tid}/meta", json={"budget": 7000})
+    meta = next(m for m in client.get("/api/trips").json()["trips"]["list"] if m["id"] == tid)
+    assert meta["origin"] == "Curitiba" and meta["transport"] == "Avião"
 
 
 def test_viagem_nova_nasce_vazia_e_vira_ativa(fresh):
@@ -73,6 +84,7 @@ def test_viagem_legada_recebe_padroes(fresh, tmp_path):
     assert velha["currency"] == "US$" and velha["budget"] == 0
     assert velha["adults"] == 1 and velha["children"] == 0
     assert velha["interests"] == "" and velha["groupTypes"] == ""
+    assert velha["origin"] == "" and velha["transport"] == ""
 
 
 def test_health_responde_sem_senha(tmp_path):

@@ -24,7 +24,8 @@ NY_META = {"id": "ny", "name": "New York", "dateLabel": "6 – 13 Outubro", "des
            "currency": "US$", "budget": 3000, "startDate": "2026-10-06", "endDate": "2026-10-13", "interests": "",
            "adults": 2, "children": 0, "groupTypes": "Casal"}
 # Campos de metadados aceitos ao criar/editar uma viagem.
-META_FIELDS = ("name", "dateLabel", "destination", "bg", "currency", "startDate", "endDate", "interests", "groupTypes")
+META_FIELDS = ("name", "dateLabel", "destination", "origin", "transport", "bg", "currency",
+               "startDate", "endDate", "interests", "groupTypes")
 META_NUMS = {"budget": 0, "adults": 1, "children": 0}   # campo -> padrão
 EMPTY_STATE = {"days": [], "budget": [], "prebuy": [], "notes": []}
 
@@ -172,12 +173,20 @@ ALI_GERAR_SYSTEM = (
     "Adapte o roteiro ao número de viajantes e ao perfil do grupo (casal, família com crianças, amigos ou sozinho): "
     "ritmo, tipo de atração, restaurantes e vida noturna mudam conforme isso. "
     "Os valores do orçamento devem ser o TOTAL DO GRUPO (não por pessoa), e a descrição deve deixar isso claro quando ajudar. "
+    "SE houver origem e meio de transporte: comece o primeiro dia pela ida (saída, tempo de viagem, "
+    "chegada e deslocamento até a hospedagem) e termine o último dia pela volta, com horários plausíveis; "
+    "inclua no orçamento o custo de chegar e voltar (passagens, ou combustível e pedágio para carro) com a tag 'transporte', "
+    "e escreva ESTIMATIVA na descrição desse item, porque você não consulta preços reais; "
+    "acrescente em 'prebuy' o que aquele meio exige (check-in e seguro para avião, revisão e pedágio para carro, por exemplo). "
     "Não inclua campos de id nem 'done' — o app cuida disso."
 )
 
 ALI_DICA_SYSTEM = (
     "Você é o Ali, guia de viagens experiente e simpático. "
-    "Gere UMA dica curta e prática (1 a 2 frases, no máximo ~220 caracteres) para a parada indicada, na viagem a Nova York. "
+    # O destino vem no contexto da viagem, nunca fixo aqui: já esteve escrito
+    # "na viagem a Nova York" e o Ali dava dica de Nova York em viagem à Itália.
+    "Gere UMA dica curta e prática (1 a 2 frases, no máximo ~220 caracteres) para a parada indicada, "
+    "na viagem descrita no contexto. "
     "Foque num truque útil, algo a evitar, o melhor horário, ou o que priorizar no local. "
     "Escreva em português do Brasil, com tom leve de amigo que já esteve lá. "
     "Responda APENAS com o texto da dica — sem introdução, sem aspas, sem prefixos como 'Dica:'. "
@@ -266,8 +275,28 @@ def _travelers_line(trip: dict) -> str:
     grupo = str(trip.get("groupTypes") or "").strip()
     return f"VIAJANTES: {quem} (total {ad + ch})" + (f" — perfil: {grupo}" if grupo else "")
 
+def _route_line(trip: dict) -> str:
+    """Linha 'DESLOCAMENTO': de onde a pessoa sai e como vai.
+
+    Sem isso o Ali só conhece o destino, e o roteiro começa com a pessoa já no
+    lugar — sem embarque, sem tempo de viagem e sem o custo de chegar lá.
+    """
+    origem = str(trip.get("origin") or "").strip()
+    meio = str(trip.get("transport") or "").strip()
+    if not origem and not meio:
+        return ""
+    if origem and meio:
+        return f"DESLOCAMENTO: saindo de {origem}, de {meio.lower()}"
+    return f"DESLOCAMENTO: saindo de {origem}" if origem else f"DESLOCAMENTO: de {meio.lower()}"
+
 def _trip_context(trip: dict) -> str:
     parts = []
+    destino = str(trip.get("destination") or "").strip()
+    if destino:
+        parts.append(f"DESTINO: {destino}")
+    rl = _route_line(trip)
+    if rl:
+        parts.append(rl)
     tl = _travelers_line(trip)
     if tl:
         parts.append(tl)
@@ -854,6 +883,9 @@ async def ali_gerar(request: Request):
     budget = body.get("budget")
     cur = str(body.get("currency") or "US$").strip() or "US$"
     prompt = f"Destino: {destination}\nNúmero de dias: {days}\nMoeda: {cur} (use SEMPRE esta moeda nos valores)"
+    rl = _route_line(body)
+    if rl:
+        prompt += "\n" + rl
     tl = _travelers_line(body)
     if tl:
         prompt += "\n" + tl
