@@ -14,7 +14,7 @@ import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
 import Login from "./components/Login";
 import Sheet from "./components/Sheet";
-import Skyline from "./components/Skyline";
+import Capa from "./components/Capa";
 import SyncPill from "./components/SyncPill";
 import AliTip from "./components/AliTip";
 import AliAvatar from "./components/AliAvatar";
@@ -518,9 +518,12 @@ export default function App() {
         {/* Hero: foto da viagem contida no topo + header compacto */}
         <div style={{ position: "relative", overflow: "hidden", background: NAVY, flex: "0 0 auto" }}>
           <div style={{ position: "absolute", inset: 0 }} aria-hidden="true">
+            {/* A capa desenhada fica atrás da foto: se a foto não carregar
+                (link quebrado, sem internet), sobra ela em vez de um buraco. */}
+            <Capa semente={trips.active} />
             {activeMeta.bg
-              ? <img src={activeMeta.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              : <Skyline />}
+              ? <img src={activeMeta.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : null}
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(18,30,52,0.52) 0%, rgba(18,30,52,0.62) 55%, rgba(18,30,52,0.85) 100%)" }} />
           </div>
 

@@ -1,15 +1,23 @@
 import React, { useState } from "react";
 import Sheet from "./Sheet";
 import { btn, field, lbl } from "../theme";
+import { digitarNumero, numeroDoCampo, campoDeNumero } from "../utils";
 
 // Formulário de item de orçamento (planejado x gasto).
 export default function BudgetForm({ item, currency = "US$", onSave, onClose, onDelete }) {
-  const [f, setF] = useState(item || { k: "", v: 0, spent: 0, tag: "outros" });
-  const up = (k, num) => (e) => setF({ ...f, [k]: num ? Number(e.target.value || 0) : e.target.value });
+  // Os valores ficam como TEXTO enquanto se digita e viram número ao salvar —
+  // ver o porquê em utils.js (digitarNumero).
+  const [f, setF] = useState(() => {
+    const i = item || { k: "", v: 0, spent: 0, tag: "outros" };
+    return { ...i, v: campoDeNumero(i.v), spent: campoDeNumero(i.spent) };
+  });
+  const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const upValor = (k) => (e) => setF({ ...f, [k]: digitarNumero(e.target.value) });
+  const salvar = () => f.k.trim() && onSave({ ...f, v: numeroDoCampo(f.v), spent: numeroDoCampo(f.spent) });
   const acoes = (
     <>
       {item && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
-      <button onClick={() => f.k.trim() && onSave(f)} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
+      <button onClick={salvar} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
     </>
   );
   return (
@@ -23,11 +31,11 @@ export default function BudgetForm({ item, currency = "US$", onSave, onClose, on
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Planejado ({currency})</label>
-            <input type="number" style={field} value={f.v} onChange={up("v", true)} />
+            <input inputMode="decimal" style={field} value={f.v} onChange={upValor("v")} placeholder="0" />
           </div>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Gasto ({currency})</label>
-            <input type="number" style={field} value={f.spent} onChange={up("spent", true)} />
+            <input inputMode="decimal" style={field} value={f.spent} onChange={upValor("spent")} placeholder="0" />
           </div>
         </div>
       </div>

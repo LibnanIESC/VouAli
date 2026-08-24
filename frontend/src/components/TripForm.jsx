@@ -6,6 +6,7 @@ import { apiGenerate } from "../api";
 import { toast } from "../toast";
 import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, HELV, INK2, INK3 } from "../theme";
+import { digitarNumero, numeroDoCampo, campoDeNumero } from "../utils";
 
 const GEN_MSGS = [
   "Desenhando seus dias…",
@@ -58,7 +59,10 @@ function parseInteresses(txt) {
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
 export default function TripForm({ trip, onSave, onClose, onDelete, canDelete }) {
-  const [f, setF] = useState(trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", budget: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" });
+  const [f, setF] = useState(() => {
+    const t = trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" };
+    return { ...t, budget: campoDeNumero(t.budget) };   // o teto é texto enquanto se digita
+  });
   const [mode, setMode] = useState("empty");     // empty | ai (só na criação)
   const [gerando, setGerando] = useState(false);
   const ini = useMemo(() => parseInteresses((trip || {}).interests), [trip]);
@@ -106,7 +110,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
 
   const submit = async () => {
     if (!f.name.trim() || gerando) return;
-    const meta = { ...f, dateLabel: label, interests: interesses, budget: Number(f.budget || 0),
+    const meta = { ...f, dateLabel: label, interests: interesses, budget: numeroDoCampo(f.budget),
                    adults, children, groupTypes: grupos.join(", "),
                    origin: String(f.origin || "").trim(), transport: transporte };
     if (isNew && mode === "ai") {
@@ -116,7 +120,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         destination: f.destination || f.name,
         dateLabel: label,
         days: nDias,
-        budget: Number(f.budget) > 0 ? Number(f.budget) : undefined,
+        budget: numeroDoCampo(f.budget) > 0 ? numeroDoCampo(f.budget) : undefined,
         currency: f.currency || "US$",
         style: interesses,
         adults, children, groupTypes: grupos.join(", "),
@@ -242,7 +246,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1.3 }}>
             <label style={lbl}>Orçamento (teto)</label>
-            <input type="number" inputMode="decimal" style={field} value={f.budget} onChange={up("budget")} placeholder="Ex: 3000" />
+            <input inputMode="decimal" style={field} value={f.budget} onChange={(e) => setF({ ...f, budget: digitarNumero(e.target.value) })} placeholder="Ex: 3000" />
           </div>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Moeda</label>

@@ -1,6 +1,6 @@
 import React from "react";
 import AliAvatar from "./AliAvatar";
-import Skyline from "./Skyline";
+import Capa from "./Capa";
 import { MapIcon, MoneyIcon, SparkIcon, GearIcon, PencilIcon, PeopleIcon, PlusIcon } from "./Icons";
 import { tripStatus } from "../tripmeta";
 import { btn, safeTop, CREAM, NAVY, ORANGE, STEEL, SAND, DISPLAY, HELV, INK2, INK3 } from "../theme";
@@ -46,9 +46,10 @@ function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo
       <button onClick={onOpen} aria-label={`Abrir a viagem ${t.name}`}
         style={{ display: "block", width: "100%", height: 158, padding: 0, border: "none", background: NAVY, cursor: "pointer", fontFamily: HELV, textAlign: "left", position: "relative", opacity: abrindo ? 0.6 : 1 }}>
         <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "block" }}>
+          <Capa semente={t.id} />
           {t.bg
-            ? <img src={t.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-            : <Skyline />}
+            ? <img src={t.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            : null}
           <span style={{ position: "absolute", inset: 0, display: "block", background: "linear-gradient(180deg, rgba(18,30,52,0.15) 0%, rgba(18,30,52,0.30) 45%, rgba(18,30,52,0.88) 100%)" }} />
         </span>
         <span style={{ position: "absolute", left: 16, right: 16, bottom: 14, display: "block", color: "#fff" }}>
