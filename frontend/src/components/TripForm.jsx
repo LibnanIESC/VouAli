@@ -5,7 +5,7 @@ import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
 import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
-import { btn, field, lbl, NAVY, ORANGE, SAND, HELV, INK2, INK3 } from "../theme";
+import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3 } from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero } from "../utils";
 
 const GEN_MSGS = [
@@ -16,7 +16,13 @@ const GEN_MSGS = [
   "Caprichando nos detalhes…",
 ];
 
-// Tela de espera da geração: o Ali "trabalhando", com mensagens rotativas.
+/**
+ * Tela de espera da geração: o Ali "trabalhando", com mensagens rotativas.
+ *
+ * Ocupa a tela inteira de propósito. Como gaveta, ela deixava aparecer a tela
+ * de boas-vindas atrás — com OUTRO retrato do Ali. Dois Alis ao mesmo tempo
+ * confundem, e são quinze segundos olhando para isso.
+ */
 function GenProgress() {
   const [i, setI] = useState(0);
   useEffect(() => {
@@ -24,11 +30,14 @@ function GenProgress() {
     return () => clearInterval(iv);
   }, []);
   return (
-    <div style={{ padding: "40px 22px 48px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }} aria-live="polite">
-      <AliAvatar size={88} portrait ring={ORANGE} />
-      <div style={{ fontSize: 20, fontWeight: 800, color: NAVY, marginTop: 18 }}>Ali está montando seu roteiro</div>
-      <div key={i} style={{ fontSize: 15, fontWeight: 600, color: INK2, marginTop: 10, animation: "fadeUp .35s ease" }}>{GEN_MSGS[i]}</div>
-      <div style={{ fontSize: 13, color: INK3, fontWeight: 500, marginTop: 22 }}>Isso leva uns 15 segundos. Depois você pode editar tudo.</div>
+    <div aria-live="polite" role="status"
+      style={{ position: "fixed", inset: 0, zIndex: 60, background: CREAM, display: "flex", justifyContent: "center", alignItems: "center", padding: "24px", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", maxWidth: 340 }}>
+        <AliAvatar size={104} portrait ring={ORANGE} />
+        <div style={{ fontSize: 21, fontWeight: 800, color: NAVY, marginTop: 20, fontFamily: DISPLAY }}>Ali está montando seu roteiro</div>
+        <div key={i} style={{ fontSize: 15.5, fontWeight: 600, color: INK2, marginTop: 10, animation: "fadeUp .35s ease" }}>{GEN_MSGS[i]}</div>
+        <div style={{ fontSize: 13, color: INK3, fontWeight: 500, marginTop: 26, lineHeight: 1.5 }}>Isso leva uns 15 segundos. Depois você pode editar tudo.</div>
+      </div>
     </div>
   );
 }
@@ -155,9 +164,11 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
     </>
   );
 
+  // Enquanto gera, a tela de espera toma o lugar da gaveta inteira.
+  if (gerando) return <GenProgress />;
+
   return (
-    <Sheet onClose={gerando ? () => {} : onClose} acoes={acoes}>
-      {gerando ? <GenProgress /> : (
+    <Sheet onClose={onClose} acoes={acoes}>
       <div style={{ padding: "22px 22px 20px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>{trip ? "Editar viagem" : "Nova viagem"}</div>
 
@@ -303,9 +314,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
             )}
           </>
         )}
-
       </div>
-      )}
     </Sheet>
   );
 }

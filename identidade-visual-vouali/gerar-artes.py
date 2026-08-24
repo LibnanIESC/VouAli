@@ -35,9 +35,15 @@ CLARO = (8, 60, 140)
 ESCURO = (4, 28, 84)
 FOCO = (0.50, 0.38)     # onde o brilho é mais forte
 
-# Quanto da largura o logo ocupa em cada situação.
-LOGO_MASCARADO = 0.60   # onde o sistema recorta (adaptativo, maskable, iOS)
-LOGO_INTEIRO = 0.85     # onde a arte aparece como foi desenhada
+# Onde o sistema recorta, o que sobra garantido é o CÍRCULO de 72 das 108
+# unidades do ícone. Não basta a largura do logo caber nesses 66,7%: o que
+# tem de caber é a DIAGONAL da caixa dele, senão os cantos passam do círculo —
+# foi assim que o avião (canto superior direito) e a seta (borda direita)
+# apareceram cortados. A largura máxima sai da proporção do próprio logo, e
+# não de um número escolhido a olho, para não errar de novo se a arte mudar.
+MIOLO = 72 / 108
+FOLGA = 0.94            # fabricantes que recortam um pouco além do padrão
+LOGO_INTEIRO = 0.85     # onde a arte aparece como foi desenhada, sem máscara
 
 # 108dp de tela em cada densidade
 DENSIDADES = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
@@ -123,9 +129,17 @@ def circular(img):
     return img
 
 
+def largura_segura(logo):
+    """Maior largura em que a caixa do logo cabe inteira no miolo circular."""
+    diagonal = (logo.width ** 2 + logo.height ** 2) ** 0.5
+    return MIOLO * logo.width / diagonal * FOLGA
+
+
 def main():
     logo = recortar_logo()
-    print(f"logo recortado: {logo.width}x{logo.height}")
+    mascarado = largura_segura(logo)
+    print(f"logo recortado: {logo.width}x{logo.height} (proporção {logo.width/logo.height:.2f})")
+    print(f"largura no miolo circular: {mascarado:.1%} — nada de corte")
 
     # ---------- Android: ícone adaptativo ----------
     # Fundo e logo em camadas separadas, cada uma sangrando 108dp.
@@ -134,12 +148,12 @@ def main():
         pasta = ANDROID / f"mipmap-{nome}"
         pasta.mkdir(parents=True, exist_ok=True)
         fundo_navy(lado).convert("RGB").save(pasta / "ic_launcher_background.png")
-        compor(logo, lado, LOGO_MASCARADO, fundo=False).save(pasta / "ic_launcher_foreground.png")
+        compor(logo, lado, mascarado, fundo=False).save(pasta / "ic_launcher_foreground.png")
 
         # Aparelhos antigos (antes do Android 8) não têm ícone adaptativo:
         # recebem a arte já composta e já arredondada.
         legado = round(48 * escala)
-        cheio = compor(logo, legado, LOGO_MASCARADO)
+        cheio = compor(logo, legado, mascarado)
         arredondar(cheio).save(pasta / "ic_launcher.png")
         circular(cheio).save(pasta / "ic_launcher_round.png")
         print(f"  {nome}: adaptativo {lado}px, legado {legado}px")
@@ -150,15 +164,24 @@ def main():
     for lado in (192, 512):
         arredondar(compor(logo, lado, LOGO_INTEIRO)).save(WEB / f"icon-{lado}.png")
     # "maskable" e iOS: o sistema recorta, então o navy sangra e o logo encolhe.
-    compor(logo, 512, LOGO_MASCARADO).convert("RGB").save(WEB / "icon-512-maskable.png")
-    compor(logo, 180, LOGO_MASCARADO).convert("RGB").save(WEB / "icon-180.png")
+    compor(logo, 512, mascarado).convert("RGB").save(WEB / "icon-512-maskable.png")
+    compor(logo, 180, mascarado).convert("RGB").save(WEB / "icon-180.png")
     print("  web: icon-192, icon-512, icon-512-maskable, icon-180")
+
+    # ---------- Ícone da abertura (Android 12+) ----------
+    # O sistema NÃO usa a imagem de splash: ele desenha um selo redondo com o
+    # ícone do app. E se receber o ícone adaptativo, ainda amplia em 1,5× — foi
+    # o que espremeu a palavra contra a borda. Um desenho próprio evita isso:
+    # só o logo, sobre nada, no mesmo tamanho relativo do ícone do launcher.
+    (ANDROID / "drawable").mkdir(parents=True, exist_ok=True)
+    compor(logo, 960, mascarado, fundo=False).save(ANDROID / "drawable" / "splash_icon.png")
+    print("  abertura: splash_icon.png (logo sobre o selo navy do sistema)")
 
     # ---------- Telas de abertura do Android ----------
     # Creme com o ícone no meio — o mesmo creme com que o app abre. A abertura
     # inteira fica de uma cor só: sem piscada entre a tela do sistema, a do
     # Capacitor e a do próprio app.
-    selo = arredondar(compor(logo, 1024, LOGO_MASCARADO))
+    selo = arredondar(compor(logo, 1024, mascarado))
     for pasta in sorted(ANDROID.glob("drawable*")):
         alvo = pasta / "splash.png"
         if not alvo.exists():
