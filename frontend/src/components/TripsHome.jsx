@@ -100,24 +100,32 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
 
   return (
     <div style={{ position: "fixed", inset: 0, background: CREAM, zIndex: 30, display: "flex", justifyContent: "center", overflowY: "auto" }}>
-      <div style={{ width: "100%", maxWidth: 440, minHeight: "100%", boxSizing: "border-box", padding: `${safeTop(10)} 18px calc(28px + env(safe-area-inset-bottom))`, display: "flex", flexDirection: "column" }}>
+      {/* Nas boas-vindas a altura é TRAVADA em 100%: só assim a ilustração
+          encolhe para caber. Com `min-height`, o painel crescia em vez de
+          comprimir, e o rodapé ia parar debaixo da barra de navegação. Na
+          lista de viagens continua `min-height`, porque ela precisa rolar. */}
+      <div style={{ width: "100%", maxWidth: 440, boxSizing: "border-box", padding: `${safeTop(10)} 18px calc(${vazia ? 14 : 28}px + env(safe-area-inset-bottom))`, display: "flex", flexDirection: "column", ...(vazia ? { height: "100%" } : { minHeight: "100%" }) }}>
         <Topo onAjustes={onAjustes} />
 
         {vazia ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             {/* Primeira tela de quem instala o app. A ilustração sangra para
                 fora do respiro lateral e some num degradê para o creme, de
-                onde o Ali surge — assim o texto nunca disputa com o desenho. */}
-            <div aria-hidden="true" style={{ position: "relative", width: "calc(100% + 36px)", margin: "10px -18px 0", height: "clamp(190px, 32vh, 290px)" }}>
+                onde o Ali surge — assim o texto nunca disputa com o desenho.
+
+                Ela é a única peça que ESTICA E ENCOLHE: em tela alta aparece
+                inteira, em tela baixa cede espaço. Com altura fixa, o rodapé
+                era empurrado para debaixo da barra de navegação do Android. */}
+            <div aria-hidden="true" style={{ position: "relative", width: "calc(100% + 36px)", margin: "8px -18px 0", flex: "1 1 auto", minHeight: 104, maxHeight: 290, overflow: "hidden" }}>
               <img src="/boas-vindas.jpg" alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 12%", display: "block" }} />
               <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(251,244,233,0) 52%, rgba(251,244,233,0.85) 82%, ${CREAM} 100%)` }} />
             </div>
-            <div style={{ marginTop: -54, zIndex: 1 }}><AliAvatar size={104} portrait ring={ORANGE} /></div>
-            <h1 style={{ margin: "14px 0 0", fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY, letterSpacing: -0.3 }}>Oi! Sou o Ali 👋</h1>
-            <p style={{ margin: "8px 0 0", fontSize: 15.5, color: INK2, lineHeight: 1.55, fontWeight: 500, maxWidth: 320 }}>
+            <div style={{ marginTop: -50, marginBottom: 0, flex: "0 0 auto", zIndex: 1 }}><AliAvatar size={96} portrait ring={ORANGE} /></div>
+            <h1 style={{ margin: "12px 0 0", flex: "0 0 auto", fontSize: 23, fontWeight: 800, color: NAVY, fontFamily: DISPLAY, letterSpacing: -0.3 }}>Oi! Sou o Ali 👋</h1>
+            <p style={{ margin: "7px 0 0", flex: "0 0 auto", fontSize: 15, color: INK2, lineHeight: 1.5, fontWeight: 500, maxWidth: 320 }}>
               Seu companheiro de viagem. Me diga para onde vai e eu ajudo com o roteiro, o orçamento e as dicas de quem já esteve lá.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, margin: "26px 0 30px", width: "100%", maxWidth: 340 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 13, margin: "20px 0 22px", flex: "0 0 auto", width: "100%", maxWidth: 340 }}>
               {beneficio(MapIcon, "Roteiro dia a dia", "Monto o cronograma com você — ou do zero, se preferir.")}
               {beneficio(MoneyIcon, "Orçamento no controle", "Acompanhe o planejado, o gasto e quanto sobra.")}
               {beneficio(SparkIcon, "Dicas sob medida", "Do que priorizar ao que evitar, no seu ritmo.")}
@@ -128,10 +136,9 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
               </div>
             ) : (
               <>
-                <button onClick={onNew} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", maxWidth: 340, fontSize: 16 }}>
+                <button onClick={onNew} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", maxWidth: 340, fontSize: 16, flex: "0 0 auto" }}>
                   Criar minha primeira viagem
                 </button>
-                <div style={{ fontSize: 12.5, color: INK3, marginTop: 12 }}>Leva menos de um minuto.</div>
               </>
             )}
           </div>
@@ -167,9 +174,12 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
             O `marginTop: auto` prende ao rodapé — solto no meio da tela, com
             espaço vazio embaixo, parecia que a tela tinha ficado pela metade. */}
         {user && (
-          <div style={{ marginTop: "auto", paddingTop: 36, fontSize: 12.5, color: INK3, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <span>Conectado como <strong style={{ color: INK2, fontWeight: 700 }}>{user.email || user.name}</strong></span>
-            <button onClick={onLogout} style={{ background: "none", border: "none", padding: "8px 6px", minHeight: 40, color: STEEL, fontSize: 12.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer", textDecoration: "underline" }}>
+          <div style={{ marginTop: "auto", paddingTop: vazia ? 14 : 36, flex: "0 0 auto", fontSize: 12, color: INK3, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 6 }}>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+              {user.email || user.name}
+            </span>
+            <span aria-hidden="true">·</span>
+            <button onClick={onLogout} style={{ background: "none", border: "none", padding: "6px 4px", minHeight: 32, color: STEEL, fontSize: 12, fontWeight: 800, fontFamily: HELV, cursor: "pointer", textDecoration: "underline" }}>
               Trocar de conta
             </button>
           </div>

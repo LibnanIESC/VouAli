@@ -67,13 +67,18 @@ function parseInteresses(txt) {
 
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
-export default function TripForm({ trip, onSave, onClose, onDelete, canDelete }) {
+export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, onGerando }) {
   const [f, setF] = useState(() => {
     const t = trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" };
     return { ...t, budget: campoDeNumero(t.budget) };   // o teto é texto enquanto se digita
   });
   const [mode, setMode] = useState("empty");     // empty | ai (só na criação)
   const [gerando, setGerando] = useState(false);
+  // O app precisa saber que a tela de espera está no ar: ela é CREME, e sem
+  // isso a barra de status continuaria pintada como se o fundo fosse escuro —
+  // ícones brancos sobre creme somem.
+  useEffect(() => { onGerando && onGerando(gerando); }, [gerando, onGerando]);
+  useEffect(() => () => { onGerando && onGerando(false); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const ini = useMemo(() => parseInteresses((trip || {}).interests), [trip]);
   const [tags, setTags] = useState(ini.marcados);
   const [outros, setOutros] = useState(ini.outros);

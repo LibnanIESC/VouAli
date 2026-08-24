@@ -72,6 +72,7 @@ export default function App() {
   // O app começa pela lista de viagens; só entra numa delas quando escolhida.
   const [vista, setVista] = useState("lista");   // lista | viagem
   const [abrindo, setAbrindo] = useState(null);  // id da viagem sendo carregada
+  const [gerandoRoteiro, setGerandoRoteiro] = useState(false); // Ali montando o roteiro
   const [ov, setOv] = useState(null);
   const [reorder, setReorder] = useState(false);
   const [sync, setSync] = useState("synced");
@@ -158,8 +159,9 @@ export default function App() {
 
   // A barra de status acompanha a tela: creme na lista, no login e na abertura;
   // escura dentro da viagem e sob qualquer gaveta (que escurece o fundo todo).
-  // No site isto não faz nada.
-  const topoClaro = !ov && !needKey && (conferindoAcesso || precisaLogin || vista === "lista");
+  // A espera da geração é exceção: mesmo com a gaveta aberta, ela cobre tudo
+  // de creme. No site isto não faz nada.
+  const topoClaro = gerandoRoteiro || (!ov && !needKey && (conferindoAcesso || precisaLogin || vista === "lista"));
   useEffect(() => { ajustarBarraDeStatus(topoClaro); }, [topoClaro]);
 
   // Botão voltar do Android: fecha o que está aberto antes de sair do app.
@@ -856,7 +858,7 @@ export default function App() {
         <ShareSheet trip={ov.trip} onClose={() => setOv(null)} />
       )}
       {ov?.kind === "tripForm" && (
-        <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={() => setOv(null)}
+        <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={() => setOv(null)} onGerando={setGerandoRoteiro}
           onSave={(data) => ov.trip ? saveTripMeta(data) : createTrip(data)}
           onDelete={() => setOv({ kind: "confirmDeleteTrip", id: ov.trip.id, name: ov.trip.name })} />
       )}

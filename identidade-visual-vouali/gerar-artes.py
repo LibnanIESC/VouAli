@@ -171,11 +171,22 @@ def main():
     # ---------- Ícone da abertura (Android 12+) ----------
     # O sistema NÃO usa a imagem de splash: ele desenha um selo redondo com o
     # ícone do app. E se receber o ícone adaptativo, ainda amplia em 1,5× — foi
-    # o que espremeu a palavra contra a borda. Um desenho próprio evita isso:
-    # só o logo, sobre nada, no mesmo tamanho relativo do ícone do launcher.
+    # o que espremeu a palavra contra a borda. Por isso, desenho próprio.
+    #
+    # O selo navy vem DENTRO do arquivo, e não da cor de fundo do sistema:
+    # metade do logo é branca e creme, então sobre o creme da abertura sumia e
+    # só o laranja aparecia. Aqui ele nunca depende de o sistema colaborar.
+    # O desenho ocupa os 2/3 centrais, que é o que o Android reserva.
     (ANDROID / "drawable").mkdir(parents=True, exist_ok=True)
-    compor(logo, 960, mascarado, fundo=False).save(ANDROID / "drawable" / "splash_icon.png")
-    print("  abertura: splash_icon.png (logo sobre o selo navy do sistema)")
+    lado = 960
+    selo_abertura = Image.new("RGBA", (lado, lado), (0, 0, 0, 0))
+    d = round(lado * MIOLO)
+    circulo = circular(fundo_navy(d))
+    selo_abertura.alpha_composite(circulo, ((lado - d) // 2, (lado - d) // 2))
+    peca = compor(logo, lado, mascarado, fundo=False)
+    selo_abertura.alpha_composite(peca)
+    selo_abertura.save(ANDROID / "drawable" / "splash_icon.png")
+    print(f"  abertura: splash_icon.png (selo navy de {MIOLO:.0%} com o logo dentro)")
 
     # ---------- Telas de abertura do Android ----------
     # Creme com o ícone no meio — o mesmo creme com que o app abre. A abertura

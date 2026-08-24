@@ -9,13 +9,17 @@
   contra a borda do selo. Por isso a abertura tem um desenho proprio,
   splash_icon, que ja vem no tamanho certo.
 
-  A cor de fundo e o creme do app e o selo e o navy do icone: a abertura
-  inteira (sistema, Capacitor, app) fica da mesma cor, sem piscada no meio.
+  O selo navy vem DESENHADO dentro do splash_icon, e nao da cor de fundo do
+  icone: pedir essa cor ao sistema nao pegou, e como metade do logo e branca
+  e creme, sobre o creme da abertura sobrava so o laranja. Desenhado no
+  arquivo, o selo nao depende de o sistema colaborar.
+
+  A cor de fundo e o creme do app: a abertura inteira (sistema, Capacitor,
+  app) fica da mesma cor, sem piscada no meio.
 -->
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splashBackground</item>
-        <item name="windowSplashScreenIconBackgroundColor">@color/splashIconBackground</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
