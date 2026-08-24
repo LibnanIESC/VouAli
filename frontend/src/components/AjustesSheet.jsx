@@ -65,7 +65,10 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
           <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }}
             onChange={(e) => { onImportFile(e.target.files[0]); e.target.value = ""; }} />
         </div>
-        <div style={{ fontSize: 12, color: "#98a1ae", fontWeight: 600, marginTop: 18, textAlign: "center" }}>VouAli · versão web</div>
+        {/* Dizia "versão web" — errado dentro do app, e sem utilidade nenhuma.
+            A versão é o que serve: é por ela que se sabe o que a pessoa tem
+            instalado quando algo dá errado. */}
+        <div style={{ fontSize: 12, color: "#98a1ae", fontWeight: 600, marginTop: 18, textAlign: "center" }}>VouAli · versão {__VERSAO__}</div>
       </div>
     </Sheet>
   );

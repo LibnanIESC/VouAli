@@ -1,5 +1,6 @@
 {
-  "name": "nyc-trip",
+  "name": "vouali",
+  "version": "1.0",
   "private": true,
   "type": "module",
   "scripts": {
