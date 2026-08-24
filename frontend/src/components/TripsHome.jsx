@@ -104,13 +104,20 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
         <Topo onAjustes={onAjustes} />
 
         {vazia ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "26px 8px 0" }}>
-            <AliAvatar size={104} portrait ring={ORANGE} />
-            <h1 style={{ margin: "20px 0 0", fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY, letterSpacing: -0.3 }}>Oi! Sou o Ali 👋</h1>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            {/* Primeira tela de quem instala o app. A ilustração sangra para
+                fora do respiro lateral e some num degradê para o creme, de
+                onde o Ali surge — assim o texto nunca disputa com o desenho. */}
+            <div aria-hidden="true" style={{ position: "relative", width: "calc(100% + 36px)", margin: "10px -18px 0", height: "clamp(190px, 32vh, 290px)" }}>
+              <img src="/boas-vindas.jpg" alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 12%", display: "block" }} />
+              <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(251,244,233,0) 52%, rgba(251,244,233,0.85) 82%, ${CREAM} 100%)` }} />
+            </div>
+            <div style={{ marginTop: -54, zIndex: 1 }}><AliAvatar size={104} portrait ring={ORANGE} /></div>
+            <h1 style={{ margin: "14px 0 0", fontSize: 24, fontWeight: 800, color: NAVY, fontFamily: DISPLAY, letterSpacing: -0.3 }}>Oi! Sou o Ali 👋</h1>
             <p style={{ margin: "8px 0 0", fontSize: 15.5, color: INK2, lineHeight: 1.55, fontWeight: 500, maxWidth: 320 }}>
               Seu companheiro de viagem. Me diga para onde vai e eu ajudo com o roteiro, o orçamento e as dicas de quem já esteve lá.
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, margin: "30px 0 34px", width: "100%", maxWidth: 340 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, margin: "26px 0 30px", width: "100%", maxWidth: 340 }}>
               {beneficio(MapIcon, "Roteiro dia a dia", "Monto o cronograma com você — ou do zero, se preferir.")}
               {beneficio(MoneyIcon, "Orçamento no controle", "Acompanhe o planejado, o gasto e quanto sobra.")}
               {beneficio(SparkIcon, "Dicas sob medida", "Do que priorizar ao que evitar, no seu ritmo.")}

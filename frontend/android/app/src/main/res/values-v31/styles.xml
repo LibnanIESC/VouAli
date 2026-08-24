@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A partir do Android 12 quem manda na tela de abertura e o SISTEMA: ele
+  ignora a imagem de splash e mostra o icone do app sobre uma cor. Sem
+  configurar, essa cor sai branca e a abertura fica descasada do resto.
+
+  Aqui a cor e o mesmo creme do app, e o icone e o do launcher. Assim a
+  sequencia inteira (sistema, Capacitor, app) e da mesma cor, sem piscada
+  no meio.
+-->
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

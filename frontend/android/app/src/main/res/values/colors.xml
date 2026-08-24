@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- O creme do app. A tela de abertura do sistema (Android 12+) usa esta
+         cor, para a abertura ficar da mesma cor que o app. -->
+    <color name="splashBackground">#FBF4E9</color>
+</resources>
