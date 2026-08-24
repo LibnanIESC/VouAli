@@ -62,6 +62,50 @@ export async function tratarBotaoVoltar(estado, acoes) {
   }
 }
 
+/**
+ * Entrega ao usuário um arquivo gerado pelo app.
+ *
+ * No site basta um link de download. Dentro do app não: o WebView do Android
+ * ignora `<a download>` silenciosamente — o toque simplesmente não fazia nada,
+ * que era o caso do "Exportar" dos Ajustes. Pior que um erro, porque parece
+ * que funcionou.
+ *
+ * No app o arquivo é gravado no aparelho e entregue ao menu de compartilhamento
+ * do Android, onde a pessoa escolhe o destino (Drive, e-mail, WhatsApp…). Fica
+ * na pasta de cache de propósito: é uma cópia de saída, não um dado do app, e
+ * o sistema limpa sozinho quando precisar de espaço.
+ */
+export async function salvarArquivo(nome, conteudo, tipo = "application/json") {
+  if (!estaNoApp()) {
+    try {
+      const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nome;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false };
+    }
+  }
+  try {
+    const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
+    const { Share } = await import("@capacitor/share");
+    await Filesystem.writeFile({ path: nome, data: conteudo, directory: Directory.Cache, encoding: Encoding.UTF8 });
+    const { uri } = await Filesystem.getUri({ path: nome, directory: Directory.Cache });
+    await Share.share({ title: "Backup do VouAli", files: [uri] });
+    return { ok: true };
+  } catch (e) {
+    // Fechar o menu de compartilhamento vira exceção, mas não é falha.
+    const msg = String((e && e.message) || e).toLowerCase();
+    if (msg.includes("cancel") || msg.includes("abort")) return { ok: true, cancelado: true };
+    return { ok: false };
+  }
+}
+
 // Vibração curta ao concluir algo (feedback tátil, como app nativo).
 export async function vibrar() {
   if (!estaNoApp()) return;

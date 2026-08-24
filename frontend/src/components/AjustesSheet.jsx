@@ -56,7 +56,9 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
         <label style={{ ...lbl, marginTop: 18 }}>Backup da viagem</label>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
           <div style={{ fontSize: 14, color: INK2, lineHeight: 1.55, fontWeight: 500, marginBottom: 12 }}>
-            Baixe uma cópia de toda a viagem (roteiro, orçamento e notas). Se algo der errado, é só reimportar.
+            {/* "Baixe" descrevia só o site. No app o arquivo vai para o menu
+                de compartilhamento, e a pessoa escolhe onde guardar. */}
+            Guarde uma cópia de toda a viagem (roteiro, orçamento e notas). Se algo der errado, é só reimportar.
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={onExport} style={{ ...btn(NAVY), flex: 1 }}>Exportar</button>

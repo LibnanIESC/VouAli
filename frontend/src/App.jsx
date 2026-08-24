@@ -5,7 +5,7 @@ import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flus
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { diaDeHoje, rotuloDoDia } from "./tripmeta";
-import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
+import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar, salvarArquivo } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
 const NY_TETO_LEGADO = 3000;
@@ -344,15 +344,11 @@ export default function App() {
   const setNotesP = (nn) => { if (bloqueado()) return; setNotes(nn); persist({ notes: nn }); };
 
   // ---------- Backup (export / import JSON — acionado pelo sheet Ajustes) ----------
-  const exportBackup = () => {
+  const exportBackup = async () => {
     const data = { days, budget, prebuy, notes, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `vouali-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+    const nome = `vouali-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    const r = await salvarArquivo(nome, JSON.stringify(data, null, 2));
+    if (!r.ok) toastMsg("Não consegui salvar a cópia agora. Tenta de novo.");
   };
   const importBackup = (file) => {
     if (!file) return;
