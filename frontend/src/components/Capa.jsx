@@ -3,74 +3,81 @@ import React, { useId } from "react";
 /**
  * Capa da viagem quando não há foto.
  *
- * Antes entrava aqui um skyline com a Estátua da Liberdade — herança de quando
- * o app era só a viagem de Nova York. Numa viagem ao Guarujá aquilo estava
- * simplesmente errado.
+ * Desenhada no vocabulário da ilustração das boas-vindas: formas chapadas,
+ * sem degradê, nas três cores da marca — tiradas da própria ilustração.
  *
- * O desenho é feito na proporção em que ele realmente aparece: uma faixa larga
- * e baixa. Cena com muitos elementos — nuvens, ondas, cordilheira — vira
- * listra colorida nesse formato. Aqui há um gesto só: o céu em degradê, o sol
- * e uma encosta atravessando o quadro na diagonal. O canto de baixo fica
- * calmo e escuro de propósito: é onde o nome da viagem é escrito, em branco.
+ * Não é uma paisagem, é o MAPA: estradas serpenteando, quarteirões, um
+ * alfinete e o rastro do avião. Cena com céu e horizonte foi tentada antes e
+ * não funciona aqui — a capa é uma faixa larga e baixa, e paisagem nesse
+ * formato vira listra colorida. Mapa é horizontal por natureza.
  *
- * É desenho vetorial, não imagem: não pesa no carregamento, aparece sem
- * internet e fica nítido em qualquer tela.
+ * O fundo é o marinho, e não o creme da ilustração, por um motivo prático: por
+ * cima da capa vão o nome da viagem em branco e o selo "Faltam N dias", também
+ * claro. Sobre creme nenhum dos dois se lê.
  *
- * A paleta é sorteada pelo id da viagem — sempre a mesma para a mesma viagem,
- * diferente entre viagens. Duas capas lado a lado na lista não saem iguais.
+ * A variação por viagem é feita espelhando o mesmo desenho. Assim toda capa
+ * tem a mesma qualidade do original — quatro composições diferentes sem
+ * quatro desenhos para manter.
  */
-const PALETAS = [
-  { ceu: ["#101f3d", "#39497a", "#e8a273"], sol: "#ffdcae", cume: "#3d4f79", base: "#141f38" }, // crepúsculo
-  { ceu: ["#08293a", "#256274", "#f3c88f"], sol: "#ffe8bd", cume: "#2c6377", base: "#0b2c37" }, // litoral
-  { ceu: ["#331a38", "#7c4257", "#ef9c6f"], sol: "#ffd2a2", cume: "#7d4356", base: "#2a1626" }, // deserto
-  { ceu: ["#1d2947", "#525f83", "#d8ab9f"], sol: "#fbe2d0", cume: "#59668a", base: "#212a44" }, // serra
-  { ceu: ["#082e28", "#22624f", "#f2cb85"], sol: "#ffeab4", cume: "#26654f", base: "#0b2f27" }, // tropical
-];
 
-function paletaDe(semente) {
+// Tiradas da ilustração fundo_viagem, contando os pixels.
+const CEU = "#1F3660";
+const CEU_CLARO = "#395682";
+const CREME = "#FDF3E7";
+const AREIA = "#F0D2B1";
+const LARANJA = "#FD8B2B";
+
+const ESPELHOS = ["", "scale(-1 1) translate(-400 0)", "scale(1 -1) translate(0 -180)", "scale(-1 -1) translate(-400 -180)"];
+
+function variacaoDe(semente) {
   const s = String(semente || "");
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return PALETAS[h % PALETAS.length];
+  return h % ESPELHOS.length;
 }
 
 export default function Capa({ semente }) {
-  const p = paletaDe(semente);
-  // Duas capas na mesma tela não podem dividir os mesmos ids de gradiente.
+  const espelho = ESPELHOS[variacaoDe(semente)];
   const n = useId().replace(/:/g, "");
-  const id = (nome) => `${nome}-${n}`;
 
   return (
     <svg viewBox="0 0 400 180" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block" }}>
-      <defs>
-        <linearGradient id={id("ceu")} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={p.ceu[0]} />
-          <stop offset="0.46" stopColor={p.ceu[1]} />
-          <stop offset="0.82" stopColor={p.ceu[2]} />
-        </linearGradient>
-        {/* A encosta não é chapada: clareia um pouco na crista, como a luz que
-            ainda bate no alto quando o sol já está baixo. */}
-        <linearGradient id={id("encosta")} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={p.cume} />
-          <stop offset="1" stopColor={p.base} />
-        </linearGradient>
-        <radialGradient id={id("brilho")} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" stopColor={p.sol} stopOpacity="0.46" />
-          <stop offset="0.5" stopColor={p.sol} stopOpacity="0.13" />
-          <stop offset="1" stopColor={p.sol} stopOpacity="0" />
-        </radialGradient>
-      </defs>
+      <rect x="0" y="0" width="400" height="180" fill={CEU} />
 
-      <rect x="0" y="0" width="400" height="180" fill={`url(#${id("ceu")})`} />
+      <g transform={espelho}>
+        {/* Quarteirões: manchas largas que dão fundo às estradas */}
+        <g fill={CEU_CLARO} opacity="0.55">
+          <rect x="28" y="18" width="86" height="42" rx="10" />
+          <rect x="150" y="112" width="104" height="52" rx="12" />
+          <rect x="288" y="26" width="72" height="38" rx="10" />
+          <rect x="-14" y="118" width="82" height="46" rx="12" />
+        </g>
 
-      {/* Sol no lado aberto do quadro, onde a encosta já desceu */}
-      <circle cx="292" cy="62" r="82" fill={`url(#${id("brilho")})`} />
-      <circle cx="292" cy="62" r="21" fill={p.sol} opacity="0.95" />
+        {/* Estradas. A laranja é a principal e atravessa o quadro inteiro. */}
+        <g fill="none" strokeLinecap="round">
+          <path d="M-14,140 C64,132 96,102 158,86 C220,70 272,64 414,48" stroke={LARANJA} strokeWidth="13" />
+          <path d="M46,-14 C62,42 98,72 128,116 C148,146 156,166 160,196" stroke={CREME} strokeWidth="5" opacity="0.92" />
+          <path d="M-14,54 C72,48 126,28 208,24 C266,21 330,30 414,20" stroke={AREIA} strokeWidth="3.5" opacity="0.8" />
+          <path d="M212,196 C224,156 252,136 300,128 C338,122 372,128 414,120" stroke={AREIA} strokeWidth="3.5" opacity="0.8" />
+        </g>
 
-      {/* Um gesto só: a encosta sobe à esquerda e atravessa descendo */}
-      <path fill={`url(#${id("encosta")})`}
-        d="M0,180 L0,104 C 28,74 60,54 96,58 C 134,63 160,96 200,112 C 244,129 306,124 348,116 C 370,112 386,116 400,110 L400,180 Z" />
+        {/* O rastro pontilhado do avião, como no ícone */}
+        <g fill="none" stroke={CREME} strokeWidth="2.6" strokeLinecap="round" strokeDasharray="7 10" opacity="0.75">
+          <path d="M262,150 C286,124 320,110 356,104" />
+        </g>
+        <g transform="translate(356 100) rotate(-24)" fill={CREME}>
+          <path d="M0,0 L22,-2.5 L29,0 L22,2.5 Z" />
+          <path d="M7,-1 L12,-10 L15,-10 L13.5,-1 Z" />
+          <path d="M7,1 L12,10 L15,10 L13.5,1 Z" />
+        </g>
+
+        {/* Alfinete de mapa, pousado num cruzamento */}
+        <g transform="translate(126 108)">
+          <path d="M0,0 C-9,-11 -13,-16 -13,-22 A13,13 0 1 1 13,-22 C13,-16 9,-11 0,0 Z" fill={LARANJA} />
+          <circle cx="0" cy="-22" r="5" fill={CEU} />
+        </g>
+      </g>
     </svg>
   );
 }
