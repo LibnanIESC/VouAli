@@ -141,10 +141,20 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
         background: mode === id ? SAND : "#fff", color: NAVY }}>{label2}</button>
   );
 
+  // Enquanto o Ali monta o roteiro não há o que salvar nem cancelar.
+  const acoes = gerando ? null : (
+    <>
+      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+      <button onClick={submit} disabled={!f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        {trip ? "Salvar" : (mode === "ai" ? <><SparkIcon color={NAVY} size={15} />Gerar e criar</> : "Criar viagem")}
+      </button>
+    </>
+  );
+
   return (
-    <Sheet onClose={gerando ? () => {} : onClose}>
+    <Sheet onClose={gerando ? () => {} : onClose} acoes={acoes}>
       {gerando ? <GenProgress /> : (
-      <div style={{ padding: "22px 22px 26px" }}>
+      <div style={{ padding: "22px 22px 20px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>{trip ? "Editar viagem" : "Nova viagem"}</div>
 
         <label style={lbl}>Nome</label>
@@ -290,12 +300,6 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete })
           </>
         )}
 
-        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
-          <button onClick={submit} disabled={!f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            {trip ? "Salvar" : (mode === "ai" ? <><SparkIcon color={NAVY} size={15} />Gerar e criar</> : "Criar viagem")}
-          </button>
-        </div>
       </div>
       )}
     </Sheet>

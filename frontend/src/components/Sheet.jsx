@@ -1,8 +1,18 @@
 import React, { useState } from "react";
 import { CloseIcon } from "./Icons";
 
-// Bottom sheet arrastável (fecha ao puxar para baixo).
-export default function Sheet({ children, onClose }) {
+/**
+ * Bottom sheet arrastável (fecha ao puxar para baixo).
+ *
+ * `acoes` é a barra de botões do rodapé (Salvar, Excluir…). Fica FORA da área
+ * rolável de propósito: em formulário comprido, ter que rolar até o fim para
+ * achar o Salvar é ruim — e pior ainda no celular, onde o teclado come metade
+ * da tela.
+ *
+ * Os dois blocos reservam o espaço da barra de navegação do Android (◀ ● ■),
+ * que desenha por cima do app. Sem isso os botões ficam debaixo dela.
+ */
+export default function Sheet({ children, onClose, acoes }) {
   const [dy, setDy] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -22,7 +32,12 @@ export default function Sheet({ children, onClose }) {
             <span style={{ width: 30, height: 30, borderRadius: 15, background: "rgba(0,0,0,0.30)", display: "flex", alignItems: "center", justifyContent: "center" }}><CloseIcon size={14} /></span>
           </button>
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{children}</div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingBottom: acoes ? 0 : "env(safe-area-inset-bottom)" }}>{children}</div>
+        {acoes && (
+          <div style={{ flex: "0 0 auto", display: "flex", gap: 10, padding: "12px 22px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", background: "#f5f4f0", borderTop: "1px solid #e4e0d7", boxShadow: "0 -6px 16px rgba(20,32,56,0.07)" }}>
+            {acoes}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -6,9 +6,15 @@ import { btn, field, lbl } from "../theme";
 export default function BudgetForm({ item, currency = "US$", onSave, onClose, onDelete }) {
   const [f, setF] = useState(item || { k: "", v: 0, spent: 0, tag: "outros" });
   const up = (k, num) => (e) => setF({ ...f, [k]: num ? Number(e.target.value || 0) : e.target.value });
+  const acoes = (
+    <>
+      {item && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+      <button onClick={() => f.k.trim() && onSave(f)} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
+    </>
+  );
   return (
-    <Sheet onClose={onClose}>
-      <div style={{ padding: "22px 22px 26px" }}>
+    <Sheet onClose={onClose} acoes={acoes}>
+      <div style={{ padding: "22px 22px 20px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#223A5E" }}>{item ? "Editar item" : "Novo item"}</div>
         <label style={lbl}>Descrição</label>
         <input style={field} value={f.k} onChange={up("k")} placeholder="Ex: Uber do aeroporto" />
@@ -23,10 +29,6 @@ export default function BudgetForm({ item, currency = "US$", onSave, onClose, on
             <label style={lbl}>Gasto ({currency})</label>
             <input type="number" style={field} value={f.spent} onChange={up("spent", true)} />
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          {item && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
-          <button onClick={() => f.k.trim() && onSave(f)} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
         </div>
       </div>
     </Sheet>

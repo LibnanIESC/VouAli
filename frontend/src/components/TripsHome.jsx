@@ -99,7 +99,7 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
 
   return (
     <div style={{ position: "fixed", inset: 0, background: CREAM, zIndex: 30, display: "flex", justifyContent: "center", overflowY: "auto" }}>
-      <div style={{ width: "100%", maxWidth: 440, padding: `${safeTop(10)} 18px calc(28px + env(safe-area-inset-bottom))`, display: "flex", flexDirection: "column" }}>
+      <div style={{ width: "100%", maxWidth: 440, minHeight: "100%", boxSizing: "border-box", padding: `${safeTop(10)} 18px calc(28px + env(safe-area-inset-bottom))`, display: "flex", flexDirection: "column" }}>
         <Topo onAjustes={onAjustes} />
 
         {vazia ? (
@@ -155,9 +155,11 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
           </>
         )}
 
-        {/* Saída sempre à mão: sem isto, quem entra com a conta errada fica preso. */}
+        {/* Saída sempre à mão: sem isto, quem entra com a conta errada fica preso.
+            O `marginTop: auto` prende ao rodapé — solto no meio da tela, com
+            espaço vazio embaixo, parecia que a tela tinha ficado pela metade. */}
         {user && (
-          <div style={{ marginTop: 32, paddingTop: 4, fontSize: 12.5, color: INK3, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <div style={{ marginTop: "auto", paddingTop: 36, fontSize: 12.5, color: INK3, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 6 }}>
             <span>Conectado como <strong style={{ color: INK2, fontWeight: 700 }}>{user.email || user.name}</strong></span>
             <button onClick={onLogout} style={{ background: "none", border: "none", padding: "8px 6px", minHeight: 40, color: STEEL, fontSize: 12.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer", textDecoration: "underline" }}>
               Trocar de conta

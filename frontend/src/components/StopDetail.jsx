@@ -11,8 +11,14 @@ export default function StopDetail({ stop, color, onEdit, onDelete, onClose, som
       <div style={{ fontSize: 14.5, color: "#333", lineHeight: 1.55, marginTop: 5, fontWeight: 500 }}>{children}</div>
     </div>
   ) : null;
+  const acoes = somenteLeitura ? null : (
+    <>
+      <button onClick={onEdit} style={{ ...btn("#223A5E"), flex: 1 }}>Editar</button>
+      <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>
+    </>
+  );
   return (
-    <Sheet onClose={onClose}>
+    <Sheet onClose={onClose} acoes={acoes}>
       <div style={{ background: color, color: "#fff", padding: "18px 22px 20px", borderRadius: "0" }}>
         <div style={{ fontSize: 13, fontWeight: 800, opacity: .9 }}>{stop.t}</div>
         <div style={{ fontSize: 24, fontWeight: 800, marginTop: 2 }}>{stop.n}</div>
@@ -30,12 +36,6 @@ export default function StopDetail({ stop, color, onEdit, onDelete, onClose, som
         {stop.link && (
           <div style={{ marginTop: 18 }}>
             <a href={stop.link} target="_blank" rel="noreferrer" style={{ ...btn(color), display: "inline-block", textDecoration: "none" }}>Abrir link oficial ↗</a>
-          </div>
-        )}
-        {!somenteLeitura && (
-          <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-            <button onClick={onEdit} style={{ ...btn("#223A5E"), flex: 1 }}>Editar</button>
-            <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>
           </div>
         )}
       </div>

@@ -7,21 +7,25 @@ export function estaNoApp() {
 }
 
 /**
- * Barra de status.
+ * Barra de status: hora, bateria, sinal.
  *
- * Só dá para mandar na COR DOS ÍCONES. Pintar o fundo da barra não funciona
- * mais: o Android desenha o conteúdo por baixo dela (comportamento imposto a
- * partir do Android 15, sem opção de desligar no 16), então quem aparece atrás
- * dos ícones é o próprio topo do app. Quem reserva esse espaço é o CSS, via
- * `safeTop()` — ver theme.js.
+ * Só dá para mandar na COR DOS ÍCONES. Pintar o fundo não funciona mais: o
+ * Android desenha o conteúdo por baixo da barra (imposto a partir do Android
+ * 15, sem opção de desligar no 16), então quem aparece atrás dos ícones é o
+ * próprio topo do app. Quem reserva esse espaço é o CSS, via `safeTop()`.
  *
- * Ícones claros porque o topo do app é escuro (foto da viagem + véu marinho).
+ * Por isso a cor tem de acompanhar a tela: o app tem telas creme (lista de
+ * viagens, login, abertura) e telas escuras (a viagem, com foto e véu marinho).
+ * Cor fixa deixa os ícones invisíveis em metade do app.
+ *
+ * Atenção ao nome no plugin, que engana: `Style.Dark` significa "texto CLARO,
+ * para fundo escuro" — o oposto do que parece.
  */
-export async function ajustarBarraDeStatus() {
+export async function ajustarBarraDeStatus(fundoClaro) {
   if (!estaNoApp()) return;
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar");
-    await StatusBar.setStyle({ style: Style.Dark });      // ícones claros
+    await StatusBar.setStyle({ style: fundoClaro ? Style.Light : Style.Dark });
   } catch (e) {}
 }
 

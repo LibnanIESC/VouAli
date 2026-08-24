@@ -4,7 +4,7 @@ import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, I
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
-import { diaDeHoje } from "./tripmeta";
+import { diaDeHoje, rotuloDoDia } from "./tripmeta";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
@@ -156,8 +156,11 @@ export default function App() {
     return () => clearTimeout(t);
   }, [conferindoAcesso]);
 
-  // Ajustes que só valem dentro do app instalado (no site não fazem nada).
-  useEffect(() => { ajustarBarraDeStatus(); }, []);
+  // A barra de status acompanha a tela: creme na lista, no login e na abertura;
+  // escura dentro da viagem e sob qualquer gaveta (que escurece o fundo todo).
+  // No site isto não faz nada.
+  const topoClaro = !ov && !needKey && (conferindoAcesso || precisaLogin || vista === "lista");
+  useEffect(() => { ajustarBarraDeStatus(topoClaro); }, [topoClaro]);
 
   // Botão voltar do Android: fecha o que está aberto antes de sair do app.
   const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false, vista: "lista" });
@@ -296,6 +299,14 @@ export default function App() {
     origin: activeMeta.origin, transport: activeMeta.transport,
     adults: nAdults, children: nChildren, groupTypes: activeMeta.groupTypes,
   };
+
+  // Quando a viagem tem data de início, a data de cada dia vem da posição dele
+  // no roteiro — e não do que está escrito no dia. Assim a bolinha mostra o dia
+  // do mês de verdade e reordenar os dias não deixa a sequência trocada.
+  const rotuloDe = (i) => rotuloDoDia(activeMeta.startDate, i);
+  const temDatasAutomaticas = !!rotuloDe(0);
+  const indiceDoDia = day ? days.findIndex((d) => d.id === day.id) : -1;
+  const rotuloAtual = indiceDoDia >= 0 ? rotuloDe(indiceDoDia) : null;
 
   // Dica do Ali para o dia: a primeira parada com insight vira o "briefing".
   const aliDayTip = (((day && day.stops) || []).find((s) => s.insight && s.insight.trim()) || {}).insight;
@@ -548,16 +559,19 @@ export default function App() {
         {/* Day selector */}
         {tab === "roteiro" && (
           <div style={{ position: "relative", display: "flex", gap: 10, overflowX: "auto", padding: "6px 16px 14px" }}>
-            {days.map((d) => {
+            {days.map((d, i) => {
               const sel = d.id === active;
               const complete = d.stops.length > 0 && d.stops.every((s) => s.done);
+              const rot = rotuloDe(i);
+              const numero = rot ? rot.numero : d.line;
+              const semana = rot ? rot.semana : d.label;
               return (
-                <button key={d.id} onClick={() => setActive(d.id)} aria-label={`Dia ${d.label} ${d.date} — ${d.title}`} aria-current={sel ? "true" : undefined} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: sel ? 1 : 0.55 }}>
+                <button key={d.id} onClick={() => setActive(d.id)} aria-label={`Dia ${numero} ${semana} — ${d.title}`} aria-current={sel ? "true" : undefined} style={{ flex: "0 0 auto", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: sel ? 1 : 0.55 }}>
                   <div style={{ width: 42, height: 42, borderRadius: "50%", background: d.color, color: onColor(d.color), display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18, border: sel ? "3px solid #fff" : "3px solid transparent", position: "relative" }}>
-                    {d.line}
+                    {numero}
                     {complete && <div style={{ position: "absolute", top: -2, right: -2, width: 16, height: 16, borderRadius: "50%", background: ORANGE, border: "2px solid #223A5E", fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</div>}
                   </div>
-                  <div style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>{d.label}</div>
+                  <div style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>{semana}</div>
                 </button>
               );
             })}
@@ -572,7 +586,9 @@ export default function App() {
         </div>
 
         {/* Body (superfície sólida areia-clara) */}
-        <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px 110px", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
+        {/* O espaço reservado embaixo precisa passar do botão "+" (que flutua a
+            140px do fundo), senão ele cobre o horário do último card. */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px calc(156px + env(safe-area-inset-bottom))", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
           {tab === "ali" && <AliChat trip={aliTrip} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
           {/* Explica o que sumiu: sem esta linha, os botões de edição
               desaparecem e a pessoa acha que o app quebrou. */}
@@ -594,7 +610,9 @@ export default function App() {
           )}
           {booted && tab === "roteiro" && day && (
             <>
-              <div style={{ fontSize: 12, letterSpacing: 1.2, color: BROWN, fontWeight: 700, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase" }}>{day.date} · {day.sub}</div>
+              <div style={{ fontSize: 12, letterSpacing: 1.2, color: BROWN, fontWeight: 700, marginBottom: 4, fontFamily: MONO, textTransform: "uppercase" }}>
+                {rotuloAtual ? `${rotuloAtual.numero} ${rotuloAtual.mes}` : day.date}{day.sub ? ` · ${day.sub}` : ""}
+              </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                 <h2 style={{ margin: "0 0 4px", fontSize: 24, fontWeight: 800, color: NAVY, letterSpacing: -0.3, fontFamily: DISPLAY }}>{day.title}</h2>
                 {reorder ? (
@@ -870,6 +888,7 @@ export default function App() {
       {ov?.kind === "dayForm" && (
         <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1}
           index={ov.day ? days.findIndex((d) => d.id === ov.day.id) : -1} total={days.length}
+          rotulo={temDatasAutomaticas ? rotuloDe(ov.day ? days.findIndex((d) => d.id === ov.day.id) : days.length) : null}
           onMove={(where) => moveDay(ov.day.id, where)}
           onClose={() => setOv(null)}
           onSave={(data) => ov.day ? saveDay(data) : addDay(data)}

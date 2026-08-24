@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, diaDeHoje, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
+import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, diaDeHoje, rotuloDoDia, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
 
 describe("daysBetween", () => {
   it("conta os dias de forma inclusiva", () => {
@@ -131,6 +131,37 @@ describe("diaDeHoje", () => {
     expect(diaDeHoje("", 5)).toBe(0);
     expect(diaDeHoje("qualquer", 5)).toBe(0);
     expect(diaDeHoje("2026-10-06", 0)).toBe(0, "roteiro sem dias");
+  });
+});
+
+describe("rotuloDoDia", () => {
+  // New York: 6 de outubro de 2026 é uma terça-feira.
+  const ny = (i) => rotuloDoDia("2026-10-06", i);
+
+  it("dá o dia do mês e o dia da semana de cada dia do roteiro", () => {
+    expect(ny(0)).toEqual({ numero: "6", semana: "TER", mes: "OUT" });
+    expect(ny(1)).toEqual({ numero: "7", semana: "QUA", mes: "OUT" });
+    expect(ny(5)).toEqual({ numero: "11", semana: "DOM", mes: "OUT" });
+  });
+
+  it("atravessa a virada de mês", () => {
+    const r = rotuloDoDia("2026-10-28", 5);       // 28 out + 5 = 2 nov
+    expect(r).toEqual({ numero: "2", semana: "SEG", mes: "NOV" });
+  });
+
+  it("atravessa a virada de ano", () => {
+    expect(rotuloDoDia("2026-12-30", 3)).toEqual({ numero: "2", semana: "SÁB", mes: "JAN" });
+  });
+
+  it("percorre a semana inteira sem repetir nem pular", () => {
+    const semana = [0, 1, 2, 3, 4, 5, 6].map((i) => ny(i).semana);
+    expect(semana).toEqual(["TER", "QUA", "QUI", "SEX", "SÁB", "DOM", "SEG"]);
+  });
+
+  it("devolve null sem data de início — aí o app usa o que está escrito no dia", () => {
+    expect(rotuloDoDia("", 0)).toBeNull();
+    expect(rotuloDoDia("qualquer", 2)).toBeNull();
+    expect(rotuloDoDia("2026-10-06", -1)).toBeNull();
   });
 });
 

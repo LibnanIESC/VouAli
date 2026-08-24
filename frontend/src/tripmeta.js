@@ -93,6 +93,29 @@ export function diaDeHoje(start, totalDias, hoje = new Date()) {
   return i >= 0 && i < totalDias ? i : 0;
 }
 
+const SEMANA = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+
+/**
+ * Como o dia N do roteiro deve aparecer: dia do mês, dia da semana e mês.
+ *
+ * Calculado a partir da data de início, nunca dos campos "Dia (sigla)" e
+ * "Data" do dia — aqueles são texto livre, escritos pelo Ali ou pela pessoa, e
+ * ficavam desatualizados na hora em que os dias eram reordenados.
+ *
+ * Devolve null quando a viagem não tem data de início: aí o app segue usando o
+ * que está escrito no dia.
+ */
+export function rotuloDoDia(start, indice) {
+  const a = parse(start);
+  if (!a || !(indice >= 0)) return null;
+  const d = new Date(Date.UTC(a.y, a.mo, a.d + indice));
+  return {
+    numero: String(d.getUTCDate()),
+    semana: SEMANA[d.getUTCDay()],
+    mes: MESES[d.getUTCMonth()].slice(0, 3).toUpperCase(),
+  };
+}
+
 export const INTERESSES = ["Museus", "Praia", "Atrações turísticas", "Restaurantes", "Monumentos", "Vida noturna", "Compras", "Natureza"];
 
 // Como a pessoa chega ao destino. Muda o primeiro e o último dia do roteiro e

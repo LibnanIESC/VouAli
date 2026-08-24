@@ -24,9 +24,16 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
     else toast("Não consegui gerar a dica agora. Tenta de novo em instantes.");
   };
 
+  const acoes = (
+    <>
+      <button onClick={onClose} style={{ ...btn("#fff", { color: "#666", border: "1.5px solid #ccc" }), flex: 1 }}>Cancelar</button>
+      <button onClick={() => f.n.trim() && onSave(f)} style={{ ...btn(color), flex: 1 }}>Salvar</button>
+    </>
+  );
+
   return (
-    <Sheet onClose={onClose}>
-      <div style={{ padding: "22px 22px 26px" }}>
+    <Sheet onClose={onClose} acoes={acoes}>
+      <div style={{ padding: "22px 22px 20px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#223A5E" }}>{stop ? "Editar parada" : "Nova parada"}</div>
         <label style={lbl}>Nome</label>
         <input style={field} value={f.n} onChange={up("n")} placeholder="Ex: Empire State Building" />
@@ -51,10 +58,6 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
 
         <label style={lbl}>Link</label>
         <input style={field} value={f.link} onChange={up("link")} placeholder="https://" />
-        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{ ...btn("#fff", { color: "#666", border: "1.5px solid #ccc" }), flex: 1 }}>Cancelar</button>
-          <button onClick={() => f.n.trim() && onSave(f)} style={{ ...btn(color), flex: 1 }}>Salvar</button>
-        </div>
       </div>
     </Sheet>
   );
