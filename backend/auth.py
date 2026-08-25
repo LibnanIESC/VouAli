@@ -83,6 +83,28 @@ def verify_token(id_token):
     }
 
 
+def delete_user(uid):
+    """Apaga a conta no Firebase. Devolve True se saiu de lá.
+
+    Sem isto, "excluir a conta" apagaria os dados mas deixaria o login de pé:
+    a pessoa entraria de novo e veria uma conta vazia, em vez de uma conta que
+    não existe mais. O Google exige que a conta suma de verdade.
+
+    Conta já inexistente conta como sucesso — o fim é o mesmo.
+    """
+    app = init_firebase()
+    if not app or not uid:
+        return False
+    try:
+        from firebase_admin import auth as fb_auth
+        fb_auth.delete_user(uid, app=app)
+        return True
+    except Exception as e:
+        if "USER_NOT_FOUND" in str(e).upper() or "NO USER RECORD" in str(e).upper():
+            return True
+        return False
+
+
 def bearer(request):
     cabecalho = request.headers.get("Authorization") or ""
     if cabecalho.lower().startswith("bearer "):

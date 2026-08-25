@@ -355,6 +355,45 @@ def delete_trip(con, trip_id, uid):
     return True
 
 
+def resumo_da_conta(con, uid, email=""):
+    """O que a exclusão vai levar — para avisar ANTES, não depois."""
+    proprias = con.execute("SELECT COUNT(*) FROM trips WHERE owner_uid=?", (uid,)).fetchone()[0]
+    convidadas = con.execute(
+        "SELECT COUNT(*) FROM trip_members m JOIN trips t ON t.id=m.trip_id "
+        "WHERE m.uid=? AND t.owner_uid<>?", (uid, uid)).fetchone()[0]
+    # Viagens suas em que há mais gente: essas somem para todos.
+    compartilhadas = con.execute(
+        "SELECT COUNT(DISTINCT t.id) FROM trips t JOIN trip_members m ON m.trip_id=t.id "
+        "WHERE t.owner_uid=? AND m.uid<>?", (uid, uid)).fetchone()[0]
+    return {"minhas": int(proprias), "convidado": int(convidadas), "compartilhadas": int(compartilhadas)}
+
+
+def excluir_conta(con, uid, email=""):
+    """Apaga tudo que é desta conta. Devolve o que foi apagado.
+
+    As viagens que a pessoa CRIOU são apagadas de verdade, inclusive para quem
+    ela convidou: o dado é dela, e manter a viagem viva sem dono deixaria
+    órfãos que ninguém consegue administrar. Das viagens de OUTROS ela apenas
+    sai — apagá-las seria destruir o dado alheio.
+
+    Roda numa transação só: ou a conta some inteira, ou nada muda. Conta pela
+    metade é pior do que conta inteira.
+    """
+    resumo = resumo_da_conta(con, uid, email)
+    minhas = [r[0] for r in con.execute("SELECT id FROM trips WHERE owner_uid=?", (uid,)).fetchall()]
+    for tid in minhas:
+        con.execute("DELETE FROM trip_members WHERE trip_id=?", (tid,))
+        con.execute("DELETE FROM trip_invites WHERE trip_id=?", (tid,))
+        con.execute("DELETE FROM trips WHERE id=?", (tid,))
+    con.execute("DELETE FROM trip_members WHERE uid=?", (uid,))
+    if email:
+        con.execute("DELETE FROM trip_invites WHERE email=?", (norm_email(email),))
+    con.execute("DELETE FROM trip_invites WHERE invited_by=?", (uid,))
+    con.execute("DELETE FROM ai_usage WHERE uid=?", (uid,))
+    con.execute("DELETE FROM users WHERE uid=?", (uid,))
+    return resumo
+
+
 # ---------- uso da IA (cotas e custo) ----------
 
 TIPOS_USO = ("chat", "gen", "tip")

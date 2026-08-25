@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
 import { apiUsage } from "../api";
-import { btn, lbl, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
+import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
 
 // Barrinha de consumo de um recurso da IA no mês.
 function Consumo({ rotulo, usado, limite }) {
@@ -21,7 +21,7 @@ function Consumo({ rotulo, usado, limite }) {
 }
 
 // Ajustes do app (backup por enquanto; ponto natural para futuras configurações).
-export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout }) {
+export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout, onExcluirConta }) {
   const fileRef = useRef(null);
   const [uso, setUso] = useState(null);
   useEffect(() => { (async () => setUso(await apiUsage()))(); }, []);
@@ -36,7 +36,15 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
             <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: NAVY }}>{user.name || "Você"}</div>
               <div style={{ fontSize: 13.5, color: INK2, marginTop: 2, wordBreak: "break-all" }}>{user.email}</div>
-              <button onClick={onLogout} style={{ ...btn("#fff", { color: "#C62828", border: "1.5px solid #C62828" }), width: "100%", marginTop: 14 }}>Sair da conta</button>
+              <button onClick={onLogout} style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), width: "100%", marginTop: 14 }}>Sair da conta</button>
+              {/* Excluir a conta tem de estar aqui dentro: o Google exige um
+                  caminho pelo app, não só por e-mail ou site. Fica discreto e
+                  em segundo plano, porque não tem desfazer. */}
+              {onExcluirConta && (
+                <button onClick={onExcluirConta} style={{ width: "100%", marginTop: 10, background: "none", border: "none", padding: "10px 6px", minHeight: 44, color: "#C62828", fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer", textDecoration: "underline" }}>
+                  Excluir minha conta
+                </button>
+              )}
             </div>
           </>
         )}
@@ -70,7 +78,14 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
         {/* Dizia "versão web" — errado dentro do app, e sem utilidade nenhuma.
             A versão é o que serve: é por ela que se sabe o que a pessoa tem
             instalado quando algo dá errado. */}
-        <div style={{ fontSize: 12, color: "#98a1ae", fontWeight: 600, marginTop: 18, textAlign: "center" }}>VouAli · versão {__VERSAO__}</div>
+        {/* A Play Store exige que a política seja alcançável de dentro do app,
+            e não só pelo link da ficha da loja. */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 22, fontSize: 12.5 }}>
+          <a href="/privacidade" target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Privacidade</a>
+          <span style={{ color: "#c9cfd8" }}>·</span>
+          <a href="/termos" target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Termos de uso</a>
+        </div>
+        <div style={{ fontSize: 12, color: "#98a1ae", fontWeight: 600, marginTop: 12, textAlign: "center" }}>VouAli · versão {__VERSAO__}</div>
       </div>
     </Sheet>
   );

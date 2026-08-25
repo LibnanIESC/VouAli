@@ -17,6 +17,12 @@ frontend/android/.idea/
 frontend/.env.production.local
 
 frontend/android/app/google-services.json
+
+# Assinatura de publicacao. Perder a chave = nunca mais atualizar o app na
+# loja; vazar a chave = alguem publicar em seu nome. Nao entra no Git.
+frontend/android/key.properties
+*.jks
+*.keystore
 frontend/android/app/src/main/assets/public/
 frontend/android/app/src/main/res/xml/config.xml
 

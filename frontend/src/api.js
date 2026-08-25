@@ -172,6 +172,25 @@ export async function apiDeleteTrip(id) {
   return await res.json(); // { trips }
 }
 
+// ---------- Excluir a conta (exigência do Google para publicar) ----------
+/** O que a exclusão vai levar, para avisar antes. null se não der para saber. */
+export async function apiPreviaExclusao() {
+  try {
+    const res = await fetch(url("/api/me/exclusao"), { headers: authHeaders() });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && j.error ? null : j;
+  } catch (e) { return null; }
+}
+/** Apaga a conta e tudo que é dela. Não tem desfazer. */
+export async function apiExcluirConta() {
+  try {
+    const res = await fetch(url("/api/me"), { method: "DELETE", headers: authHeaders() });
+    if (!res.ok) return { ok: false };
+    return await res.json();
+  } catch (e) { return { ok: false }; }
+}
+
 // Consumo de IA do mês (cotas). null = ambiente sem cota (modo antigo).
 export async function apiUsage() {
   try {

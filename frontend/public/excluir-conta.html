@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Excluir minha conta · VouAli</title>
+<link rel="icon" href="/icon-192.png" />
+<style>
+  :root { --navy:#223A5E; --creme:#FBF4E9; --laranja:#F28C28; --tinta:#4A5A6E; --linha:#e6ded0; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--creme); color:var(--tinta);
+         font:16px/1.65 "Manrope",system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .folha { max-width:680px; margin:0 auto; padding:32px 22px 72px }
+  .marca { display:flex; align-items:baseline; gap:5px; font-weight:800; font-size:24px; letter-spacing:-.4px }
+  .marca span:first-child { color:var(--navy) } .marca span:last-child { color:var(--laranja) }
+  h1 { color:var(--navy); font-size:28px; line-height:1.2; margin:28px 0 10px; letter-spacing:-.5px }
+  h2 { color:var(--navy); font-size:19px; margin:32px 0 8px }
+  p, li { font-size:15.5px } ul, ol { padding-left:20px } li { margin:7px 0 }
+  a { color:#365D7A }
+  .caixa { background:#fff; border:1px solid var(--linha); border-radius:14px; padding:16px 18px; margin-top:14px }
+  .aviso { background:#fdece9; border-color:#f3cdc6; color:#8c3a2c }
+  .passos { counter-reset:p; list-style:none; padding:0 }
+  .passos li { counter-increment:p; position:relative; padding:10px 0 10px 44px; border-bottom:1px solid var(--linha) }
+  .passos li:last-child { border-bottom:0 }
+  .passos li::before { content:counter(p); position:absolute; left:0; top:9px; width:28px; height:28px;
+    border-radius:50%; background:var(--navy); color:#fff; font-weight:800; font-size:14px;
+    display:flex; align-items:center; justify-content:center }
+  footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--linha); font-size:14px; color:#8a8272 }
+  @media (prefers-color-scheme: dark) {
+    :root { --creme:#151d2b; --tinta:#c6cedb; --navy:#dbe6f5; --linha:#2b3446 }
+    .caixa { background:#1c2536 } .aviso { background:#3a2320; color:#f0b7ac; border-color:#4d2d28 }
+    .passos li::before { background:#365D7A }
+  }
+</style>
+</head>
+<body>
+<div class="folha">
+  <div class="marca"><span>Vou</span><span>Ali</span></div>
+
+  <h1>Excluir minha conta</h1>
+  <p>Você pode apagar sua conta do VouAli e todos os dados ligados a ela. É definitivo — não existe desfazer.</p>
+
+  <h2>O que é apagado</h2>
+  <div class="caixa aviso">
+    <ul style="margin:0">
+      <li>Sua conta: nome e e-mail</li>
+      <li>Todas as viagens que <strong>você criou</strong> — roteiro, orçamento e notas.
+          Se alguma estiver compartilhada, quem você convidou <strong>também perde o acesso</strong></li>
+      <li>Seu acesso às viagens de outras pessoas (essas viagens continuam existindo, sem você)</li>
+      <li>Seu histórico de uso do Ali</li>
+      <li>Seu login, que deixa de existir</li>
+    </ul>
+  </div>
+  <p><strong>Quer guardar uma cópia antes?</strong> No app, em <em>Ajustes → Exportar</em>, você baixa
+     a viagem inteira em um arquivo antes de apagar.</p>
+
+  <h2>Pelo aplicativo</h2>
+  <ol class="passos">
+    <li>Abra o VouAli e entre na sua conta</li>
+    <li>Toque na engrenagem <strong>⚙</strong>, no canto superior direito</li>
+    <li>Em <strong>Conta</strong>, toque em <strong>Excluir minha conta</strong></li>
+    <li>Leia o resumo do que será apagado, escreva <strong>EXCLUIR</strong> para confirmar e toque em <strong>Excluir conta</strong></li>
+  </ol>
+  <p>A exclusão acontece na hora.</p>
+
+  <h2>Sem o aplicativo instalado</h2>
+  <p>Escreva para <strong>[DEFINIR: e-mail de contato]</strong> com o assunto
+     <strong>“Excluir conta VouAli”</strong>, enviando do <strong>mesmo e-mail</strong> que você usa
+     para entrar no app. Confirmamos a exclusão em até <strong>30 dias</strong>, normalmente bem antes.</p>
+  <p>Só conseguimos atender pedidos vindos do e-mail da própria conta — é o que garante que ninguém
+     apague a conta de outra pessoa.</p>
+
+  <h2>Depois de apagar</h2>
+  <p>Seus dados saem dos nossos servidores imediatamente. Cópias em backup de rotina são descartadas
+     em até 30 dias. Você pode criar uma conta nova a qualquer momento, mas ela virá vazia.</p>
+
+  <footer>
+    VouAli · <a href="/privacidade">Política de Privacidade</a> · <a href="/termos">Termos de Uso</a>
+  </footer>
+</div>
+</body>
+</html>

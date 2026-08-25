@@ -954,6 +954,34 @@ def whoami(request: Request):
     with user_con(usuario) as con:
         return {"mode": "firebase", "user": usuario}
 
+@app.get("/api/me/exclusao")
+def previa_da_exclusao(request: Request):
+    """O que a exclusão vai levar. Serve para avisar ANTES de apagar."""
+    usuario = me(request)
+    if not usuario:
+        return {"error": "sem_conta"}
+    with user_con(usuario) as con:
+        return store.resumo_da_conta(con, usuario["uid"], usuario["email"])
+
+@app.delete("/api/me")
+def excluir_conta(request: Request):
+    """Apaga a conta e tudo que é dela. Exigência do Google para publicar.
+
+    Os dados vão primeiro e a conta do Firebase depois, nessa ordem: se a
+    ordem fosse inversa e o segundo passo falhasse, sobrariam dados sem dono e
+    ninguém mais conseguiria chegar neles para apagar.
+    """
+    usuario = me(request)
+    if not usuario:
+        raise HTTPException(status_code=400, detail="sem_conta")
+    with user_con(usuario) as con:
+        resumo = store.excluir_conta(con, usuario["uid"], usuario["email"])
+        con.commit()
+    # Se isto falhar, os dados já foram: a conta fica sem nada, e uma nova
+    # tentativa (ou o suporte) resolve o login. O contrário não teria volta.
+    saiu = auth.delete_user(usuario["uid"])
+    return {"ok": True, "apagado": resumo, "loginRemovido": saiu}
+
 # --- SPA + static assets (defined last so /api routes win) ---
 # Arquivos de /assets/ levam hash no nome: mudou o conteúdo, mudou o nome.
 # Por isso podem ser guardados "para sempre" pelo navegador (e por uma CDN).
@@ -970,8 +998,18 @@ def _cache_de(caminho: str) -> str:
         return SEM_CACHE
     return UM_DIA          # ícones e imagens da marca
 
+# Páginas públicas exigidas pela Play Store. Precisam existir FORA do app: o
+# Google confere que dá para ler a política e PEDIR A EXCLUSÃO da conta sem
+# instalar nada. São HTML solto, servido sem a SPA, com URL limpa.
+PAGINAS_PUBLICAS = ("privacidade", "termos", "excluir-conta")
+
 @app.get("/{full_path:path}")
 def spa(full_path: str):
+    nome = full_path.strip("/")
+    if nome in PAGINAS_PUBLICAS:
+        pagina = STATIC / f"{nome}.html"
+        if pagina.is_file():
+            return FileResponse(pagina, headers={"Cache-Control": UM_DIA})
     candidate = (STATIC / full_path).resolve()
     if full_path and candidate.is_file() and str(candidate).startswith(str(STATIC.resolve())):
         return FileResponse(candidate, headers={"Cache-Control": _cache_de(full_path)})

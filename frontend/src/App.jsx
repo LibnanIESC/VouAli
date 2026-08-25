@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { diaDeHoje, rotuloDoDia } from "./tripmeta";
@@ -12,6 +12,7 @@ const NY_TETO_LEGADO = 3000;
 import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon, PlusIcon, PencilIcon } from "./components/Icons";
 import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
+import ExcluirConta from "./components/ExcluirConta";
 import Login from "./components/Login";
 import Sheet from "./components/Sheet";
 import Capa from "./components/Capa";
@@ -227,6 +228,22 @@ export default function App() {
     })();
     return () => { vivo = false; };
   }, [autenticado, vista]);
+
+  // Apaga a conta no servidor e volta o app ao estado de quem nunca entrou.
+  // A cópia local sai junto: sem isso, a próxima abertura mostraria as viagens
+  // de uma conta que não existe mais.
+  const excluirConta = async () => {
+    const r = await apiExcluirConta();
+    if (!r || !r.ok) { toastMsg("Não consegui excluir a conta agora. Tenta de novo."); return; }
+    limparCache();
+    setTrips({ active: null, list: [] });
+    replaceState(null);
+    setBooted(false);
+    setOv(null);
+    setVista("lista");
+    if (fbRef.current) await fbRef.current.logout();
+    toastMsg("Sua conta foi excluída. 👋");
+  };
 
   const sair = async () => {
     if (!fbRef.current) return;
@@ -845,7 +862,11 @@ export default function App() {
       {ov?.kind === "ajustes" && (
         <AjustesSheet onClose={() => setOv(null)} onExport={exportBackup}
           onImportFile={(f) => { setOv(null); importBackup(f); }}
-          user={user} onLogout={sair} />
+          user={user} onLogout={sair}
+          onExcluirConta={user ? () => setOv({ kind: "excluirConta" }) : null} />
+      )}
+      {ov?.kind === "excluirConta" && (
+        <ExcluirConta onClose={() => setOv({ kind: "ajustes" })} onConfirmar={excluirConta} />
       )}
       {ov?.kind === "dayMenu" && day && (
         <ActionSheet title={day.title} onClose={() => setOv(null)} actions={[

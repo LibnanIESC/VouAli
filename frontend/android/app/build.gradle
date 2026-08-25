@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// Assinatura de publicacao. As senhas ficam em android/key.properties, que
+// NAO entra no Git -- por isso o arquivo pode nao existir, e o build de debug
+// tem de continuar funcionando sem ele. Se faltar, o release simplesmente
+// nao e assinado, em vez de quebrar o projeto inteiro.
+def arquivoDeChaves = rootProject.file("key.properties")
+def chaves = new Properties()
+if (arquivoDeChaves.exists()) {
+    arquivoDeChaves.withInputStream { chaves.load(it) }
+}
+
 android {
     namespace = "app.vouali"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +26,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (arquivoDeChaves.exists()) {
+            release {
+                storeFile rootProject.file(chaves['storeFile'])
+                storePassword chaves['storePassword']
+                keyAlias chaves['keyAlias']
+                keyPassword chaves['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (arquivoDeChaves.exists()) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

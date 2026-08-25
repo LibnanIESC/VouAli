@@ -82,24 +82,41 @@ def test_etag_por_usuario_no_modo_com_contas(tmp_path):
 
 def test_cache_dos_estaticos(tmp_path):
     modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
-    estatico = modulo.STATIC
-    estatico.mkdir(parents=True, exist_ok=True)
+    # Aponta a pasta de estáticos para um lugar descartável. Antes o teste
+    # escrevia na pasta real e a apagava no fim, o que só funciona em máquina
+    # onde ela não existe — e apagaria um build de verdade onde existe.
+    estatico = tmp_path / "static"
+    modulo.STATIC = estatico
+    (estatico / "assets").mkdir(parents=True)
     (estatico / "index.html").write_text("<html>app</html>", encoding="utf-8")
     (estatico / "sw.js").write_text("// service worker", encoding="utf-8")
-    (estatico / "assets").mkdir(exist_ok=True)
     (estatico / "assets" / "index-abc123.js").write_text("console.log(1)", encoding="utf-8")
     client = TestClient(modulo.app)
-    try:
-        # arquivo com hash no nome: pode ficar guardado para sempre
-        assert "immutable" in client.get("/assets/index-abc123.js").headers["Cache-Control"]
-        # o app e o service worker precisam ser sempre conferidos
-        assert client.get("/sw.js").headers["Cache-Control"] == "no-cache"
-        assert client.get("/").headers["Cache-Control"] == "no-cache"
-    finally:
-        for f in ["index.html", "sw.js", "assets/index-abc123.js"]:
-            (estatico / f).unlink(missing_ok=True)
-        (estatico / "assets").rmdir()
-        estatico.rmdir()
+    # arquivo com hash no nome: pode ficar guardado para sempre
+    assert "immutable" in client.get("/assets/index-abc123.js").headers["Cache-Control"]
+    # o app e o service worker precisam ser sempre conferidos
+    assert client.get("/sw.js").headers["Cache-Control"] == "no-cache"
+    assert client.get("/").headers["Cache-Control"] == "no-cache"
+
+
+def test_paginas_publicas_saem_fora_da_spa(tmp_path):
+    """A Play Store confere estes links sem instalar o app: têm de ser HTML
+    próprio, e não a SPA respondendo a qualquer rota."""
+    modulo = load_main(tmp_path, TRIP_TOKEN="", ANTHROPIC_API_KEY=None)
+    estatico = tmp_path / "static"
+    modulo.STATIC = estatico
+    estatico.mkdir(parents=True)
+    (estatico / "index.html").write_text("<html>app</html>", encoding="utf-8")
+    for nome in modulo.PAGINAS_PUBLICAS:
+        (estatico / f"{nome}.html").write_text(f"<html>{nome}</html>", encoding="utf-8")
+    client = TestClient(modulo.app)
+
+    for nome in modulo.PAGINAS_PUBLICAS:
+        resposta = client.get(f"/{nome}")
+        assert resposta.status_code == 200
+        assert nome in resposta.text, f"/{nome} devolveu a SPA em vez da página"
+    # e nada mais mudou: o resto continua caindo na SPA
+    assert "app" in client.get("/qualquer-outra-rota").text
 
 
 # ---------- cache do prompt (custo da IA) ----------
