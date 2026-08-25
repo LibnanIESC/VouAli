@@ -5,18 +5,25 @@ conta, senha ou cartão é você quem faz, e está descrito passo a passo.
 
 ---
 
-## 0. Antes de tudo: o que ainda falta decidir
+## 0. Quem publica
+
+O app é da **Libnan Inteligência Empresarial e Soluções Contábeis Ltda**, que
+já tem conta no Play Console. Contato público: **libnaniesc@gmail.com** — já
+está nas três páginas legais e é o endereço que recebe os pedidos de exclusão
+de conta de quem não tem mais o app instalado.
 
 | Item | Situação |
 |---|---|
-| **E-mail de contato público** | ⛔ **Bloqueia.** As três páginas legais têm `[DEFINIR: e-mail de contato]` |
-| Conta no Play Console (US$ 25, uma vez) | Você |
-| Chave de assinatura | Você (instruções abaixo) |
+| Conta no Play Console | ✅ já existe (organização) |
+| E-mail de contato | ✅ definido |
+| Teste fechado com 12 testadores | ✅ **dispensado** — a exigência é só para contas pessoais |
+| Chave de assinatura | ⛔ falta criar (passo 1) |
+| Gráfico de destaque e capturas | ⛔ faltam |
 
-> O e-mail vai aparecer publicamente na política de privacidade e na ficha da
-> loja. Vale criar um só para isso — `vouali.app@gmail.com`, por exemplo — em
-> vez de usar o pessoal. Depois de escolher, troque nos três arquivos em
-> `frontend/public/`: `privacidade.html`, `termos.html`, `excluir-conta.html`.
+> Ser conta de **organização** economiza duas semanas de calendário: a regra
+> dos 12 testadores por 14 dias vale para contas pessoais criadas a partir de
+> nov/2023. Ainda assim, confirme no próprio console antes de enviar — o
+> Google já mudou essa regra mais de uma vez.
 
 ---
 
@@ -185,21 +192,23 @@ login e sem instalar o app.
 
 ---
 
-## 6. Teste fechado antes de publicar
+## 6. Teste antes de publicar
 
-Contas **pessoais** de desenvolvedor criadas a partir de nov/2023 precisam de
-um teste fechado com **12 testadores por 14 dias seguidos** antes de liberar
-para produção. Contas de **organização** não precisam.
+A conta é de **organização**, então o teste fechado obrigatório com 12
+testadores por 14 dias **não se aplica** — ele vale para contas pessoais
+criadas a partir de nov/2023. Confirme no console assim mesmo: a regra já
+mudou algumas vezes.
 
-Vale confirmar a regra ao abrir a conta — ela já mudou algumas vezes. Se for o
-caso, comece o teste fechado cedo: são duas semanas de calendário, não de
-trabalho.
+Mesmo dispensado, vale usar a faixa de **teste interno** (até 100 pessoas,
+liberação em minutos) para instalar pela própria loja antes de abrir ao
+público. É a única forma de ver o app exatamente como o usuário vai receber —
+inclusive a assinatura de release, que é onde o login com Google costuma
+falhar por SHA-1 faltando.
 
 ---
 
 ## 7. Antes de apertar publicar
 
-- [ ] E-mail de contato definido nos três arquivos de `frontend/public/`
 - [ ] `VITE_API_BASE` apontando para produção, não staging
 - [ ] SHA-1 da chave de **release** cadastrado no Firebase — senão o login com
       Google funciona no seu aparelho e falha para quem baixar da loja
