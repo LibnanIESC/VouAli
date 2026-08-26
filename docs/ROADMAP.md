@@ -135,6 +135,14 @@ A chave da Claude nunca vai para o aparelho.
 Mesma base via Capacitor. Exige **Mac + Apple Developer (US$ 99/ano)** ou serviço
 de build em nuvem (o desenvolvimento é em Windows).
 
+### Fase 6 — Monetização
+Gratuito com assinatura. O desenho é diferente de um app comum porque aqui o
+limite tem **custo real**: cada roteiro gerado queima API. Plano completo em
+[MONETIZACAO.md](MONETIZACAO.md).
+
+A única etapa que dá para fazer **antes** de publicar é o painel de custo por
+usuário — é ele que evita escolher o preço no escuro.
+
 ---
 
 ## 4. Custos previstos
