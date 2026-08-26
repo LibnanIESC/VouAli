@@ -32,13 +32,20 @@ de conta de quem não tem mais o app instalado.
 Decidido em 26/08/2026. Há três papéis e, até a viagem de Nova York terminar,
 apenas dois servidores para eles.
 
-| Serviço | Papel até 13/10/2026 | Depois |
+| Endereço | Papel até 13/10/2026 | Depois |
 |---|---|---|
-| `vouali` | Viagem de Nova York — **não se toca** | vira o laboratório |
-| `vouali-stg` | **Produção do app público** (promovido) | continua produção |
+| `vouali.up.railway.app` | Viagem de Nova York — **não se toca** | vira o laboratório |
+| `vouali-app.up.railway.app` | **Produção do app público** | continua produção |
 
 O que o staging tinha já é o que a produção precisa: contas Firebase,
-Postgres, cotas. Por isso ele foi promovido em vez de recriado.
+Postgres, cotas. Por isso ele foi promovido em vez de recriado — e renomeado
+de `vouali-stg` para `vouali-app`, porque "stg" numa política de privacidade
+publicada por uma empresa não passa boa impressão.
+
+> O serviço promovido continua publicando a partir do branch **`staging`**, e
+> isso é de propósito. Apontá-lo para `main` levaria todo o código novo ao
+> serviço da viagem de NY, que é o que não pode acontecer. Os nomes se
+> arrumam em outubro, sem risco.
 
 > ⚠️ **Até 13/10 não existe laboratório.** Toda alteração no BACKEND que for
 > ao ar cai direto nos usuários. Alteração no APP não corre esse risco: dá
@@ -210,11 +217,11 @@ conversa com o Ali são as quatro telas que melhor explicam o app.
 
 ## 5. Links obrigatórios
 
-Servidos pelo próprio backend, junto do app:
+Servidos pelo próprio backend, junto do app — copie e cole no Play Console:
 
-- Política de privacidade — `https://SEU-DOMINIO/privacidade`
-- Termos de uso — `https://SEU-DOMINIO/termos`
-- Exclusão de conta — `https://SEU-DOMINIO/excluir-conta`
+- Política de privacidade — `https://vouali-app.up.railway.app/privacidade`
+- Termos de uso — `https://vouali-app.up.railway.app/termos`
+- Exclusão de conta — `https://vouali-app.up.railway.app/excluir-conta`
 
 O Google **abre e confere** o link de exclusão. Ele precisa responder sem
 login e sem instalar o app.
