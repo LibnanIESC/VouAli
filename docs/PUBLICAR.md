@@ -27,6 +27,35 @@ de conta de quem não tem mais o app instalado.
 
 ---
 
+## 0.1 Os ambientes
+
+Decidido em 26/08/2026. Há três papéis e, até a viagem de Nova York terminar,
+apenas dois servidores para eles.
+
+| Serviço | Papel até 13/10/2026 | Depois |
+|---|---|---|
+| `vouali` | Viagem de Nova York — **não se toca** | vira o laboratório |
+| `vouali-stg` | **Produção do app público** (promovido) | continua produção |
+
+O que o staging tinha já é o que a produção precisa: contas Firebase,
+Postgres, cotas. Por isso ele foi promovido em vez de recriado.
+
+> ⚠️ **Até 13/10 não existe laboratório.** Toda alteração no BACKEND que for
+> ao ar cai direto nos usuários. Alteração no APP não corre esse risco: dá
+> para instalar por USB, testar no celular e só publicar na loja depois de
+> aprovada. Nessa janela, mudança de backend só com os testes verdes e sem
+> pressa.
+
+Depois de 13/10: exportar o roteiro da viagem de NY, esvaziar o serviço
+`vouali` e passar a usá-lo como laboratório. Aí a regra normal volta —
+nada vai para produção sem passar por lá.
+
+**Domínio próprio:** ainda não há. Os links legais usam o endereço do Railway.
+Quando a Libnan registrar um domínio, apontá-lo no Railway resolve de uma vez
+o endereço da API e os três links da Play Store.
+
+---
+
 ## 1. A chave de assinatura
 
 O Android só aceita atualizações do app assinadas com a **mesma chave** da
