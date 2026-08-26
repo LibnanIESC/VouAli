@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, diaDeHoje, rotuloDoDia, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
+import { daysBetween, formatDateLabel, guessCurrency, suggestGroup, tripStatus, diaDeHoje, rotuloDoDia, ordenarViagens, CURRENCIES, GRUPOS, INTERESSES } from "./tripmeta";
 
 describe("daysBetween", () => {
   it("conta os dias de forma inclusiva", () => {
@@ -162,6 +162,57 @@ describe("rotuloDoDia", () => {
     expect(rotuloDoDia("", 0)).toBeNull();
     expect(rotuloDoDia("qualquer", 2)).toBeNull();
     expect(rotuloDoDia("2026-10-06", -1)).toBeNull();
+  });
+});
+
+describe("ordenarViagens", () => {
+  const hoje = new Date("2026-08-26T12:00");
+  const v = (name, startDate, endDate) => ({ name, startDate, endDate });
+  const nomes = (lista) => ordenarViagens(lista, hoje).map((x) => x.name);
+
+  it("põe a mais próxima na frente, não a cadastrada primeiro", () => {
+    expect(nomes([
+      v("Lisboa", "2027-03-05", "2027-03-12"),
+      v("Amalfitana", "2026-11-14", "2026-11-21"),
+      v("Buenos Aires", "2027-01-15", "2027-01-21"),
+    ])).toEqual(["Amalfitana", "Buenos Aires", "Lisboa"]);
+  });
+
+  it("a viagem em andamento vem antes de tudo", () => {
+    expect(nomes([
+      v("Daqui a pouco", "2026-09-01", "2026-09-05"),
+      v("Agora", "2026-08-24", "2026-08-30"),
+    ])).toEqual(["Agora", "Daqui a pouco"]);
+  });
+
+  it("o que já passou vai para o fim, mas não some", () => {
+    const r = nomes([
+      v("Ano passado", "2025-07-01", "2025-07-10"),
+      v("Futura", "2026-12-01", "2026-12-08"),
+      v("Mês passado", "2026-07-01", "2026-07-08"),
+    ]);
+    expect(r[0]).toBe("Futura");
+    expect(r.slice(1)).toEqual(["Mês passado", "Ano passado"]);   // mais recente antes
+  });
+
+  it("viagem sem data fica entre as futuras e as passadas", () => {
+    expect(nomes([
+      v("Passada", "2026-01-05", "2026-01-09"),
+      v("Sem data", "", ""),
+      v("Futura", "2026-10-01", "2026-10-08"),
+    ])).toEqual(["Futura", "Sem data", "Passada"]);
+  });
+
+  it("não altera a lista recebida", () => {
+    const original = [v("B", "2027-01-01", "2027-01-05"), v("A", "2026-09-01", "2026-09-05")];
+    const copia = [...original];
+    ordenarViagens(original, hoje);
+    expect(original).toEqual(copia);
+  });
+
+  it("aguenta lista vazia ou ausente", () => {
+    expect(ordenarViagens([], hoje)).toEqual([]);
+    expect(ordenarViagens(undefined, hoje)).toEqual([]);
   });
 });
 

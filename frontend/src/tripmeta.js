@@ -93,6 +93,33 @@ export function diaDeHoje(start, totalDias, hoje = new Date()) {
   return i >= 0 && i < totalDias ? i : 0;
 }
 
+/**
+ * Ordena a lista de viagens pela que importa agora.
+ *
+ * A ordem de cadastro não diz nada: quem abre o app quer a próxima viagem, não
+ * a que registrou primeiro. A regra segue o que a pessoa tem na cabeça —
+ * primeiro a que está acontecendo, depois a mais próxima, e o que já passou
+ * fica no fim, sem sumir.
+ *
+ * Viagem sem data fica entre as futuras e as passadas: não dá para saber
+ * quando é, então não dá para prometer lugar melhor nem pior.
+ */
+export function ordenarViagens(viagens, hoje = new Date()) {
+  const grupo = (v) => {
+    const estado = tripStatus(v.startDate, v.endDate, hoje).estado;
+    return estado === "andamento" ? 0 : estado === "futura" ? 1 : estado === "" ? 2 : 3;
+  };
+  return [...(viagens || [])].sort((a, b) => {
+    const ga = grupo(a), gb = grupo(b);
+    if (ga !== gb) return ga - gb;
+    if (ga === 2) return 0;                    // sem data: mantém como estava
+    const da = String(a.startDate || ""), db = String(b.startDate || "");
+    // Futuras e em andamento: a mais próxima primeiro. Passadas: a mais
+    // recente primeiro — a viagem do mês passado interessa mais que a de 2019.
+    return ga === 3 ? db.localeCompare(da) : da.localeCompare(db);
+  });
+}
+
 const SEMANA = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 
 /**

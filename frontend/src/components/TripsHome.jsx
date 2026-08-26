@@ -2,7 +2,7 @@ import React from "react";
 import AliAvatar from "./AliAvatar";
 import Capa from "./Capa";
 import { MapIcon, MoneyIcon, SparkIcon, GearIcon, PencilIcon, PeopleIcon, PlusIcon } from "./Icons";
-import { tripStatus } from "../tripmeta";
+import { tripStatus, ordenarViagens } from "../tripmeta";
 import { btn, safeTop, CREAM, NAVY, ORANGE, STEEL, SAND, DISPLAY, HELV, INK2, INK3 } from "../theme";
 
 // Cores do selo de situação: o "em viagem" precisa saltar; o resto é discreto.
@@ -83,7 +83,9 @@ function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo
  * boas-vindas — sem uma segunda tela só para isso.
  */
 export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOpen, onNew, onEdit, onShare, onAjustes, podeCompartilhar, user, onLogout }) {
-  const list = (trips && trips.list) || [];
+  // A ordem é decidida na hora de mostrar, não no servidor: ela depende da
+  // data de HOJE, e o app precisa acertá-la mesmo abrindo pela cópia local.
+  const list = ordenarViagens((trips && trips.list) || []);
   const vazia = booted && list.length === 0;
 
   const beneficio = (Icon, titulo, texto) => (
