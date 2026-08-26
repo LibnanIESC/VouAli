@@ -19,7 +19,7 @@ metade dos aparelhos. Por isso o logo é separado do fundo e reduzido: o fundo
 sangra até a borda, o logo fica no miolo seguro.
 """
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
 AQUI = Path(__file__).parent
@@ -129,6 +129,49 @@ def circular(img):
     return img
 
 
+def grafico_de_destaque(logo):
+    """A faixa de 1024x500 do topo da ficha na Play Store.
+
+    Usa a própria ilustração como fundo, escurecida da esquerda para a direita:
+    à esquerda o véu é quase opaco, para o logo e a frase se lerem com folga; à
+    direita ele abre, e a paisagem aparece. Assim a arte é usada onde ela cabe
+    (uma faixa) sem disputar com o texto.
+    """
+    L, A = 1024, 500
+    saida = AQUI.parent / "loja"
+    saida.mkdir(exist_ok=True)
+
+    fundo = Image.open(FUNDO).convert("RGB")
+    # Recorta a faixa da cidade, do mar e das montanhas. Mais acima só há céu e
+    # nuvem branca, que estoura sob um véu fraco e vira mancha clara.
+    alvo = round(fundo.width * A / L)
+    topo = round(fundo.height * 0.19)
+    fundo = fundo.crop((0, topo, fundo.width, topo + alvo)).resize((L, A), Image.LANCZOS)
+
+    # Véu: quase opaco na esquerda, onde vai o texto; aberto na direita, mas
+    # nunca transparente de todo — a faixa precisa ler como uma peça só, e não como
+    # metade escura colada em metade clara.
+    x = np.linspace(0, 1, L)[None, :, None]
+    forca = np.clip(0.92 - 0.54 * np.clip((x - 0.30) / 0.55, 0, 1), 0, 1)
+    arr = np.asarray(fundo).astype(float)
+    arr = arr * (1 - forca) + np.array([31, 54, 96]) * forca
+    tela = Image.fromarray(arr.astype(np.uint8)).convert("RGBA")
+
+    # Logo e frase à esquerda, no bloco central de altura — a loja recorta as
+    # beiradas em alguns formatos.
+    w = 340
+    h = round(w * logo.height / logo.width)
+    y = (A - h - 64) // 2
+    tela.alpha_composite(logo.resize((w, h), Image.LANCZOS), (74, y))
+
+    frase = "Roteiro, orçamento e um guia de IA para a sua viagem"
+    fonte = ImageFont.truetype("C:/Windows/Fonts/segoeuisl.ttf", 25)
+    ImageDraw.Draw(tela).text((78, y + h + 26), frase, font=fonte, fill=(251, 244, 233, 240))
+
+    tela.convert("RGB").save(saida / "destaque-1024x500.png")
+    print(f"  loja: destaque-1024x500.png")
+
+
 def largura_segura(logo):
     """Maior largura em que a caixa do logo cabe inteira no miolo circular."""
     diagonal = (logo.width ** 2 + logo.height ** 2) ** 0.5
@@ -204,6 +247,11 @@ def main():
                                ((tela[0] - d) // 2, (tela[1] - d) // 2))
         canvas.convert("RGB").save(alvo)
     print(f"  abertura: {len(list(ANDROID.glob('drawable*/splash.png')))} telas em creme")
+
+    # ---------- Gráfico de destaque da Play Store ----------
+    # 1024x500, a faixa no topo da ficha da loja. A loja recorta as beiradas em
+    # alguns formatos, então o que importa fica no meio.
+    grafico_de_destaque(logo)
 
     # ---------- Ilustração das boas-vindas ----------
     # 768px de largura cobre telas 3x sem exagero. Só a interface do app usa,
