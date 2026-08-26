@@ -13,14 +13,32 @@ const TOKEN_KEY = "trip-token";
 let _tokenGetter = null;
 export function setTokenGetter(fn) { _tokenGetter = fn; }
 
-function authHeaders() {
+async function authHeaders(forcar = false) {
   if (_tokenGetter) {
-    const t = _tokenGetter();
+    const t = await _tokenGetter(forcar);
     return t ? { Authorization: `Bearer ${t}` } : {};
   }
   let t = localStorage.getItem(TOKEN_KEY);
   if (!t) { const q = new URLSearchParams(location.search).get("k"); if (q) { t = q; localStorage.setItem(TOKEN_KEY, q); } }
   return t ? { "X-Trip-Token": t } : {};
+}
+
+/**
+ * `fetch` com a credencial do momento, e com uma segunda chance.
+ *
+ * Sessão vencida é o 401 mais comum num app que fica dias aberto. Antes ele
+ * era engolido em silêncio: a tela ficava vazia, como se a conta não tivesse
+ * nada, e toda ação falhava sem explicação. Agora o token é renovado à força
+ * e a chamada é repetida UMA vez — que é o que resolve o caso comum.
+ */
+async function fetchAuth(caminho, opcoes = {}) {
+  const monta = async (forcar) => fetch(url(caminho), {
+    ...opcoes,
+    headers: { ...(opcoes.headers || {}), ...(await authHeaders(forcar)) },
+  });
+  let res = await monta(false);
+  if (res.status === 401 && _tokenGetter) res = await monta(true);
+  return res;
 }
 
 // Configuração pública do servidor (modo de login e credenciais do Firebase).
@@ -35,8 +53,13 @@ export async function apiConfig() {
 let _authCb = null;
 export function onAuthNeeded(fn) { _authCb = fn; }
 export function setToken(t) { localStorage.setItem(TOKEN_KEY, t); location.reload(); }
+// Modo com contas: 401 depois da renovação forçada não é sessão vencida, é
+// sessão MORTA (conta apagada, senha trocada, acesso revogado). Antes isso era
+// engolido e a pessoa ficava olhando uma tela vazia achando que perdeu tudo.
+let _sessaoMortaCb = null;
+export function onSessaoMorta(fn) { _sessaoMortaCb = fn; }
 function promptToken() {
-  if (_tokenGetter) return;   // modo com contas: 401 é sessão expirada, não senha
+  if (_tokenGetter) { if (_sessaoMortaCb) _sessaoMortaCb(); return; }
   if (_authCb) _authCb();
 }
 
@@ -59,9 +82,8 @@ let _etag = "";            // marca da última versão que já temos
 // quando nada mudou desde a última consulta, ou null em falha.
 export async function apiGet() {
   try {
-    const headers = { ...authHeaders() };
-    if (_etag) headers["If-None-Match"] = _etag;   // pergunta leve: "mudou?"
-    const res = await fetch(url("/api/state"), { headers, cache: "no-store" });
+    const marca = _etag ? { "If-None-Match": _etag } : {};   // pergunta leve: "mudou?"
+    const res = await fetchAuth("/api/state", { headers: marca, cache: "no-store" });
     if (res.status === 401) { promptToken(); return null; }
     if (res.status === 304) {                      // nada mudou: sem corpo
       if (_status === "offline") setStatus("synced");
@@ -85,9 +107,9 @@ export function apiPut(state) {
   clearTimeout(putTimer);
   putTimer = setTimeout(async () => {
     try {
-      const res = await fetch(url("/api/state"), {
+      const res = await fetchAuth("/api/state", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "X-Base-Version": String(_version), ...authHeaders() },
+        headers: { "Content-Type": "application/json", "X-Base-Version": String(_version) },
         body: JSON.stringify(state),
       });
       if (res.status === 401) { promptToken(); return; }
@@ -119,9 +141,9 @@ export async function flushNow() {
   clearTimeout(putTimer);
   if (!(_dirty && _pending)) return;
   try {
-    const res = await fetch(url("/api/state"), {
+    const res = await fetchAuth("/api/state", {
       method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Base-Version": String(_version), ...authHeaders() },
+      headers: { "Content-Type": "application/json", "X-Base-Version": String(_version) },
       body: JSON.stringify(_pending),
     });
     if (res.ok) { const j = await res.json(); if (typeof j.version === "number") _version = j.version; setStatus("synced"); }
@@ -133,7 +155,7 @@ export async function flushNow() {
 // ---------- Gestão de viagens (multi-viagem) ----------
 export async function apiTrips() {
   try {
-    const res = await fetch(url("/api/trips"), { headers: authHeaders() });
+    const res = await fetchAuth("/api/trips");
     if (res.status === 401) { promptToken(); return null; }
     if (!res.ok) { setStatus("offline"); return null; }
     const j = await res.json();
@@ -141,7 +163,7 @@ export async function apiTrips() {
   } catch (e) { setStatus("offline"); return null; }
 }
 export async function apiCreateTrip(meta) {
-  const res = await fetch(url("/api/trips"), { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
+  const res = await fetchAuth("/api/trips", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(meta) });
   if (!res.ok) return null;
   return await res.json(); // { meta, trips }
 }
@@ -153,7 +175,7 @@ export async function apiSetActive(id) {
   _etag = "";               // outra viagem: a marca anterior não serve
   _activePendente = id;
   try {
-    const res = await fetch(url("/api/active"), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ id }) });
+    const res = await fetchAuth("/api/active", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     if (res.ok) _activePendente = null;
   } catch (e) {}
 }
@@ -162,12 +184,12 @@ export async function flushActive() {
   if (_activePendente) await apiSetActive(_activePendente);
 }
 export async function apiTripMeta(id, meta) {
-  const res = await fetch(url(`/api/trips/${id}/meta`), { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(meta) });
+  const res = await fetchAuth(`/api/trips/${id}/meta`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(meta) });
   if (!res.ok) return null;
   return await res.json(); // { trips }
 }
 export async function apiDeleteTrip(id) {
-  const res = await fetch(url(`/api/trips/${id}`), { method: "DELETE", headers: authHeaders() });
+  const res = await fetchAuth(`/api/trips/${id}`, { method: "DELETE" });
   if (!res.ok) return null;
   return await res.json(); // { trips }
 }
@@ -176,7 +198,7 @@ export async function apiDeleteTrip(id) {
 /** O que a exclusão vai levar, para avisar antes. null se não der para saber. */
 export async function apiPreviaExclusao() {
   try {
-    const res = await fetch(url("/api/me/exclusao"), { headers: authHeaders() });
+    const res = await fetchAuth("/api/me/exclusao");
     if (!res.ok) return null;
     const j = await res.json();
     return j && j.error ? null : j;
@@ -185,7 +207,7 @@ export async function apiPreviaExclusao() {
 /** Apaga a conta e tudo que é dela. Não tem desfazer. */
 export async function apiExcluirConta() {
   try {
-    const res = await fetch(url("/api/me"), { method: "DELETE", headers: authHeaders() });
+    const res = await fetchAuth("/api/me", { method: "DELETE" });
     if (!res.ok) return { ok: false };
     return await res.json();
   } catch (e) { return { ok: false }; }
@@ -194,7 +216,7 @@ export async function apiExcluirConta() {
 // Consumo de IA do mês (cotas). null = ambiente sem cota (modo antigo).
 export async function apiUsage() {
   try {
-    const res = await fetch(url("/api/usage"), { headers: authHeaders() });
+    const res = await fetchAuth("/api/usage");
     if (!res.ok) return null;
     const j = await res.json();
     return j.quotas ? j : null;
@@ -204,16 +226,16 @@ export async function apiUsage() {
 // ---------- Compartilhamento de viagem ----------
 export async function apiMembers(id) {
   try {
-    const res = await fetch(url(`/api/trips/${id}/members`), { headers: authHeaders() });
+    const res = await fetchAuth(`/api/trips/${id}/members`);
     if (!res.ok) return null;
     return await res.json(); // { role, members, invites }
   } catch (e) { return null; }
 }
 export async function apiInvite(id, email) {
   try {
-    const res = await fetch(url(`/api/trips/${id}/members`), {
+    const res = await fetchAuth(`/api/trips/${id}/members`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
     if (res.status === 400) return { error: "self" };
@@ -223,7 +245,7 @@ export async function apiInvite(id, email) {
 }
 export async function apiRemoveMember(id, quem) {
   try {
-    const res = await fetch(url(`/api/trips/${id}/members/${encodeURIComponent(quem)}`), { method: "DELETE", headers: authHeaders() });
+    const res = await fetchAuth(`/api/trips/${id}/members/${encodeURIComponent(quem)}`, { method: "DELETE" });
     if (!res.ok) return { error: "http_" + res.status };
     return await res.json(); // { members, invites }
   } catch (e) { return { error: "offline" }; }
@@ -232,9 +254,9 @@ export async function apiRemoveMember(id, quem) {
 // ---------- Chat com o Ali (IA) ----------
 export async function apiAli(messages, trip) {
   try {
-    const res = await fetch(url("/api/ali"), {
+    const res = await fetchAuth("/api/ali", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages, trip }),
     });
     if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
@@ -249,9 +271,9 @@ export async function apiAli(messages, trip) {
 export async function apiAliStream(messages, trip, onDelta) {
   let res;
   try {
-    res = await fetch(url("/api/ali/stream"), {
+    res = await fetchAuth("/api/ali/stream", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages, trip }),
     });
   } catch (e) { return { fallback: true }; }
@@ -291,9 +313,9 @@ export async function apiAliStream(messages, trip, onDelta) {
 // Pede ao Ali um roteiro completo para uma viagem nova. Retorna { state } ou { error }.
 export async function apiGenerate(params) {
   try {
-    const res = await fetch(url("/api/ali/gerar"), {
+    const res = await fetchAuth("/api/ali/gerar", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
     if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
@@ -305,9 +327,9 @@ export async function apiGenerate(params) {
 // Gera uma dica do Ali (sob demanda) para uma parada do roteiro.
 export async function apiAliDica(stop, trip) {
   try {
-    const res = await fetch(url("/api/ali/dica"), {
+    const res = await fetchAuth("/api/ali/dica", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stop, trip }),
     });
     if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }

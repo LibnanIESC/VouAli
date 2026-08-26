@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { diaDeHoje, rotuloDoDia } from "./tripmeta";
@@ -117,6 +117,18 @@ export default function App() {
 
   useEffect(() => onStatus(setSync), []);
   useEffect(() => onAuthNeeded(() => setNeedKey(true)), []);
+  // Sessão morta: manda para a tela de entrada em vez de deixar a pessoa
+  // diante de uma conta que parece vazia e onde nada funciona.
+  useEffect(() => onSessaoMorta(async () => {
+    if (!fbRef.current) return;
+    limparCache();
+    setTrips({ active: null, list: [] });
+    setBooted(false);
+    setOv(null);
+    setVista("lista");
+    await fbRef.current.logout();
+    toastMsg("Sua sessão expirou. Entre de novo. 🔑");
+  }), []);
   useEffect(() => onToast((msg) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, msg }]);

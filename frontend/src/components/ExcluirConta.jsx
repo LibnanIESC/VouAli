@@ -21,7 +21,13 @@ export default function ExcluirConta({ onClose, onConfirmar }) {
   useEffect(() => { (async () => setPrevia(await apiPreviaExclusao()))(); }, []);
 
   const pode = texto.trim().toUpperCase() === CONFIRMACAO && !indo;
-  const confirmar = async () => { if (!pode) return; setIndo(true); await onConfirmar(); };
+  // O `finally` não é detalhe: sem ele, uma falha deixava a tela travada em
+  // "Excluindo…" para sempre — sem botão, sem X e sem arrastar para fechar.
+  const confirmar = async () => {
+    if (!pode) return;
+    setIndo(true);
+    try { await onConfirmar(); } finally { setIndo(false); }
+  };
 
   const linha = (n, um, varios) => (n === 1 ? `1 ${um}` : `${n} ${varios}`);
 

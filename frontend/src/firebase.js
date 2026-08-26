@@ -20,8 +20,25 @@ const _subs = new Set();
 
 function notify() { _subs.forEach((fn) => fn(_user)); }
 
-// Token atual (o Firebase renova sozinho; onIdTokenChanged mantém isto fresco).
-export function getToken() { return _token; }
+/**
+ * Token válido AGORA.
+ *
+ * Guardar o token numa variável não basta: ele vence em uma hora. Quem
+ * mantinha a cópia fresca era o `onIdTokenChanged`, mas entre o app voltar do
+ * segundo plano e o Firebase renovar existe uma janela em que a cópia já está
+ * vencida — e toda chamada nela volta 401.
+ *
+ * `getIdToken()` resolve na fonte: devolve o do cache enquanto vale, e renova
+ * sozinho quando não vale mais. Por isso é assíncrono.
+ */
+export async function getToken(forcar = false) {
+  const usuario = _auth && _auth.currentUser;
+  if (!usuario) return "";
+  try {
+    _token = await usuario.getIdToken(forcar);
+  } catch (e) {}   // sem rede: segue com o último que tínhamos
+  return _token;
+}
 export function getUser() { return _user; }
 export function onUser(fn) { _subs.add(fn); fn(_user); return () => _subs.delete(fn); }
 
