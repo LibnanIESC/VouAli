@@ -27,7 +27,7 @@ CREME = (251, 244, 233)
 TELAS = [
     ("15-12-49", "1-minhas-viagens", True),   # o rodapé com o e-mail está aqui
     ("15-13-37", "2-roteiro", False),
-    ("15-14-19", "3-orcamento", False),
+    ("15-35-44", "3-orcamento", False),
     ("15-15-26", "4-ali", False),
     ("15-15-53", "5-comprar-antes", False),
 ]
