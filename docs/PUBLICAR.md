@@ -17,8 +17,11 @@ de conta de quem não tem mais o app instalado.
 | Conta no Play Console | ✅ já existe (organização) |
 | E-mail de contato | ✅ definido |
 | Teste fechado com 12 testadores | ✅ **dispensado** — a exigência é só para contas pessoais |
-| Chave de assinatura | ⛔ falta criar (passo 1) |
-| Gráfico de destaque e capturas | ⛔ faltam |
+| Chave de assinatura | ✅ criada e guardada |
+| Gráfico de destaque e capturas | ✅ prontos em `loja/` |
+| AAB versão 1.0 | ✅ publicado no teste interno |
+| SHA-1 no Firebase | ✅ os três (debug, upload e Play App Signing) |
+| Ficha da loja e Data safety | ⛔ faltam preencher |
 
 > Ser conta de **organização** economiza duas semanas de calendário: a regra
 > dos 12 testadores por 14 dias vale para contas pessoais criadas a partir de
@@ -101,6 +104,28 @@ existir, então quem clonar o projeto sem ele continua conseguindo compilar.
 
 Copie `vouali-release.jks` e a senha para dois lugares fora deste computador
 (um cofre de senhas e um drive, por exemplo).
+
+### 1.1 As três impressões digitais
+
+São **duas chaves diferentes** e é aí que quase todo mundo tropeça: você assina
+o envio, o Google **reassina** o app antes de entregar. Quem chega no celular
+de quem baixa da loja é a chave do Google — então o Firebase precisa conhecer
+as duas, mais a de depuração.
+
+| SHA-1 | Chave | Vem de |
+|---|---|---|
+| `40:c7:0e:41:…:14:51` | debug | `gradlew signingReport`, gerada pelo Android Studio |
+| `7a:1a:c0:5a:…:1c:c5` | upload | o `vouali-release.jks` deste guia |
+| `48:5b:d1:cf:…:0e:c2` | **Play App Signing** | Play Console → Protegido com o Google Play → Assinatura de apps → *Chave de assinatura do app* → **Chave clássica** |
+
+Todas cadastradas em Firebase → projeto `vouali` → ⚙ Configurações do projeto →
+app `app.vouali` → **Adicionar impressão digital**. São valores **públicos** —
+não há problema em documentá-los aqui.
+
+> A do Google só existe **depois do primeiro envio**, e fica na coluna *Chave
+> clássica*, não na *pós-quântica (Beta)* — o login com Google usa a clássica.
+> Adicionar uma impressão digital **não exige** gerar um AAB novo: ela vale no
+> servidor do Google, não dentro do app.
 
 ---
 
@@ -245,14 +270,17 @@ falhar por SHA-1 faltando.
 
 ## 7. Antes de apertar publicar
 
-- [ ] `VITE_API_BASE` apontando para produção, não staging
-- [ ] SHA-1 da chave de **release** cadastrado no Firebase — senão o login com
+- [x] `VITE_API_BASE` apontando para produção, não staging
+- [x] SHA-1 da chave de **release** cadastrado no Firebase — senão o login com
       Google funciona no seu aparelho e falha para quem baixar da loja
-- [ ] SHA-1 da **Play App Signing** também cadastrado (o Google gera esse
+- [x] SHA-1 da **Play App Signing** também cadastrado (o Google gera esse
       depois do primeiro envio)
-- [ ] `versionCode` maior que o do envio anterior
-- [ ] Excluir conta testado de ponta a ponta num aparelho de verdade
-- [ ] Chave de assinatura copiada para dois lugares seguros
+- [x] `versionCode` maior que o do envio anterior
+- [x] Excluir conta testado de ponta a ponta num aparelho de verdade
+- [x] Chave de assinatura copiada para dois lugares seguros
+- [ ] **Login com Google testado com o app instalado pela loja** — é o único
+      item que o cabo USB não prova, porque pelo cabo a assinatura é outra
+- [ ] `ENVIRONMENT=production` nas variáveis do Railway (hoje ainda `staging`)
 
 ---
 
