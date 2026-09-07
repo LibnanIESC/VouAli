@@ -225,7 +225,16 @@ As sugestões do Ali são estimativas e não substituem a consulta às fontes
 oficiais de preços, horários e exigências de documentação.
 ```
 
-**Categoria:** Viagens e local · **Classificação:** Livre
+**Tipo:** App · **Categoria:** Turismo e guia local · **Classificação:** Livre
+
+> A categoria se chamava "Viagens e local" (*Travel & Local*) e o Google a
+> renomeou. É a mesma.
+
+**Declaração de recursos de IA:** rotular **todos** os recursos gráficos. O
+logotipo e a ilustração do Ali vêm das imagens geradas por IA em
+`identidade-visual-vouali/project/assets/`, e aparecem no ícone, no gráfico de
+destaque e em todas as capturas. Rotular não penaliza o app; declarar de menos
+é violação de política.
 
 **Recursos gráficos necessários:**
 
