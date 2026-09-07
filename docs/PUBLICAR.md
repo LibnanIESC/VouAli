@@ -168,15 +168,28 @@ o código realmente faz — confira sempre que o app mudar.
 
 **Dados coletados:**
 
-| Tipo | Coletado | Compartilhado | Obrigatório | Para quê |
+| Seção | Tipo | Coletado | Compartilhado | Para quê |
 |---|---|---|---|---|
-| Nome | Sim | Não | Sim | Funcionalidade do app, gerenciamento de conta |
-| Endereço de e-mail | Sim | Não | Sim | Funcionalidade do app, gerenciamento de conta |
-| Outro conteúdo gerado pelo usuário *(roteiro, orçamento, notas)* | Sim | **Sim** | Sim | Funcionalidade do app |
+| Informações pessoais | Nome | Sim | Não | Funcionalidade, conta |
+| Informações pessoais | Endereço de e-mail | Sim | Não | Funcionalidade, conta |
+| Informações pessoais | IDs do usuário *(uid na tabela `users`)* | Sim | Não | Funcionalidade, conta |
+| Mensagens | Outras mensagens no app *(conversa com o Ali)* | Sim | **Sim** | Funcionalidade |
+| Atividade no app | Outro conteúdo do usuário *(roteiro, orçamento, notas)* | Sim | **Sim** | Funcionalidade |
 
 O conteúdo da viagem conta como **compartilhado** porque é enviado à Anthropic
 quando a pessoa usa o Ali. Isso está declarado na política de privacidade —
 declarar aqui também é o que evita reprovação.
+
+As conversas com o Ali são **processadas de forma efêmera**: não existe tabela
+de mensagens no banco; elas são reenviadas pelo cliente a cada pergunta e
+descartadas depois da resposta. Marque essa opção quando o formulário
+oferecer — é verdade e melhora a ficha.
+
+**Não** marque: localização, contatos, fotos, arquivos, agenda, áudio,
+navegação na Web, informações financeiras, saúde. Também não marque
+*Informações e desempenho do app* nem *Identificadores do dispositivo*: o
+projeto não tem Analytics nem Crashlytics, e o que o Google Play coleta por
+conta própria é isento.
 
 **Não** marque: localização, contatos, fotos, arquivos, atividade de
 navegação, identificadores de publicidade, informações financeiras, saúde.
