@@ -231,12 +231,19 @@ oficiais de preços, horários e exigências de documentação.
 
 | Item | Tamanho | Onde está |
 |---|---|---|
-| Ícone | 512×512 PNG | `frontend/public/icon-512.png` |
-| Gráfico de destaque | 1024×500 | ⛔ falta criar |
-| Capturas de tela do telefone | mín. 2, entre 320px e 3840px | ⛔ falta tirar |
+| Ícone | 512×512 | `frontend/public/icon-512.png` |
+| Gráfico de destaque | 1024×500 | `loja/destaque-1024x500.png` |
+| Capturas do telefone | 1220×2440, cinco | `loja/capturas/` |
 
-Para as capturas: a lista de viagens, o roteiro de um dia, o orçamento e a
-conversa com o Ali são as quatro telas que melhor explicam o app.
+As capturas saem do celular em 1220×2712 e são recortadas para **1220×2440**
+por `identidade-visual-vouali/preparar-capturas.py`. O recorte não é enfeite:
+2712/1220 = 2,22 e a Play Store recusa acima de **2:1**. Tirar as barras de
+status e de navegação resolve a proporção e ainda limpa a imagem — bateria e
+relógio de outra pessoa não ajudam ninguém a decidir baixar.
+
+Sobem na ordem numérica; a primeira é a que aparece em destaque. As telas
+escolhidas — lista de viagens, roteiro do dia, orçamento, Ali e "comprar
+antes" — são as que explicam o app sem precisar de legenda.
 
 ---
 
