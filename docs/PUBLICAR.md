@@ -234,9 +234,14 @@ Nada disso é coletado.
 | Apps governamentais · Recursos financeiros · Saúde | não |
 
 **Detalhes do login.** Os campos de usuário e senha são opcionais: o VouAli
-não precisa de conta de teste, porque as duas formas de entrar estão abertas
-a qualquer pessoa — Google, ou link por e-mail sem senha. Basta explicar isso
-nas instruções, em português e inglês.
+não precisa de conta de teste, porque entrar está aberto a qualquer pessoa.
+As instruções precisam estar **em inglês** e caber em 500 caracteres.
+
+> ⚠️ No app há **só o Google**. O link mágico por e-mail existe apenas na web
+> — `App.jsx` passa `permiteEmail={!noApp()}`, porque no Android o fluxo sai
+> para o navegador e depende de deep link verificado para voltar. Prometer o
+> login por e-mail nas instruções faria o revisor procurar uma opção que não
+> existe, e reprovar por não conseguir acessar o app.
 
 **Interação entre usuários: sim.** O compartilhamento de viagem faz duas
 pessoas editarem o mesmo roteiro. Responder "não" seria falso, e declaração
