@@ -87,6 +87,10 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
   // data de HOJE, e o app precisa acertá-la mesmo abrindo pela cópia local.
   const list = ordenarViagens((trips && trips.list) || []);
   const vazia = booted && list.length === 0;
+  // Quando a cópia local já devolveu as viagens, a tela tem o que mostrar: o
+  // esqueleto viraria ruído cinzento por cima de cards de verdade. Ele só faz
+  // sentido para quem abre o app sem nada guardado ainda.
+  const carregandoDoZero = !booted && list.length === 0;
 
   const beneficio = (Icon, titulo, texto) => (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start", textAlign: "left" }}>
@@ -148,12 +152,12 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
           <>
             <h1 style={{ margin: "22px 0 4px", fontSize: 26, fontWeight: 800, color: NAVY, fontFamily: DISPLAY, letterSpacing: -0.4 }}>Minhas viagens</h1>
             <div style={{ fontSize: 13.5, color: INK2, fontWeight: 600, marginBottom: 18 }}>
-              {!booted ? "Carregando…"
+              {carregandoDoZero ? "Carregando…"
                 : somenteLeitura ? "📴 Sem internet — abrindo a última cópia salva no aparelho."
                 : "Toque em uma viagem para abrir o roteiro."}
             </div>
 
-            {!booted && [0, 1].map((i) => (
+            {carregandoDoZero && [0, 1].map((i) => (
               <div key={i} aria-hidden="true" style={{ height: 158, borderRadius: 18, background: "#e9e2d4", marginBottom: 14, animation: "pulse 1.4s ease-in-out infinite" }} />
             ))}
 
@@ -164,7 +168,9 @@ export default function TripsHome({ trips, booted, abrindo, somenteLeitura, onOp
                 podeCompartilhar={podeCompartilhar} />
             ))}
 
-            {booted && !somenteLeitura && (
+            {/* Aparece junto com os cards vindos do cache: esperar o servidor
+                só para revelá-lo fazia a lista dar um pulo no fim da carga. */}
+            {!carregandoDoZero && !somenteLeitura && (
               <button onClick={onNew} style={{ ...btn("#fff", { color: NAVY, border: `1.5px dashed ${STEEL}` }), width: "100%", marginTop: 4, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <PlusIcon color={NAVY} size={18} />Nova viagem
               </button>
