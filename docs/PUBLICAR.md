@@ -182,6 +182,31 @@ declarar aqui também é o que evita reprovação.
 navegação, identificadores de publicidade, informações financeiras, saúde.
 Nada disso é coletado.
 
+### 3.1 Os outros oito formulários de "Conteúdo do app"
+
+| Formulário | Resposta |
+|---|---|
+| Política de Privacidade | `https://vouali-app.up.railway.app/privacidade` |
+| Detalhes do login | restrito — instruções abaixo, sem credenciais |
+| Anúncios | não contém |
+| Classificação de conteúdo | Utilitário/produtividade · tudo "não", exceto interação entre usuários |
+| Público-alvo | **somente 18+** |
+| Apps governamentais · Recursos financeiros · Saúde | não |
+
+**Detalhes do login.** Os campos de usuário e senha são opcionais: o VouAli
+não precisa de conta de teste, porque as duas formas de entrar estão abertas
+a qualquer pessoa — Google, ou link por e-mail sem senha. Basta explicar isso
+nas instruções, em português e inglês.
+
+**Interação entre usuários: sim.** O compartilhamento de viagem faz duas
+pessoas editarem o mesmo roteiro. Responder "não" seria falso, e declaração
+incorreta custa mais tempo do que os requisitos extras que o "sim" traz.
+
+**Público-alvo 18+ é escolha deliberada.** Incluir faixas menores põe o app na
+Política Famílias, que exige tratamento próprio para conteúdo de IA dirigido a
+menores. O Ali gera texto livre; a faixa adulta evita isso sem custo real de
+alcance.
+
 ---
 
 ## 4. Ficha da loja
