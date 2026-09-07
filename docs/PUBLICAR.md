@@ -105,7 +105,7 @@ existir, então quem clonar o projeto sem ele continua conseguindo compilar.
 Copie `vouali-release.jks` e a senha para dois lugares fora deste computador
 (um cofre de senhas e um drive, por exemplo).
 
-### 1.1 As três impressões digitais
+### 1.1 As impressões digitais
 
 São **duas chaves diferentes** e é aí que quase todo mundo tropeça: você assina
 o envio, o Google **reassina** o app antes de entregar. Quem chega no celular
@@ -114,18 +114,45 @@ as duas, mais a de depuração.
 
 | SHA-1 | Chave | Vem de |
 |---|---|---|
-| `40:c7:0e:41:…:14:51` | debug | `gradlew signingReport`, gerada pelo Android Studio |
+| `40:c7:0e:41:…:14:51` | debug | `gradlew signingReport` |
 | `7a:1a:c0:5a:…:1c:c5` | upload | o `vouali-release.jks` deste guia |
-| `48:5b:d1:cf:…:0e:c2` | **Play App Signing** | Play Console → Protegido com o Google Play → Assinatura de apps → *Chave de assinatura do app* → **Chave clássica** |
+| `70:b6:f0:f1:…:13:e8` | **a que chega no celular** | extraída do APK instalado (abaixo) |
+| `48:5b:d1:cf:…:0e:c2` | pós-quântica (Beta) | cadastrada por engano; inofensiva, fica para o futuro |
 
-Todas cadastradas em Firebase → projeto `vouali` → ⚙ Configurações do projeto →
-app `app.vouali` → **Adicionar impressão digital**. São valores **públicos** —
-não há problema em documentá-los aqui.
+Todas em Firebase → projeto `vouali` → ⚙ Configurações do projeto → app
+`app.vouali` → **Adicionar impressão digital**. São valores **públicos**.
 
-> A do Google só existe **depois do primeiro envio**, e fica na coluna *Chave
-> clássica*, não na *pós-quântica (Beta)* — o login com Google usa a clássica.
 > Adicionar uma impressão digital **não exige** gerar um AAB novo: ela vale no
 > servidor do Google, não dentro do app.
+
+#### ⚠️ Não confie na tela do Play Console
+
+A tela *Assinatura de apps* mostra a chave em duas colunas lado a lado —
+**Chave clássica** e **Chave de criptografia pós-quântica (Beta)** — com botões
+de copiar idênticos. Copiar da coluna errada dá um SHA-1 plausível que **não
+funciona**, e o sintoma é mudo: o login simplesmente falha, sem dizer por quê.
+No `adb logcat` aparece só um aviso genérico:
+
+```
+W/Auth [GetTokenResponseHandler] Server returned error:
+This android application is not registered to use OAuth2.0
+```
+
+Esse erro parece propagação lenta e **não é**. O jeito confiável é ler a
+assinatura do APK que está de fato no aparelho:
+
+```bash
+adb pull $(adb shell pm path app.vouali | sed 's/package://') instalado.apk
+apksigner verify --print-certs --min-sdk-version 24 --max-sdk-version 36 instalado.apk
+```
+
+O `--max-sdk-version 36` não é firula: o Google já assina com um bloco híbrido
+pós-quântico (ML-DSA) que o `apksigner` local não valida, e sem esse limite o
+comando aborta antes de imprimir o certificado clássico. O `keytool` não serve
+aqui — o APK não tem assinatura no esquema antigo de JAR.
+
+A linha `V3.0 Signer: certificate SHA-1 digest` é a resposta. Se ela não bater
+com o que está no Firebase, o login vai falhar por mais que se espere.
 
 ---
 
@@ -332,7 +359,7 @@ falhar por SHA-1 faltando.
 - [x] `versionCode` maior que o do envio anterior
 - [x] Excluir conta testado de ponta a ponta num aparelho de verdade
 - [x] Chave de assinatura copiada para dois lugares seguros
-- [ ] **Login com Google testado com o app instalado pela loja** — é o único
+- [x] **Login com Google testado com o app instalado pela loja** — é o único
       item que o cabo USB não prova, porque pelo cabo a assinatura é outra
 - [ ] `ENVIRONMENT=production` nas variáveis do Railway (hoje ainda `staging`)
 
