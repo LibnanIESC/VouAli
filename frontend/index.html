@@ -38,12 +38,30 @@
 
     <script type="module" src="/src/main.jsx"></script>
     <script type="module">
-      // O service worker guarda os assets em cache — ótimo em produção, onde os
-      // nomes têm hash. Em desenvolvimento os arquivos mantêm o mesmo endereço,
-      // então ele passaria a servir código velho e as alterações "não
-      // apareceriam". Por isso só registra no build de produção.
-      if (import.meta.env.PROD && "serviceWorker" in navigator) {
+      // O service worker guarda os assets em cache — ótimo no SITE, em produção,
+      // onde os nomes têm hash. Em desenvolvimento os arquivos mantêm o mesmo
+      // endereço e ele serviria código velho, então não entra.
+      //
+      // No APP INSTALADO ele também não entra, e por um motivo mais forte: os
+      // arquivos já estão no aparelho, dentro do APK, servidos localmente. O
+      // service worker não acrescenta nada ali — só uma camada capaz de devolver
+      // a coisa errada. Foi o que aconteceu: sem rede, ele respondia o
+      // index.html no lugar de um `.js`, o import do Firebase morria com
+      // "Unexpected token '<'" e o app ficava preso na tela de abertura, com a
+      // viagem guardada a um passo de distância.
+      const noApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+      if (import.meta.env.PROD && !noApp && "serviceWorker" in navigator) {
         window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"));
+      }
+
+      // Quem já instalou o app com a versão anterior tem o service worker ativo
+      // no aparelho. Sair de cena é com ele mesmo.
+      if (noApp && "serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+          .then((rs) => rs.forEach((r) => r.unregister()))
+          .catch(() => {});
+        if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {});
       }
     </script>
   </body>

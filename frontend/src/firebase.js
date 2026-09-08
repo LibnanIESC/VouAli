@@ -54,14 +54,29 @@ export async function initAuth(config) {
     try { await setPersistence(_auth, browserLocalPersistence); } catch (e2) {}
   }
 
-  // Espera a primeira resposta do Firebase antes de decidir a tela a mostrar.
+  // Espera a primeira resposta do Firebase antes de decidir a tela a mostrar —
+  // mas nunca para sempre.
   await new Promise((resolve) => {
     let primeiro = true;
+    const pronto = () => { if (primeiro) { primeiro = false; resolve(); } };
+    // Sem rede o Firebase pode simplesmente não responder. A abertura do app
+    // não pode ficar refém disso: passado o tempo, seguimos com o que houver.
+    const desistir = setTimeout(pronto, 4000);
     onIdTokenChanged(_auth, async (user) => {
       _user = user ? { uid: user.uid, email: user.email || "", name: user.displayName || "" } : null;
-      _token = user ? await user.getIdToken() : "";
+      // `getIdToken()` vai à rede quando o token guardado venceu, e offline ele
+      // REJEITA. Sem este catch a promessa acima nunca resolvia: o app abria a
+      // splash e ficava nela, com a viagem inteira guardada no aparelho a um
+      // passo de distância. Quem está logado continua logado — o token chega
+      // quando a rede voltar.
+      try {
+        _token = user ? await user.getIdToken() : "";
+      } catch (e) {
+        _token = "";
+      }
       notify();
-      if (primeiro) { primeiro = false; resolve(); }
+      clearTimeout(desistir);
+      pronto();
     });
   });
 

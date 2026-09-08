@@ -55,17 +55,29 @@ async function fetchAuth(caminho, opcoes = {}) {
  */
 const CONFIG_KEY = "vouali:config";
 
+/**
+ * Sem `authMode` não é configuração — é outra coisa que chegou com status 200.
+ *
+ * Já aconteceu: o service worker respondia `{state:null,version:0}` a qualquer
+ * rota `/api/` quando a rede caía, esse corpo era guardado como se fosse a
+ * config, e o app passava a abrir sem saber quem era o usuário. Validar aqui
+ * também limpa sozinho a config envenenada nos aparelhos que já a guardaram.
+ */
+const configValida = (c) => !!c && typeof c === "object" && typeof c.authMode === "string";
+
 export async function apiConfig() {
   try {
     const res = await fetch(url("/api/config"));
     if (!res.ok) throw new Error("config indisponível");
     const cfg = await res.json();
+    if (!configValida(cfg)) throw new Error("resposta não é uma config");
     try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch (e) {}
     return cfg;
   } catch (e) {
     try {
-      const guardada = localStorage.getItem(CONFIG_KEY);
-      if (guardada) return { ...JSON.parse(guardada), doCache: true };
+      const guardada = JSON.parse(localStorage.getItem(CONFIG_KEY));
+      if (configValida(guardada)) return { ...guardada, doCache: true };
+      localStorage.removeItem(CONFIG_KEY);
     } catch (e2) {}
     return { authMode: "token", firebase: null, offline: true };
   }
@@ -213,7 +225,11 @@ export async function apiTrips() {
     if (res.status === 401) { promptToken(); return null; }
     if (!res.ok) { setStatus("offline"); return null; }
     const j = await res.json();
-    return j.trips || { active: null, list: [] };
+    // Corpo sem `trips` é resposta estranha, não conta vazia. Devolver uma
+    // lista vazia aqui fazia o app gravá-la por cima da cópia local e apagar
+    // as viagens da tela. Quem não tem viagens recebe `trips` com lista vazia.
+    if (!j || !j.trips || !Array.isArray(j.trips.list)) { setStatus("offline"); return null; }
+    return j.trips;
   } catch (e) { setStatus("offline"); return null; }
 }
 export async function apiCreateTrip(meta) {
