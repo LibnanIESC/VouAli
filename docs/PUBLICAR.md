@@ -170,6 +170,30 @@ Depois, em `frontend/android/`:
 ./gradlew bundleRelease
 ```
 
+> ⚠️ **Java 21, e o do sistema é o 17.** O `JAVA_HOME` desta máquina aponta
+> para `C:\Program Files\Java\jdk-17`, e o Gradle para com *"Cannot find a Java
+> installation matching languageVersion=21"*. O Android Studio traz o 21
+> embutido; no Prompt de Comando, antes do build:
+>
+> ```
+> set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
+> ```
+>
+> E é `gradlew`, não `./gradlew` — o `./` é sintaxe de Linux e o Prompt de
+> Comando responde *"'.' não é reconhecido"*.
+
+### 2.1 Instalar uma build de teste no celular
+
+```bash
+gradlew installDebug
+```
+
+**Desinstale antes o app vindo da Play Store.** A build de debug é assinada com
+outra chave, e o Android recusa a troca com `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+O login com Google continua funcionando: a chave de debug está no Firebase
+desde o início. Terminado o teste, reinstale pela loja para voltar à versão de
+produção.
+
 O arquivo sai em `app/build/outputs/bundle/release/app-release.aab`.
 
 > Confira que o app aponta para **produção** e não para o staging: o valor de
