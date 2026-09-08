@@ -33,15 +33,43 @@ Um roteiro grátis por CONTA, não por mês. Por mês, cada usuário que nunca v
 pagar custaria doze gerações por ano; uma vez na vida é a degustação que
 converte sem sangrar.
 
+### Quanto custa cada operação
+
+Levantado em set/2026, com um roteiro de 10 dias (~2 mil tokens de entrada,
+~14 mil de saída, incluindo o *thinking*, que é cobrado como saída).
+
+| Operação | Opus 5 | **Sonnet 5** *(em uso)* | com prompt caching |
+|---|---|---|---|
+| Roteiro gerado | R$ 2,00 | **R$ 0,80** | — |
+| Mensagem no chat | R$ 0,17 | **R$ 0,07** | R$ 0,03 |
+| Dica de parada | R$ 0,06 | **R$ 0,02** | R$ 0,01 |
+
+Esses números derrubaram a primeira versão desta página: os limites que estavam
+escritos para o plano pago — 10 roteiros e 300 conversas por mês — custariam
+**R$ 71/mês por assinante em Opus 5**, mais que qualquer mensalidade de mercado.
+Um plano desenhado sem a conta na mão vende prejuízo com desconto.
+
+O Google fica com **15%** da assinatura, então R$ 19,90 chegam como R$ 16,90.
+
 ### Os planos
 
-| | Grátis | Premium |
-|---|---|---|
-| Viagens | **ilimitadas** | ilimitadas |
-| Roteiro gerado pelo Ali | **1, uma vez** | **10 por mês** |
-| Conversas com o Ali | 10 por mês | 300 por mês |
-| Dicas de parada | 5 por mês | 100 por mês |
-| Orçamento, offline, compartilhar, exportar | tudo | tudo |
+| | Grátis | Passe de viagem | Premium anual |
+|---|---|---|---|
+| Preço | — | **R$ 24,90** (único) | **R$ 129,90/ano** |
+| Viagens | **ilimitadas** | ilimitadas | ilimitadas |
+| Roteiro gerado pelo Ali | **1, uma vez** | 3 naquela viagem | 12 por ano |
+| Conversas com o Ali | 10 por mês | 100 na viagem | 400 por ano |
+| Dicas de parada | 5 por mês | 30 na viagem | 150 por ano |
+| Orçamento, offline, compartilhar, exportar | tudo | tudo | tudo |
+
+**O passe existe por causa da sazonalidade**, não como extra. Uma viagem custa
+cerca de R$ 2,60 em IA e é vendida a R$ 24,90 — e converte quem viaja uma vez
+por ano e nunca assinaria nada. O anual atende quem viaja sempre, num preço já
+familiar no setor (TripIt, Wanderlog e Roadtrippers ficam todos perto de
+US$ 50/ano).
+
+Números conferidos contra o custo: nenhum dos dois planos dá prejuízo mesmo com
+o assinante que usa tudo.
 
 **Viagens ilimitadas no grátis** é deliberado: limitar viagem pune quem
 organiza, não quem custa. E quanto mais viagens a pessoa cadastra, mais o app

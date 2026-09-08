@@ -66,5 +66,34 @@ Volume em `/app/data` guarda o SQLite.
 | `DATA_DIR` | Pasta do SQLite (padrão `/app/data`). |
 | `PORT` | Definido automaticamente pelo Railway. |
 
+### O que está em produção (`vouali-app`)
+
+| Variável | Valor | Por quê |
+|---|---|---|
+| `ENVIRONMENT` | `production` | |
+| `ALI_MODEL` | `claude-sonnet-5` | corta ~60% do custo do item mais caro, a geração de roteiro |
+| `QUOTA_GEN` | `3` | cada roteiro custa ~R$ 0,80; 30/mês sairiam a R$ 24 por usuário que não paga nada |
+| `QUOTA_CHAT` | `50` | ~R$ 0,07 por mensagem |
+| `QUOTA_TIP` | `30` | ~R$ 0,02 por dica |
+| `ALI_MONTHLY_CAP` | `2000` | ~R$ 240/mês, ao custo médio de R$ 0,12 por chamada |
+| `ALI_RATE_MAX` | `60` | global, por minuto |
+| `ALI_RATE_MAX_USER` | `8` | por conta, por minuto |
+
+Duas armadilhas nesses números, ambas já pagas uma vez:
+
+O **`ALI_MONTHLY_CAP` é do app inteiro**, não por pessoa — é a soma de chat, geração
+e dicas de todos os usuários no mês. Um valor baixo (200, digamos) acaba em dias e
+põe o Ali "de recesso" para todo mundo de uma vez.
+
+E o **`ALI_RATE_MAX` também é global**, enquanto o `ALI_RATE_MAX_USER` é por conta.
+Deixá-los perto um do outro (10 e 8) permite que uma única pessoa ocupe quase toda
+a fila e faça o app recusar chamadas de quem não fez nada. O rate limit é proteção
+contra abuso, não contra custo — quem cuida do custo são as cotas e o fusível — então
+pode ser folgado.
+
+> ⚠️ O rate limit é contado **em memória, por instância**. Com mais de uma réplica,
+> cada uma passa a ter seu próprio contador e o limite real se multiplica. Resolver
+> isso é a Fase 2.5 (Redis) do [ROADMAP](docs/ROADMAP.md).
+
 ## Saúde
 `GET /api/health` (sem senha) → ambiente, se a IA está configurada e se há senha ativa.

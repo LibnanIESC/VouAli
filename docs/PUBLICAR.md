@@ -390,7 +390,9 @@ falhar por SHA-1 faltando.
 - [x] Chave de assinatura copiada para dois lugares seguros
 - [x] **Login com Google testado com o app instalado pela loja** — é o único
       item que o cabo USB não prova, porque pelo cabo a assinatura é outra
-- [ ] `ENVIRONMENT=production` nas variáveis do Railway (hoje ainda `staging`)
+- [x] `ENVIRONMENT=production` nas variáveis do Railway
+- [x] Cotas, fusível global e rate limit dimensionados a partir do custo real por
+      chamada — os valores e o porquê estão no [README](../README.md)
 
 ---
 
