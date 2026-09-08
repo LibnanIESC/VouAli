@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sheet from "./Sheet";
 import AliAvatar from "./AliAvatar";
 import { SparkIcon } from "./Icons";
@@ -7,6 +7,7 @@ import { toast } from "../toast";
 import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3 } from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero, estimativaGeracao } from "../utils";
+import { fotoParaCapa } from "../imagem";
 
 const GEN_MSGS = [
   "Desenhando seus dias…",
@@ -85,7 +86,6 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
     const t = trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" };
     return { ...t, budget: campoDeNumero(t.budget) };   // o teto é texto enquanto se digita
   });
-  const [mode, setMode] = useState("empty");     // empty | ai (só na criação)
   const [gerando, setGerando] = useState(false);
   // O app precisa saber que a tela de espera está no ar: ela é CREME, e sem
   // isso a barra de status continuaria pintada como se o fundo fosse escuro —
@@ -135,12 +135,31 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
 
   const toggleTag = (t) => setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
 
-  const submit = async () => {
+  // A capa vai junto com a viagem para quem viaja com você, então a foto é
+  // reduzida e embutida aqui — guardar o caminho de um arquivo que só existe
+  // neste celular não serviria para ninguém mais.
+  const fotoRef = useRef(null);
+  const [lendoFoto, setLendoFoto] = useState(false);
+  const escolherFoto = async (e) => {
+    const arquivo = e.target.files && e.target.files[0];
+    e.target.value = "";                 // permite escolher a mesma foto de novo
+    if (!arquivo) return;
+    setLendoFoto(true);
+    try {
+      const capa = await fotoParaCapa(arquivo);
+      setF((cur) => ({ ...cur, bg: capa }));
+    } catch (err) {
+      toast("Não consegui usar essa foto. Tente outra.");
+    }
+    setLendoFoto(false);
+  };
+
+  const submit = async (comAli = false) => {
     if (!f.name.trim() || gerando) return;
     const meta = { ...f, dateLabel: label, interests: interesses, budget: numeroDoCampo(f.budget),
                    adults, children, groupTypes: grupos.join(", "),
                    origin: String(f.origin || "").trim(), transport: transporte };
-    if (isNew && mode === "ai") {
+    if (isNew && comAli) {
       if (nDias < 1) { toast("Informe as datas da viagem (ou o número de dias)."); return; }
       setGerando(true);
       const r = await apiGenerate({
@@ -165,19 +184,24 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
     onSave(meta); // criar vazia OU salvar edição
   };
 
-  const modeBtn = (id, label2) => (
-    <button type="button" onClick={() => setMode(id)} disabled={gerando}
-      style={{ flex: 1, padding: "10px 8px", minHeight: 44, borderRadius: 12, fontSize: 13.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-        border: mode === id ? `2px solid ${NAVY}` : "1.5px solid #ddd",
-        background: mode === id ? SAND : "#fff", color: NAVY }}>{label2}</button>
-  );
-
   // Enquanto o Ali monta o roteiro não há o que salvar nem cancelar.
+  //
+  // Ao criar, a escolha é a PRÓPRIA AÇÃO — dois botões, aqui no rodapé. Antes
+  // ela era um par de chips no fim da rolagem, com "começar vazia" já marcado,
+  // enquanto o botão de criar ficava fixo à vista o tempo todo. Quem preenchia
+  // destino, datas e interesses via "Criar viagem" logo abaixo do orçamento e
+  // tocava — criando uma viagem vazia sem nunca ver a opção do Ali.
   const acoes = gerando ? null : (
     <>
       {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
-      <button onClick={submit} disabled={!f.name.trim()} style={{ ...btn(isNew && mode === "ai" ? ORANGE : NAVY, { color: isNew && mode === "ai" ? NAVY : "#fff" }), flex: 1, opacity: !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        {trip ? "Salvar" : (mode === "ai" ? <><SparkIcon color={NAVY} size={15} />Gerar e criar</> : "Criar viagem")}
+      {isNew && (
+        <button onClick={() => submit(false)} disabled={!f.name.trim()}
+          style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), flex: "0 0 auto", padding: "0 16px", opacity: !f.name.trim() ? 0.6 : 1 }}>
+          Criar vazia
+        </button>
+      )}
+      <button onClick={() => submit(isNew)} disabled={!f.name.trim()} style={{ ...btn(isNew ? ORANGE : NAVY, { color: isNew ? NAVY : "#fff" }), flex: 1, opacity: !f.name.trim() ? 0.6 : 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        {trip ? "Salvar" : <><SparkIcon color={NAVY} size={15} />Gerar com o Ali</>}
       </button>
     </>
   );
@@ -243,6 +267,17 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
           <div style={{ fontSize: 13, color: "#C62828", fontWeight: 600, marginTop: 8 }}>A data final precisa ser igual ou depois da inicial.</div>
         )}
 
+        {/* Sem datas ainda dá para gerar: o Ali só precisa saber quantos dias.
+            O campo mora aqui, junto das datas, e não numa seção separada no fim
+            do formulário — é o mesmo assunto. */}
+        {isNew && diasCalc === 0 && (
+          <>
+            <label style={lbl}>Quantos dias</label>
+            <input type="number" style={field} value={dias} onChange={(e) => setDias(e.target.value)} min={1} max={12} aria-label="Número de dias da viagem" />
+            <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>Usado se você ainda não tem as datas. Preencha-as acima e ele calcula sozinho.</div>
+          </>
+        )}
+
         {/* Viajantes + perfil do grupo */}
         <label style={lbl}>Viajantes</label>
         <div style={{ display: "flex", gap: 12 }}>
@@ -299,38 +334,49 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
         </div>
         <input style={{ ...field, marginTop: 10 }} value={outros} onChange={(e) => setOutros(e.target.value)} placeholder="Outros (separe por vírgula)" aria-label="Outros interesses" />
 
-        <label style={lbl}>Imagem de fundo (link)</label>
-        <input style={field} value={f.bg} onChange={up("bg")} placeholder="Cole o link (URL) de uma foto" />
+        <label style={lbl}>Foto de capa</label>
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <button type="button" onClick={() => fotoRef.current && fotoRef.current.click()} disabled={lendoFoto}
+            style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), flex: 1, opacity: lendoFoto ? 0.6 : 1 }}>
+            {lendoFoto ? "Preparando…" : "Escolher do aparelho"}
+          </button>
+          {f.bg ? (
+            <button type="button" onClick={() => setF((c) => ({ ...c, bg: "" }))}
+              style={{ ...btn("#fff", { color: INK2, border: "1.5px solid #ddd" }), flex: "0 0 auto", padding: "0 16px" }}>
+              Remover
+            </button>
+          ) : null}
+        </div>
+        <input ref={fotoRef} type="file" accept="image/*" onChange={escolherFoto} style={{ display: "none" }} aria-hidden="true" tabIndex={-1} />
+        <input style={{ ...field, marginTop: 10 }} value={f.bg && f.bg.startsWith("data:") ? "" : f.bg}
+          onChange={up("bg")} disabled={!!(f.bg && f.bg.startsWith("data:"))}
+          placeholder="…ou cole o link (URL) de uma foto" aria-label="Link de uma foto" />
         {f.bg ? (
           <div style={{ marginTop: 8, height: 90, borderRadius: 10, overflow: "hidden", border: "1px solid #e5e2da" }}>
             <img src={f.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           </div>
-        ) : null}
+        ) : (
+          <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>Sem foto, a viagem ganha uma capa ilustrada.</div>
+        )}
 
+        {/* Fecha o formulário dizendo o que os dois botões do rodapé fazem. A
+            escolha está lá, na hora de agir — aqui fica só o aviso do que o Ali
+            leva em conta, para ninguém achar que preencheu à toa. */}
         {isNew && (
-          <>
-            <label style={lbl}>Como criar o roteiro?</label>
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              {modeBtn("empty", "Começar vazia")}
-              {modeBtn("ai", <><SparkIcon color={NAVY} size={14} />Gerar com o Ali</>)}
-            </div>
-            {mode === "ai" && (
-              <div style={{ marginTop: 10, background: "#faf7f1", borderRadius: 12, padding: "12px 14px" }}>
-                {diasCalc > 0 ? (
-                  <div style={{ fontSize: 13.5, color: INK2, fontWeight: 600 }}>
-                    O Ali vai montar <strong style={{ color: NAVY }}>{diasCalc} {diasCalc === 1 ? "dia" : "dias"}</strong> de roteiro{f.destination ? ` em ${f.destination}` : ""}.
-                  </div>
-                ) : (
-                  <>
-                    <label style={{ ...lbl, marginTop: 0 }}>Nº de dias</label>
-                    <input type="number" style={field} value={dias} onChange={(e) => setDias(e.target.value)} min={1} max={12} />
-                    <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>Preencha as datas acima para calcular sozinho.</div>
-                  </>
-                )}
-                <div style={{ fontSize: 12, color: "#8a7a63", marginTop: 8, lineHeight: 1.5 }}>Ele usa o destino, as datas, o orçamento e os interesses. Você pode editar tudo depois.</div>
+          <div style={{ marginTop: 20, background: "#faf7f1", borderRadius: 12, padding: "12px 14px" }}>
+            {nDias > 0 ? (
+              <div style={{ fontSize: 13.5, color: INK2, fontWeight: 600 }}>
+                O Ali monta <strong style={{ color: NAVY }}>{nDias} {nDias === 1 ? "dia" : "dias"}</strong> de roteiro{f.destination ? ` em ${f.destination}` : ""} com o que você preencheu acima.
+              </div>
+            ) : (
+              <div style={{ fontSize: 13.5, color: INK2, fontWeight: 600 }}>
+                Informe as datas — ou quantos dias — para o Ali montar o roteiro.
               </div>
             )}
-          </>
+            <div style={{ fontSize: 12, color: "#8a7a63", marginTop: 8, lineHeight: 1.5 }}>
+              Ele usa o destino, as datas, o orçamento e os interesses. Você pode editar tudo depois — ou criar a viagem vazia e montar aos poucos.
+            </div>
+          </div>
         )}
       </div>
     </Sheet>
