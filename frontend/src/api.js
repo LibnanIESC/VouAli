@@ -41,13 +41,34 @@ async function fetchAuth(caminho, opcoes = {}) {
   return res;
 }
 
-// Configuração pública do servidor (modo de login e credenciais do Firebase).
+/**
+ * Configuração pública do servidor (modo de login e credenciais do Firebase).
+ *
+ * Guardada no aparelho de propósito. Sem rede, a resposta padrão dizia "modo
+ * token" — o ambiente antigo, de senha compartilhada — e o app perdia o usuário
+ * junto: sem uid, o cache era procurado sob "local", e as viagens guardadas
+ * ficavam invisíveis justamente no modo offline para o qual foram guardadas.
+ * A última configuração boa vale mais que um palpite de fábrica.
+ *
+ * Devolve `{ offline: true }` quando nem isso existe: dizer "sem conexão" é
+ * melhor do que fingir que o app é de outro tipo e pedir uma senha inexistente.
+ */
+const CONFIG_KEY = "vouali:config";
+
 export async function apiConfig() {
   try {
     const res = await fetch(url("/api/config"));
-    if (!res.ok) return { authMode: "token", firebase: null };
-    return await res.json();
-  } catch (e) { return { authMode: "token", firebase: null }; }
+    if (!res.ok) throw new Error("config indisponível");
+    const cfg = await res.json();
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); } catch (e) {}
+    return cfg;
+  } catch (e) {
+    try {
+      const guardada = localStorage.getItem(CONFIG_KEY);
+      if (guardada) return { ...JSON.parse(guardada), doCache: true };
+    } catch (e2) {}
+    return { authMode: "token", firebase: null, offline: true };
+  }
 }
 // Pedido de senha: avisa o App (que mostra a tela de desbloqueio própria).
 let _authCb = null;

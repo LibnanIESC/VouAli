@@ -4,6 +4,7 @@ import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, I
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
+import { montarBackup, lerBackup, nomeDoArquivo } from "./backup";
 import { diaDeHoje, rotuloDoDia } from "./tripmeta";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar, salvarArquivo } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
@@ -83,6 +84,10 @@ export default function App() {
   const [needKey, setNeedKey] = useState(false); // servidor pediu a senha (401)
   const [keyInput, setKeyInput] = useState("");
   const [authMode, setAuthMode] = useState(null);  // null = ainda perguntando ao servidor
+  // Sem rede E sem nenhuma configuração guardada: não dá para saber sequer que
+  // tipo de app é este. Melhor dizer isso do que cair no ambiente errado.
+  const [semConfig, setSemConfig] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
   const [user, setUser] = useState(undefined);     // undefined = carregando · null = deslogado
   const fbRef = useRef(null);                      // módulo do Firebase (carregado sob demanda)
   // Qual viagem está aberta, legível de dentro de callbacks antigos (polling,
@@ -140,6 +145,10 @@ export default function App() {
   useEffect(() => {
     (async () => {
       const cfg = await apiConfig();
+      // Primeira abertura sem rede: nunca soubemos o ambiente. Seguir para o
+      // modo token seria pedir a senha de um app que esta pessoa nunca usou.
+      if (cfg.offline) { setSemConfig(true); return; }
+      setSemConfig(false);
       if (cfg.authMode === "firebase" && cfg.firebase && cfg.firebase.apiKey) {
         const fb = await import("./firebase");     // SDK só carrega quando usado
         fbRef.current = fb;
@@ -152,12 +161,12 @@ export default function App() {
         setUser(null);
       }
     })();
-  }, []);
+  }, [tentativa]);
 
   const autenticado = authMode === "token" || (authMode === "firebase" && !!user);
   // Enquanto não sabemos quem está logado, nada da interface aparece — a splash
   // do index.html continua na frente.
-  const conferindoAcesso = authMode === null || (authMode === "firebase" && user === undefined);
+  const conferindoAcesso = !semConfig && (authMode === null || (authMode === "firebase" && user === undefined));
   const precisaLogin = authMode === "firebase" && user === null;
 
   // Tira a splash assim que já dá para mostrar login ou app.
@@ -385,9 +394,8 @@ export default function App() {
 
   // ---------- Backup (export / import JSON — acionado pelo sheet Ajustes) ----------
   const exportBackup = async () => {
-    const data = { days, budget, prebuy, notes, exportedAt: new Date().toISOString() };
-    const nome = `vouali-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    const r = await salvarArquivo(nome, JSON.stringify(data, null, 2));
+    const arquivo = montarBackup(activeMeta, { days, budget, prebuy, notes });
+    const r = await salvarArquivo(nomeDoArquivo(activeMeta), JSON.stringify(arquivo, null, 2));
     if (!r.ok) toastMsg("Não consegui salvar a cópia agora. Tenta de novo.");
   };
   const importBackup = (file) => {
@@ -397,20 +405,27 @@ export default function App() {
       let obj;
       try { obj = JSON.parse(reader.result); }
       catch (e) { toastMsg("Não consegui ler o arquivo: JSON inválido."); return; }
-      if (!obj || (!obj.days && !obj.budget && !obj.prebuy && !obj.notes)) {
-        toastMsg("Arquivo inválido: não parece um backup do VouAli."); return;
-      }
-      setOv({ kind: "confirmImport", data: obj });
+      const lido = lerBackup(obj);
+      if (!lido) { toastMsg("Arquivo inválido: não parece um backup do VouAli."); return; }
+      setOv({ kind: "confirmImport", backup: lido });
     };
     reader.readAsText(file);
   };
-  const doImport = (obj) => {
+  // Importar cria uma viagem NOVA. Escrever por cima da viagem aberta continua
+  // possível, mas só quando a pessoa pede — antes era o único comportamento, e
+  // um backup restaurado com a viagem errada na tela apagava a viagem errada.
+  const importarComoNova = async ({ meta, state }) => {
     setOv(null);
     if (bloqueado()) return;
-    applyState(obj);
-    const snap = { days: obj.days || days, budget: obj.budget || budget, prebuy: obj.prebuy || prebuy, notes: obj.notes || notes };
-    apiPut(snap);
-    guardarEstado(ativaRef.current, snap);
+    await createTrip({ ...meta, data: state });
+    toastMsg("Viagem importada. ✅");
+  };
+  const importarPorCima = ({ state }) => {
+    setOv(null);
+    if (bloqueado()) return;
+    applyState(state);
+    apiPut(state);
+    guardarEstado(ativaRef.current, state);
     toastMsg("Backup importado. ✅");
   };
 
@@ -851,6 +866,22 @@ export default function App() {
         </div>
       </div>
 
+      {/* Primeira abertura sem rede: não dá para adivinhar o ambiente. */}
+      {semConfig && (
+        <div style={{ position: "fixed", inset: 0, background: CREAM, zIndex: 45, display: "flex", alignItems: "center", justifyContent: "center", padding: 26, boxSizing: "border-box" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", maxWidth: 320 }}>
+            <AliAvatar size={92} portrait ring={ORANGE} />
+            <div style={{ fontSize: 21, fontWeight: 800, color: NAVY, marginTop: 18, fontFamily: DISPLAY }}>Sem conexão</div>
+            <div style={{ fontSize: 15, color: INK2, fontWeight: 500, marginTop: 10, lineHeight: 1.55 }}>
+              Preciso da internet só desta vez, para preparar o app. Depois ele abre sem rede.
+            </div>
+            <button onClick={() => setTentativa((t) => t + 1)} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 24 }}>
+              Tentar de novo
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Tela de entrada (modo com contas), antes de qualquer dado */}
       {precisaLogin && (
         <Login
@@ -913,10 +944,13 @@ export default function App() {
           ]} />
       )}
       {ov?.kind === "confirmImport" && (
-        <ActionSheet message="Substituir todos os dados atuais pela cópia do arquivo?"
+        <ActionSheet message={`Importar "${ov.backup.meta.name}" do arquivo?`}
           onClose={() => setOv(null)}
           actions={[
-            { label: "Substituir dados", danger: true, onClick: () => doImport(ov.data) },
+            { label: "Criar viagem nova", onClick: () => importarComoNova(ov.backup) },
+            ...(trips.active && activeMeta.name
+              ? [{ label: `Substituir "${activeMeta.name}"`, danger: true, onClick: () => importarPorCima(ov.backup) }]
+              : []),
             { label: "Cancelar", onClick: () => setOv(null) },
           ]} />
       )}
