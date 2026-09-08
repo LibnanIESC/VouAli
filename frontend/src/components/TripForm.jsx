@@ -6,7 +6,7 @@ import { apiGenerate } from "../api";
 import { toast } from "../toast";
 import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3 } from "../theme";
-import { digitarNumero, numeroDoCampo, campoDeNumero } from "../utils";
+import { digitarNumero, numeroDoCampo, campoDeNumero, estimativaGeracao } from "../utils";
 
 const GEN_MSGS = [
   "Desenhando seus dias…",
@@ -23,12 +23,18 @@ const GEN_MSGS = [
  * de boas-vindas atrás — com OUTRO retrato do Ali. Dois Alis ao mesmo tempo
  * confundem, e são quinze segundos olhando para isso.
  */
-function GenProgress() {
+function GenProgress({ dias }) {
   const [i, setI] = useState(0);
+  const [passou, setPassou] = useState(0);     // segundos desde que começou
+  const { segundos, texto } = estimativaGeracao(dias);
   useEffect(() => {
     const iv = setInterval(() => setI((x) => (x + 1) % GEN_MSGS.length), 2200);
-    return () => clearInterval(iv);
+    const relogio = setInterval(() => setPassou((s) => s + 1), 1000);
+    return () => { clearInterval(iv); clearInterval(relogio); };
   }, []);
+  // Passar da estimativa é normal em roteiros longos. Dizer isso é melhor do
+  // que deixar a pessoa achando que o app travou e fechar no meio.
+  const pct = Math.min(100, Math.round((passou / segundos) * 100));
   return (
     <div aria-live="polite" role="status"
       style={{ position: "fixed", inset: 0, zIndex: 60, background: CREAM, display: "flex", justifyContent: "center", alignItems: "center", padding: "24px", boxSizing: "border-box" }}>
@@ -36,7 +42,14 @@ function GenProgress() {
         <AliAvatar size={104} portrait ring={ORANGE} />
         <div style={{ fontSize: 21, fontWeight: 800, color: NAVY, marginTop: 20, fontFamily: DISPLAY }}>Ali está montando seu roteiro</div>
         <div key={i} style={{ fontSize: 15.5, fontWeight: 600, color: INK2, marginTop: 10, animation: "fadeUp .35s ease" }}>{GEN_MSGS[i]}</div>
-        <div style={{ fontSize: 13, color: INK3, fontWeight: 500, marginTop: 26, lineHeight: 1.5 }}>Isso leva uns 15 segundos. Depois você pode editar tudo.</div>
+        <div aria-hidden="true" style={{ width: "100%", maxWidth: 260, height: 6, borderRadius: 999, background: "#e9e2d4", marginTop: 26, overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: ORANGE, borderRadius: 999, transition: "width 1s linear" }} />
+        </div>
+        <div style={{ fontSize: 13, color: INK3, fontWeight: 500, marginTop: 14, lineHeight: 1.5 }}>
+          {passou < segundos
+            ? <>Isso leva {texto}. Depois você pode editar tudo.</>
+            : <>Roteiros longos levam um pouco mais. Já está terminando.</>}
+        </div>
       </div>
     </div>
   );
@@ -170,7 +183,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
   );
 
   // Enquanto gera, a tela de espera toma o lugar da gaveta inteira.
-  if (gerando) return <GenProgress />;
+  if (gerando) return <GenProgress dias={nDias} />;
 
   return (
     <Sheet onClose={onClose} acoes={acoes}>

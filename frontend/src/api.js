@@ -73,16 +73,44 @@ export function onStatus(fn) { _statusSubs.add(fn); fn(_status); return () => _s
 let _version = 0;          // última versão conhecida do servidor
 let _dirty = false;        // há edição local pendente de gravação?
 let _onRemote = null;      // handler que aplica estado vindo do servidor
+// Já recebemos o conteúdo da viagem do servidor nesta sessão? Enquanto for
+// falso, a tela pode estar vazia por não ter carregado — e gravar por cima
+// apagaria a viagem de todo mundo. Ver a trava em apiPut/flushNow.
+let _carregado = false;
 export function setRemoteHandler(fn) { _onRemote = fn; }
 export function isDirty() { return _dirty; }
 
 let _etag = "";            // marca da última versão que já temos
 
+/**
+ * Esquece tudo o que sabemos da sessão anterior.
+ *
+ * O app é uma página só: sair da conta NÃO recarrega o JavaScript, então
+ * `_etag`, `_version` e a pendência de gravação sobreviviam à troca de conta.
+ * Numa viagem COMPARTILHADA isso apagava a viagem: o id é o mesmo para as duas
+ * pessoas, o servidor via a marca antiga, respondia 304 "nada mudou", e a
+ * segunda conta abria a viagem em branco — pronta para gravar o branco por
+ * cima do roteiro de todo mundo.
+ */
+export function resetSessao() {
+  clearTimeout(putTimer);
+  _etag = "";
+  _version = 0;
+  _pending = null;
+  _dirty = false;
+  _carregado = false;
+  _activePendente = null;
+  setStatus("synced");
+}
+
 // Busca o estado do servidor. Retorna { state, version }, { naoMudou: true }
 // quando nada mudou desde a última consulta, ou null em falha.
-export async function apiGet() {
+// `ignorarCache` pede o conteúdo inteiro mesmo que a marca ainda pareça válida:
+// é o que se usa logo depois de entrar, quando não há nada em tela para
+// aproveitar e um 304 deixaria a viagem vazia.
+export async function apiGet(ignorarCache = false) {
   try {
-    const marca = _etag ? { "If-None-Match": _etag } : {};   // pergunta leve: "mudou?"
+    const marca = _etag && !ignorarCache ? { "If-None-Match": _etag } : {};   // pergunta leve: "mudou?"
     const res = await fetchAuth("/api/state", { headers: marca, cache: "no-store" });
     if (res.status === 401) { promptToken(); return null; }
     if (res.status === 304) {                      // nada mudou: sem corpo
@@ -94,6 +122,7 @@ export async function apiGet() {
     const j = await res.json();
     if (typeof j.version === "number") _version = j.version;
     if (_status === "offline") setStatus("synced");
+    if (j && j.state) _carregado = true;
     return { state: j && j.state ? j.state : null, version: _version };
   } catch (e) { setStatus("offline"); return null; }
 }
@@ -101,6 +130,9 @@ export async function apiGet() {
 let putTimer = null;
 let _pending = null;       // último snapshot ainda não confirmado pelo servidor
 export function apiPut(state) {
+  // Nada foi carregado ainda: o que está na tela não é a viagem, é o vazio de
+  // antes de carregar. Gravar aqui apagaria o roteiro para todos os membros.
+  if (!_carregado) return;
   _dirty = true;
   _pending = state;
   setStatus("saving");
@@ -139,6 +171,7 @@ export function flushPending() { if (_dirty && _pending) apiPut(_pending); }
 // Usado antes de trocar de viagem, para a pendência não cair na viagem errada.
 export async function flushNow() {
   clearTimeout(putTimer);
+  if (!_carregado) { _dirty = false; _pending = null; return; }   // mesma trava do apiPut
   if (!(_dirty && _pending)) return;
   try {
     const res = await fetchAuth("/api/state", {

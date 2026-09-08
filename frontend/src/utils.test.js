@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { digitarNumero, numeroDoCampo, campoDeNumero } from "./utils";
+import { digitarNumero, numeroDoCampo, campoDeNumero, estimativaGeracao } from "./utils";
 
 // O campo de valor mostrava "0130" enquanto o estado já valia 130: o React
 // não corrige a tela de um <input type="number"> porque compara com `!=`, e
@@ -68,6 +68,40 @@ describe("ida e volta entre campo e número", () => {
   it("o valor salvo reaparece igual ao reabrir o formulário", () => {
     [130, 1800, 3000, 1234.5].forEach((n) => {
       expect(numeroDoCampo(campoDeNumero(n))).toBe(n);
+    });
+  });
+});
+
+// A tela de espera prometia "uns 15 segundos" e uma viagem de 10 dias levou
+// 1min26 — a espera normal virava sensação de app travado.
+describe("estimativaGeracao", () => {
+  it("acompanha a medição real: 10 dias ficam perto de 1min26", () => {
+    const { segundos } = estimativaGeracao(10);
+    expect(segundos).toBeGreaterThanOrEqual(75);
+    expect(segundos).toBeLessThanOrEqual(95);
+  });
+
+  it("cresce com o número de dias", () => {
+    const seq = [1, 3, 7, 12].map((d) => estimativaGeracao(d).segundos);
+    expect(seq).toEqual([...seq].sort((a, b) => a - b));
+    expect(new Set(seq).size).toBe(seq.length);
+  });
+
+  it("não promete precisão que não temos", () => {
+    expect(estimativaGeracao(1).texto).toBe("menos de um minuto");
+    expect(estimativaGeracao(10).texto).toBe("cerca de um minuto e meio");
+  });
+
+  it("tem teto: nem a viagem mais longa vira uma estimativa absurda", () => {
+    expect(estimativaGeracao(365).segundos).toBe(180);
+    expect(estimativaGeracao(365).texto).toBe("cerca de três minutos");
+  });
+
+  it("aguenta entrada faltando ou inválida", () => {
+    [0, -3, undefined, null, "", "abc"].forEach((d) => {
+      const r = estimativaGeracao(d);
+      expect(r.segundos).toBeGreaterThan(0);
+      expect(r.texto).toBeTruthy();
     });
   });
 });

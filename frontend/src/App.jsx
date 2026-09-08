@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao } from "./api";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { diaDeHoje, rotuloDoDia } from "./tripmeta";
@@ -121,6 +121,7 @@ export default function App() {
   // diante de uma conta que parece vazia e onde nada funciona.
   useEffect(() => onSessaoMorta(async () => {
     if (!fbRef.current) return;
+    resetSessao();
     limparCache();
     setTrips({ active: null, list: [] });
     setBooted(false);
@@ -198,6 +199,10 @@ export default function App() {
   //    roteiro na mão mesmo sem rede, e o servidor só corrige por cima.
   useEffect(() => {
     if (!autenticado) return;
+    // Entrou uma conta: nada do que a anterior sabia vale aqui. `sair()` já
+    // limpa, mas repetir aqui cobre todo caminho de troca de conta — inclusive
+    // os que ainda não existem.
+    resetSessao();
     definirDono(user && user.uid);
     setRemoteHandler((s) => { applyState(s); guardarEstado(ativaRef.current, s); });
     let vivo = true;
@@ -216,7 +221,9 @@ export default function App() {
       if (vivo && t) { setTrips(t); guardarViagens(t); }
       const idx = t || guardadas;
       const ativa = idx && idx.active;
-      const r = await apiGet();
+      // Busca completa, sem "mudou?": aqui não há nada em tela para aproveitar,
+      // e um 304 deixaria a viagem em branco.
+      const r = await apiGet(true);
       if (vivo && r && r.state) {
         applyState(r.state);
         guardarEstado(ativa, r.state);
@@ -247,6 +254,7 @@ export default function App() {
   const excluirConta = async () => {
     const r = await apiExcluirConta();
     if (!r || !r.ok) { toastMsg("Não consegui excluir a conta agora. Tenta de novo."); return; }
+    resetSessao();
     limparCache();
     setTrips({ active: null, list: [] });
     replaceState(null);
@@ -260,6 +268,7 @@ export default function App() {
   const sair = async () => {
     if (!fbRef.current) return;
     await flushNow();
+    resetSessao();                 // ETag e versão desta conta não valem para a próxima
     limparCache();                 // a próxima conta não pode ver esta viagem
     await fbRef.current.logout();
     setTrips({ active: null, list: [] });
