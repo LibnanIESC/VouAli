@@ -25,6 +25,12 @@
   .caixa { background:#fff; border:1px solid var(--linha); border-radius:14px; padding:16px 18px; margin-top:14px }
   .destaque { background:#fdece9; border-color:#f3cdc6; color:#8c3a2c }
   footer { margin-top:44px; padding-top:18px; border-top:1px solid var(--linha); font-size:14px; color:#8a8272 }
+  /* Alvo de toque de verdade. Como texto solto, cada link do rodapé tinha 18px
+     de altura — menos de metade dos 48px recomendados — e ainda ficava na última
+     linha da página, colado na faixa onde o Android captura gestos. O link
+     funcionava; só era preciso acertar o dedo nele. */
+  footer a { display:inline-block; padding:11px 6px; min-height:44px; box-sizing:border-box; line-height:22px }
+  footer .sep { padding:0 2px }
   @media (prefers-color-scheme: dark) {
     :root { --creme:#151d2b; --tinta:#c6cedb; --navy:#dbe6f5; --linha:#2b3446 }
     .caixa { background:#1c2536 } th { background:#222c3f } .destaque { background:#3a2320; color:#f0b7ac; border-color:#4d2d28 }
@@ -93,7 +99,7 @@
 
   <footer>
     VouAli · Libnan Inteligência Empresarial e Soluções Contábeis Ltda<br />
-    <a href="/termos">Termos de Uso</a> · <a href="/excluir-conta">Excluir minha conta</a>
+    <a href="/termos">Termos de Uso</a><span class="sep">·</span><a href="/excluir-conta">Excluir minha conta</a>
   </footer>
 </div>
 </body>
