@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
-import { apiUsage } from "../api";
+import { apiUsage, url } from "../api";
 import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
 
 // Barrinha de consumo de um recurso da IA no mês.
@@ -79,11 +79,19 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
             A versão é o que serve: é por ela que se sabe o que a pessoa tem
             instalado quando algo dá errado. */}
         {/* A Play Store exige que a política seja alcançável de dentro do app,
-            e não só pelo link da ficha da loja. */}
+            e não só pelo link da ficha da loja.
+
+            O endereço tem de ser ABSOLUTO. Um `/privacidade` relativo funciona
+            no site, onde o backend serve essa rota, mas no app instalado a
+            interface roda em `https://localhost` — dentro do APK não existe
+            servidor nessa rota, e o link simplesmente não ia a lugar nenhum.
+            `url()` resolve para o servidor de produção, e o Capacitor abre
+            endereço externo no navegador do sistema em vez de sequestrar a
+            tela do app. */}
         <div style={{ display: "flex", justifyContent: "center", gap: 14, marginTop: 22, fontSize: 12.5 }}>
-          <a href="/privacidade" target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Privacidade</a>
+          <a href={url("/privacidade")} target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Privacidade</a>
           <span style={{ color: "#c9cfd8" }}>·</span>
-          <a href="/termos" target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Termos de uso</a>
+          <a href={url("/termos")} target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Termos de uso</a>
         </div>
         <div style={{ fontSize: 12, color: "#98a1ae", fontWeight: 600, marginTop: 12, textAlign: "center" }}>VouAli · versão {__VERSAO__}</div>
       </div>
