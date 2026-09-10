@@ -143,6 +143,11 @@ limite tem **custo real**: cada roteiro gerado queima API. Plano completo em
 A única etapa que dá para fazer **antes** de publicar é o painel de custo por
 usuário — é ele que evita escolher o preço no escuro.
 
+### Painel administrativo
+Serviço próprio, separado do backend, para ver usuários, uso da IA e custo — e
+agir em casos de suporte. É onde a etapa 6.1 mora. Plano em
+[ADMIN.md](ADMIN.md).
+
 ---
 
 ## 4. Custos previstos
