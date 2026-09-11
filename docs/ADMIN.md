@@ -51,6 +51,16 @@ A tela de **Custo** é a etapa 6.1 do [MONETIZACAO.md](MONETIZACAO.md). O
 `ai_usage` já grava `tokens_in` e `tokens_out` por conta e por mês; falta
 apenas ler. É ela que troca estimativa por número real na hora de decidir preço.
 
+> ⚠️ **O custo por roteiro é um TETO, não o valor exato.** O `ai_usage` agrega
+> os tokens por conta e período, sem separar geração de conversa e de dica — o
+> painel divide o gasto das contas que geraram pelo número de roteiros, e isso
+> carrega junto as conversas dessas contas. O roteiro custa aquilo ou menos.
+>
+> Para ter o número exato seria preciso separar os tokens por tipo no backend
+> (colunas `tokens_gen_in/out`, `tokens_chat_in/out`, …). Vale fazer **antes**
+> de escolher preço para valer; não vale mexer no backend agora, sem
+> laboratório, só por causa disso.
+
 ### O que o painel NÃO mostra
 
 **O conteúdo das viagens.** Nem roteiro, nem orçamento, nem notas — só

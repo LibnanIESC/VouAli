@@ -114,6 +114,33 @@ def moeda(v) -> str:
     return f"R$ {inteiro.replace(',', '.')},{decimal}"
 
 
+def data_curta(ts) -> str:
+    """Timestamp unix -> '10/09/2026'. Zero vira travessão, não 1970."""
+    from datetime import datetime, timezone
+    n = int(ts or 0)
+    if n <= 0:
+        return "—"
+    return datetime.fromtimestamp(n, timezone.utc).strftime("%d/%m/%Y")
+
+
+def linha(*celulas: str) -> str:
+    return "<tr>" + "".join(celulas) + "</tr>"
+
+
+def td(conteudo: str, classe: str = "") -> str:
+    return f"<td class='{classe}'>{conteudo}</td>" if classe else f"<td>{conteudo}</td>"
+
+
+def sub(texto: str) -> str:
+    """Segunda linha de uma célula, em cinza — nome sob o e-mail, destino sob
+    o nome da viagem."""
+    return f"<div class='hint'>{esc(texto)}</div>" if texto else ""
+
+
+def vazio(colunas: int, texto: str) -> str:
+    return f"<tr><td colspan='{colunas}' class='vazio'>{esc(texto)}</td></tr>"
+
+
 def plural(n: int, singular: str, plural_: str = "") -> str:
     """'1 compartilhada' / '2 compartilhadas' — sem o 's' solto entre parênteses."""
     return singular if abs(int(n or 0)) == 1 else (plural_ or f"{singular}s")

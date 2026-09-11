@@ -25,7 +25,9 @@ from ..security import (
 )
 from ..services import admin_2fa, rate_limit
 from ..style import (
+    data_curta,
     esc,
+    linha,
     moeda,
     numero,
     pagina,
@@ -35,6 +37,9 @@ from ..style import (
     pagina_desabilitado,
     pagina_login,
     plural,
+    sub,
+    td,
+    vazio,
 )
 from .. import consultas
 
@@ -236,3 +241,213 @@ def dashboard(request: Request):
 </div>
 """
     return HTMLResponse(pagina("Dashboard", corpo, "/admin"))
+
+
+# ── Usuários ─────────────────────────────────────────────────────────────────
+
+def _linha_usuario(u: dict) -> str:
+    link = f"<a href='/admin/usuarios/{esc(u['uid'])}'>{esc(u['email'] or u['uid'])}</a>"
+    return linha(
+        td(link + sub(u["nome"])),
+        td(esc(data_curta(u["criado_em"]))),
+        td(str(u["viagens"]), "num"),
+        td(str(u["chamadas"]) if u["chamadas"] else "—", "num"),
+        td(moeda(u["custo"]) if u["custo"] else "—", "num"),
+    )
+
+
+@router.get("/usuarios", response_class=HTMLResponse)
+def usuarios(request: Request, busca: str = ""):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    lista = consultas.listar_usuarios(busca)
+    linhas = "".join(_linha_usuario(u) for u in lista) or vazio(5, "Nenhum usuário encontrado.")
+
+    corpo = f"""
+<h1>Usuários</h1>
+
+<div class='card'>
+  <form method='get' action='/admin/usuarios' style='display:flex;gap:10px'>
+    <input name='busca' value='{esc(busca)}' placeholder='Buscar por e-mail ou nome'>
+    <button class='btn' type='submit' style='flex:0 0 auto'>Buscar</button>
+  </form>
+</div>
+
+<div class='card'>
+  <h2>{numero(len(lista))} {plural(len(lista), "usuário", "usuários")}
+      <span style='font-weight:600;color:#8a8272;font-size:13px'>· consumo do mês corrente</span></h2>
+  <table>
+    <tr><th>Conta</th><th>Entrou em</th><th class='num'>Viagens</th>
+        <th class='num'>Chamadas</th><th class='num'>Custo</th></tr>
+    {linhas}
+  </table>
+</div>
+"""
+    return HTMLResponse(pagina("Usuários", corpo, "/admin/usuarios"))
+
+
+def _linha_viagem(v: dict) -> str:
+    papel = ("<span class='badge ok'>dono</span>" if v["papel"] == "owner"
+             else "<span class='badge warn'>editor</span>")
+    return linha(
+        td(esc(v["name"]) + sub(v["destination"])),
+        td(esc(v["dateLabel"] or "—")),
+        td(papel),
+        td(esc(data_curta(v["atualizada_em"]))),
+    )
+
+
+def _linha_uso(m: dict) -> str:
+    return linha(
+        td(esc(m["periodo"])),
+        td(str(m["gen"]), "num"),
+        td(str(m["chat"]), "num"),
+        td(str(m["tip"]), "num"),
+        td(numero(m["tokens"]), "num"),
+        td(moeda(m["custo"]), "num"),
+    )
+
+
+@router.get("/usuarios/{uid}", response_class=HTMLResponse)
+def usuario(request: Request, uid: str):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    u = consultas.detalhe_usuario(uid)
+    if not u:
+        return HTMLResponse(
+            pagina("Usuário", "<div class='notice bad'>Conta não encontrada.</div>", "/admin/usuarios"),
+            status_code=404,
+        )
+
+    viagens = "".join(_linha_viagem(v) for v in u["viagens"]) or vazio(4, "Nenhuma viagem.")
+    uso = "".join(_linha_uso(m) for m in u["uso"]) or vazio(6, "Nunca usou a IA.")
+    total = sum(m["custo"] for m in u["uso"])
+
+    corpo = f"""
+<h1>{esc(u["email"] or u["uid"])}</h1>
+<p style='margin:-8px 0 18px;color:#8a8272;font-size:14px'>
+  {esc(u["nome"] or "sem nome")} · entrou em {esc(data_curta(u["criado_em"]))} ·
+  <code>{esc(u["uid"])}</code>
+</p>
+
+<div class='grid cols-3'>
+  {_metrica("Viagens", numero(len(u["viagens"])))}
+  {_metrica("Meses com uso", numero(len(u["uso"])))}
+  {_metrica("Custo acumulado", moeda(total), "desde que a conta existe")}
+</div>
+
+<div class='card'>
+  <h2>Viagens</h2>
+  <p style='margin:-6px 0 10px;font-size:13px;color:#8a8272'>
+    Só a identidade da viagem. Roteiro, orçamento e notas ficam no app, com quem escreveu.
+  </p>
+  <table>
+    <tr><th>Viagem</th><th>Datas</th><th>Papel</th><th>Última edição</th></tr>
+    {viagens}
+  </table>
+</div>
+
+<div class='card'>
+  <h2>Uso da IA, mês a mês</h2>
+  <table>
+    <tr><th>Período</th><th class='num'>Roteiros</th><th class='num'>Conversas</th>
+        <th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>
+    {uso}
+  </table>
+</div>
+
+<p><a href='/admin/usuarios'>← Voltar</a></p>
+"""
+    return HTMLResponse(pagina(u["email"] or "Usuário", corpo, "/admin/usuarios"))
+
+
+# ── Custo ────────────────────────────────────────────────────────────────────
+
+def _linha_custo(u: dict) -> str:
+    link = f"<a href='/admin/usuarios/{esc(u['uid'])}'>{esc(u['email'] or u['uid'])}</a>"
+    return linha(
+        td(link),
+        td(str(u["gen"]), "num"),
+        td(str(u["chat"]), "num"),
+        td(str(u["tip"]), "num"),
+        td(numero(u["tokens"]), "num"),
+        td(moeda(u["custo"]), "num"),
+    )
+
+
+@router.get("/custo", response_class=HTMLResponse)
+def custo(request: Request, periodo: str = ""):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    c = consultas.custos(periodo)
+    opcoes = "".join(
+        f"<option value='{esc(p)}'{' selected' if p == c['periodo'] else ''}>{esc(p)}</option>"
+        for p in (c["periodos"] or [c["periodo"]])
+    )
+    linhas = "".join(_linha_custo(u) for u in c["usuarios"]) or vazio(6, "Ninguém usou a IA neste período.")
+
+    projecao = ""
+    if c["periodo"] == consultas.periodo_atual():
+        projecao = f"""
+<div class='card'>
+  <h2>Se o mês seguir neste ritmo</h2>
+  <p style='margin:0;font-size:14px'>
+    Fecharia em <strong>{moeda(c["projecao"])}</strong> — o gasto até agora,
+    esticado até o fim do mês. Serve para ver se o fusível vai apertar, não para orçamento.
+  </p>
+</div>"""
+
+    corpo = f"""
+<h1>Custo</h1>
+
+<div class='card'>
+  <form method='get' action='/admin/custo' style='display:flex;gap:10px;align-items:center'>
+    <label style='font-size:14px;font-weight:700;flex:0 0 auto'>Período</label>
+    <select name='periodo' onchange='this.form.submit()'>{opcoes}</select>
+    <noscript><button class='btn' type='submit'>Ver</button></noscript>
+  </form>
+</div>
+
+<div class='grid cols-4'>
+  {_metrica("Total do período", moeda(c["total"]),
+            f"{c['ativos']} de {c['total_usuarios']} contas usaram")}
+  {_metrica("Média por conta ativa", moeda(c["media_por_ativo"]), "só quem usou a IA")}
+  {_metrica("Média por conta", moeda(c["media_por_usuario"]), "diluído por toda a base")}
+  {_metrica("p90", moeda(c["p90"]), "9 em cada 10 gastam menos que isso")}
+</div>
+
+<div class='card'>
+  <h2>Custo por roteiro <span class='badge warn'>teto</span></h2>
+  <p style='margin:0;font-size:14px'>
+    <strong style='font-size:22px'>{moeda(c["custo_por_roteiro"])}</strong>
+    &nbsp;·&nbsp; {c["gen"]} {plural(c["gen"], "roteiro")} no período.
+  </p>
+  <p style='margin:8px 0 0;font-size:13px;color:#8a8272'>
+    <strong>Limite superior, não valor exato.</strong> O banco soma os tokens de
+    todas as operações por conta, sem separar geração de conversa — então este
+    número divide o gasto das contas que geraram pelo número de roteiros, e
+    carrega junto as conversas delas. O roteiro custa isso <em>ou menos</em>.
+  </p>
+  <p style='margin:6px 0 0;font-size:13px;color:#8a8272'>
+    Mesmo como teto serve para decidir preço: gerar é a operação cara, e é por
+    ela que o plano gratuito se paga — ou não.
+  </p>
+</div>
+{projecao}
+
+<div class='card'>
+  <h2>Por conta</h2>
+  <table>
+    <tr><th>Conta</th><th class='num'>Roteiros</th><th class='num'>Conversas</th>
+        <th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>
+    {linhas}
+  </table>
+</div>
+"""
+    return HTMLResponse(pagina("Custo", corpo, "/admin/custo"))

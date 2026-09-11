@@ -138,6 +138,53 @@ def rodar() -> None:
     checa("sem roteiro, orçamento ou notas no HTML",
           not any(x in r.text for x in ("stops", "prebuy", '"days"', "insight")))
 
+    print("\n== usuários (A3) ==")
+    r = c.get("/admin/usuarios")
+    checa("lista abre", r.status_code == 200)
+    checa("mostra as 3 contas", all(e in r.text for e in
+          ("ana@exemplo.com", "bruno@exemplo.com", "caio@exemplo.com")))
+    checa("quem não usou a IA aparece com travessão, não com zero", ">—<" in r.text)
+
+    r = c.get("/admin/usuarios?busca=bruno")
+    checa("busca filtra", "bruno@exemplo.com" in r.text and "ana@exemplo.com" not in r.text)
+    checa("busca sem resultado não quebra",
+          "Nenhum usuário" in c.get("/admin/usuarios?busca=ninguem").text)
+
+    r = c.get("/admin/usuarios/u1")
+    checa("detalhe abre", r.status_code == 200)
+    checa("mostra a viagem pelo nome", "New York" in r.text)
+    checa("marca o papel de dono", "dono" in r.text)
+    checa("mostra o uso mês a mês", store.periodo_atual() in r.text)
+    checa("o detalhe NÃO expõe conteúdo da viagem",
+          not any(x in r.text for x in ("stops", "prebuy", '"days"', "insight")))
+
+    checa("uid inexistente devolve 404", c.get("/admin/usuarios/nao-existe").status_code == 404)
+
+    r = c.get("/admin/usuarios/u3")
+    checa("conta sem viagem nem uso não quebra",
+          r.status_code == 200 and "Nenhuma viagem" in r.text and "Nunca usou" in r.text)
+
+    print("\n== custo (A4) ==")
+    r = c.get("/admin/custo")
+    checa("tela de custo abre", r.status_code == 200)
+    checa("total do período confere", "R$ 0,96" in r.text)
+    checa("custo por roteiro aparece", "Custo por roteiro" in r.text)
+    checa("e se diz teto, nao valor exato", "teto" in r.text and "Limite superior" in r.text)
+    checa("p90 aparece", "p90" in r.text)
+    checa("projeção aparece no mês corrente", "Se o mês seguir neste ritmo" in r.text)
+    checa("2 de 3 contas usaram a IA", "2 de 3 contas usaram" in r.text)
+
+    r = c.get("/admin/custo?periodo=2020-01")
+    checa("período sem uso não quebra",
+          r.status_code == 200 and "Ninguém usou a IA neste período" in r.text)
+    checa("mês fechado não mostra projeção", "Se o mês seguir" not in r.text)
+
+    print("\n== as telas novas também exigem sessão ==")
+    sem = TestClient(app)
+    for rota in ("/admin/usuarios", "/admin/usuarios/u1", "/admin/custo"):
+        checa(f"{rota} barra sem login",
+              sem.get(rota, follow_redirects=False).status_code == 303)
+
     print("\n== logout ==")
     r = c.get("/admin/sair", follow_redirects=False)
     checa("logout redireciona ao login", r.status_code == 303)
