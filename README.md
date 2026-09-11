@@ -62,6 +62,9 @@ Volume em `/app/data` guarda o SQLite.
 | `ALI_RATE_MAX_USER` | Limite por conta na mesma janela (padrão 8) — evita que uma pessoa consuma a fila de todos. |
 | `QUOTA_CHAT` / `QUOTA_GEN` / `QUOTA_TIP` | Cota mensal por usuário (padrão 50 / 3 / 30). Só vale no modo com contas. |
 | `ALI_MONTHLY_CAP` | Fusível global: total de chamadas de IA no mês para o app inteiro. `0` = sem teto. |
+| `MAX_BODY_BYTES` | Teto de tamanho de qualquer requisição (padrão ~1,5 MB; 413 acima). Ver [docs/SEGURANCA.md](docs/SEGURANCA.md). |
+| `ALI_MAX_CONTEXT_CHARS` | Teto do contexto enviado à IA por chamada (padrão 60 000 ≈ 15 k tokens) — trava o custo de um pedido só. |
+| `MAX_TRIPS_POR_CONTA` / `MAX_MEMBROS_POR_VIAGEM` | Tetos anti-abuso (padrão 60 / 20; 409 ao estourar). |
 | `ENVIRONMENT` | Rótulo do ambiente, exposto em `/api/health`. |
 | `DATA_DIR` | Pasta do SQLite (padrão `/app/data`). |
 | `PORT` | Definido automaticamente pelo Railway. |

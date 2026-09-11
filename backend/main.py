@@ -58,6 +58,14 @@ QUOTAS = {
 # 0 = sem teto global.
 AI_MONTHLY_CAP = int(os.getenv("ALI_MONTHLY_CAP", "0"))
 
+# Tetos contra abuso. O cliente controla o corpo do pedido; sem estes limites
+# uma conta sozinha derruba o banco (viagem gigante), enche a base (viagens em
+# massa) ou queima a fatura da IA (contexto imenso num único chat).
+MAX_BODY = int(os.getenv("MAX_BODY_BYTES", str(1_500_000)))     # ~1,5 MB por requisição
+MAX_AI_CHARS = int(os.getenv("ALI_MAX_CONTEXT_CHARS", str(60_000)))  # ~15k tokens de entrada
+MAX_TRIPS = int(os.getenv("MAX_TRIPS_POR_CONTA", "60"))
+MAX_MEMBERS = int(os.getenv("MAX_MEMBROS_POR_VIAGEM", "20"))
+
 # Rate limit (janela deslizante, em memória): um global, contra loop/abuso, e
 # um POR CONTA, para um usuário sozinho não consumir a fila de todo mundo.
 AI_RATE_MAX = int(os.getenv("ALI_RATE_MAX", "20"))       # nº de chamadas
@@ -381,6 +389,15 @@ def _active_key(con):
 
 app = FastAPI(title="VouAli")
 
+@app.middleware("http")
+async def limitar_tamanho(request: Request, call_next):
+    """Recusa corpos absurdos ANTES de lê-los na memória. Um PUT de dezenas de
+    MB não pode nem chegar ao banco nem virar contexto de IA."""
+    tam = request.headers.get("content-length")
+    if tam and tam.isdigit() and int(tam) > MAX_BODY:
+        return JSONResponse({"error": "too_large", "max": MAX_BODY}, status_code=413)
+    return await call_next(request)
+
 # O app Android roda a interface embarcada no aparelho, então as chamadas à
 # API vêm de outra origem. Sem isto, o navegador do app bloqueia tudo.
 # ORIGENS_EXTRA permite acrescentar domínios (ex.: um site próprio).
@@ -541,6 +558,10 @@ async def create_trip(request: Request):
     body = await request.json()
     if usuario:
         with user_con(usuario) as con:
+            propria = sum(1 for t in store.list_trips(con, usuario["uid"])["list"]
+                          if t.get("role") == "owner")
+            if propria >= MAX_TRIPS:
+                raise HTTPException(status_code=409, detail="trip limit reached")
             meta = _build_meta(body)
             dados = body.get("data") if isinstance(body.get("data"), dict) else None
             tid = store.create_trip(con, usuario["uid"], meta, dados)
@@ -696,6 +717,8 @@ async def add_member_route(request: Request, tid: str):
             raise HTTPException(status_code=403, detail="only the owner can invite")
         if email == store.norm_email(usuario["email"]):
             raise HTTPException(status_code=400, detail="already a member")
+        if len(store.members_of(con, tid)) + len(store.pending_invites(con, tid)) >= MAX_MEMBERS:
+            raise HTTPException(status_code=409, detail="member limit reached")
         situacao = store.invite(con, tid, email, "editor", usuario["uid"])
         con.commit()
         return {"status": situacao, "members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
@@ -750,8 +773,22 @@ def _preparar_chat(body):
     if not conv:
         return None
     hoje = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-    system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {hoje}.\n\nDados atuais da viagem:\n" + _trip_context(trip)
-    return conv, system
+    contexto = _trip_context(trip)[:MAX_AI_CHARS]     # o `trip` vem do cliente: teto duro
+    system = ALI_SYSTEM + f"\n\nDATA DE HOJE: {hoje}.\n\nDados atuais da viagem:\n" + contexto
+    # O histórico também é do cliente. Cortamos as mensagens mais antigas até
+    # caber, preservando sempre a última (a pergunta atual).
+    orcamento = MAX_AI_CHARS
+    cortada = []
+    for m in reversed(conv):
+        c = m["content"][:MAX_AI_CHARS]
+        if cortada and orcamento - len(c) < 0:
+            break
+        cortada.append({"role": m["role"], "content": c})
+        orcamento -= len(c)
+    cortada.reverse()
+    while cortada and cortada[0]["role"] != "user":
+        cortada.pop(0)
+    return (cortada or conv[-1:]), system
 
 def _sse(dado):
     return f"data: {json.dumps(dado, ensure_ascii=False)}\n\n"
@@ -845,7 +882,8 @@ async def ali_dica(request: Request):
         v = str(stop.get(k, "")).strip()
         if v:
             prompt += f"\n{label}: {v}"
-    prompt += "\n\nContexto geral da viagem:\n" + _trip_context(trip) + "\n\nGere a dica do Ali para essa parada."
+    prompt = prompt[:MAX_AI_CHARS]
+    prompt += "\n\nContexto geral da viagem:\n" + _trip_context(trip)[:MAX_AI_CHARS] + "\n\nGere a dica do Ali para essa parada."
     kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 600, "system": ALI_DICA_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
     if _efeito_ok(ALI_MODEL_CHAT):
         kwargs["output_config"] = {"effort": "low"}
@@ -895,6 +933,9 @@ async def ali_gerar(request: Request):
         prompt += f"\nOrçamento total aproximado: {cur} {budget}"
     if style:
         prompt += f"\nEstilo/interesses: {style}"
+    # destination/style/dateLabel vêm do cliente sem teto: cortamos o prompt
+    # montado antes de enviar, senão um campo gigante queima a chamada mais cara.
+    prompt = prompt[:MAX_AI_CHARS]
     prompt += f"\n\nGere o roteiro completo em JSON com EXATAMENTE {days} dias, seguindo o schema."
     kwargs = {"model": ALI_MODEL_GEN, "max_tokens": 16000, "system": ALI_GERAR_SYSTEM, "messages": [{"role": "user", "content": prompt}]}
     if _efeito_ok(ALI_MODEL_GEN):
@@ -918,6 +959,9 @@ async def ali_gerar(request: Request):
 @app.get("/api/health")
 def health():
     """Sem senha, de propósito: usado por monitoramento e pelo deploy."""
+    # `authMode.error` é texto diagnóstico (nome da env var, campos ausentes do
+    # certificado) — nunca valor de segredo. Fica público de propósito, para
+    # monitoramento enxergar uma credencial mal configurada sem o painel.
     return {
         "ok": True,
         "environment": os.getenv("ENVIRONMENT", "dev"),
