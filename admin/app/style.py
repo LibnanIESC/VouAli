@@ -89,7 +89,32 @@ input:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px;
 .notice.warn { background:var(--accent-soft); color:#8a5a12; }
 .vazio { color:var(--soft); font-size:14px; padding:10px 0; }
 code { background:var(--brand-soft); padding:2px 6px; border-radius:6px;
-  font-size:13px; color:var(--brand-dark); }
+  font-size:13px; color:var(--brand-dark); overflow-wrap:anywhere; }
+
+/* Tabelas largas nunca podem alargar a página: rolam dentro do próprio wrapper.
+   O wrapper `.tabela` embrulha cada <table> — ver style.tabela(). */
+.tabela { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+
+/* Celular. Empilha o que era lado a lado e tira a rolagem horizontal da página. */
+@media (max-width:600px){
+  .wrap { padding:14px 14px 40px; }
+  .card { padding:15px 14px; }
+  .topbar { flex-direction:column; align-items:flex-start; gap:10px;
+    padding:10px 0 14px; margin-bottom:20px; }
+  .topbar nav { gap:10px 14px; width:100%; }
+  /* E-mail longo no título (o uid/e-mail da conta) quebra em vez de esticar a
+     página. */
+  h1 { font-size:20px; }
+  h1, h2 { overflow-wrap:anywhere; }
+  .metric { padding:14px; }
+  .metric .value { font-size:24px; }
+  /* Numa tabela que rola, as células não quebram — a rolagem cuida da largura. */
+  .tabela table { white-space:nowrap; }
+  /* Formulários que eram uma linha (busca, período, apagar) passam a coluna,
+     com input e botão ocupando a largura toda e alcançáveis no dedo. */
+  .form-linha { flex-direction:column; align-items:stretch; }
+  .form-linha .btn, .form-linha button { width:100%; }
+}
 """
 
 _NAV = [
@@ -131,6 +156,13 @@ def data_hora(ts) -> str:
     if n <= 0:
         return "—"
     return datetime.fromtimestamp(n, timezone.utc).strftime("%d/%m/%Y %H:%M")
+
+
+def tabela(cabecalho: str, corpo: str) -> str:
+    """Tabela embrulhada num wrapper que rola sozinho no celular — assim uma
+    tabela larga nunca alarga a página inteira. `cabecalho` é a <tr> de <th>."""
+    return (f"<div class='tabela'><table><thead>{cabecalho}</thead>"
+            f"<tbody>{corpo}</tbody></table></div>")
 
 
 def linha(*celulas: str) -> str:

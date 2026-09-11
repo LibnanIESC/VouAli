@@ -39,6 +39,7 @@ from ..style import (
     pagina_login,
     plural,
     sub,
+    tabela,
     td,
     vazio,
 )
@@ -235,10 +236,7 @@ def dashboard(request: Request):
 
 <div class='card'>
   <h2>Quem mais consumiu no mês</h2>
-  <table>
-    <tr><th>Usuário</th><th class='num'>Chamadas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>
-    {linhas_top}
-  </table>
+  {tabela("<tr><th>Usuário</th><th class='num'>Chamadas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>", linhas_top)}
 </div>
 """
     return HTMLResponse(pagina("Dashboard", corpo, "/admin"))
@@ -270,7 +268,7 @@ def usuarios(request: Request, busca: str = ""):
 <h1>Usuários</h1>
 
 <div class='card'>
-  <form method='get' action='/admin/usuarios' style='display:flex;gap:10px'>
+  <form method='get' action='/admin/usuarios' class='form-linha' style='display:flex;gap:10px'>
     <input name='busca' value='{esc(busca)}' placeholder='Buscar por e-mail ou nome'>
     <button class='btn' type='submit' style='flex:0 0 auto'>Buscar</button>
   </form>
@@ -279,11 +277,7 @@ def usuarios(request: Request, busca: str = ""):
 <div class='card'>
   <h2>{numero(len(lista))} {plural(len(lista), "usuário", "usuários")}
       <span style='font-weight:600;color:#8a8272;font-size:13px'>· consumo do mês corrente</span></h2>
-  <table>
-    <tr><th>Conta</th><th>Entrou em</th><th class='num'>Viagens</th>
-        <th class='num'>Chamadas</th><th class='num'>Custo</th></tr>
-    {linhas}
-  </table>
+  {tabela("<tr><th>Conta</th><th>Entrou em</th><th class='num'>Viagens</th><th class='num'>Chamadas</th><th class='num'>Custo</th></tr>", linhas)}
 </div>
 """
     return HTMLResponse(pagina("Usuários", corpo, "/admin/usuarios"))
@@ -347,19 +341,12 @@ def usuario(request: Request, uid: str, aviso: str = "", tipo: str = "ok"):
   <p style='margin:-6px 0 10px;font-size:13px;color:#8a8272'>
     Só a identidade da viagem. Roteiro, orçamento e notas ficam no app, com quem escreveu.
   </p>
-  <table>
-    <tr><th>Viagem</th><th>Datas</th><th>Papel</th><th>Última edição</th></tr>
-    {viagens}
-  </table>
+  {tabela("<tr><th>Viagem</th><th>Datas</th><th>Papel</th><th>Última edição</th></tr>", viagens)}
 </div>
 
 <div class='card'>
   <h2>Uso da IA, mês a mês</h2>
-  <table>
-    <tr><th>Período</th><th class='num'>Roteiros</th><th class='num'>Conversas</th>
-        <th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>
-    {uso}
-  </table>
+  {tabela("<tr><th>Período</th><th class='num'>Roteiros</th><th class='num'>Conversas</th><th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>", uso)}
 </div>
 
 {_acoes_do_usuario(u, aviso)}
@@ -411,7 +398,7 @@ def custo(request: Request, periodo: str = ""):
 <h1>Custo</h1>
 
 <div class='card'>
-  <form method='get' action='/admin/custo' style='display:flex;gap:10px;align-items:center'>
+  <form method='get' action='/admin/custo' class='form-linha' style='display:flex;gap:10px;align-items:center'>
     <label style='font-size:14px;font-weight:700;flex:0 0 auto'>Período</label>
     <select name='periodo' onchange='this.form.submit()'>{opcoes}</select>
     <noscript><button class='btn' type='submit'>Ver</button></noscript>
@@ -447,11 +434,7 @@ def custo(request: Request, periodo: str = ""):
 
 <div class='card'>
   <h2>Por conta</h2>
-  <table>
-    <tr><th>Conta</th><th class='num'>Roteiros</th><th class='num'>Conversas</th>
-        <th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>
-    {linhas}
-  </table>
+  {tabela("<tr><th>Conta</th><th class='num'>Roteiros</th><th class='num'>Conversas</th><th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>", linhas)}
 </div>
 """
     return HTMLResponse(pagina("Custo", corpo, "/admin/custo"))
@@ -491,7 +474,7 @@ def _acoes_do_usuario(u: dict, aviso: str) -> str:
     com o mesmo e-mail.
   </div>
   <form method='post' action='/admin/usuarios/{esc(u["uid"])}/apagar'
-        style='display:flex;gap:10px;align-items:center'>
+        class='form-linha' style='display:flex;gap:10px;align-items:center'>
     <input name='confirmacao' placeholder='Digite {esc(u["email"] or u["uid"])} para confirmar' required>
     <button class='btn danger' type='submit' style='flex:0 0 auto'>Apagar dados</button>
   </form>
@@ -577,10 +560,7 @@ def auditoria(request: Request):
   <p style='margin:-4px 0 12px;font-size:13px;color:#8a8272'>
     Tudo o que o painel escreveu no banco. Leitura não entra aqui — só o que muda dado.
   </p>
-  <table>
-    <tr><th>Quando</th><th>Ação</th><th>Alvo</th><th>Detalhe</th><th>IP</th></tr>
-    {linhas}
-  </table>
+  {tabela("<tr><th>Quando</th><th>Ação</th><th>Alvo</th><th>Detalhe</th><th>IP</th></tr>", linhas)}
 </div>
 """
     return HTMLResponse(pagina("Auditoria", corpo, "/admin/auditoria"))
