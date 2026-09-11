@@ -36,6 +36,7 @@ import pyotp                                  # noqa: E402
 from fastapi.testclient import TestClient     # noqa: E402
 
 import store                                  # noqa: E402  (schema do app, do backend)
+from app import consultas                     # noqa: E402
 from app.db import conectar, garantir_schema  # noqa: E402
 from app.main import app                      # noqa: E402
 from app.services import admin_2fa            # noqa: E402
@@ -184,6 +185,59 @@ def rodar() -> None:
     for rota in ("/admin/usuarios", "/admin/usuarios/u1", "/admin/custo"):
         checa(f"{rota} barra sem login",
               sem.get(rota, follow_redirects=False).status_code == 303)
+
+    print("\n== ações (A5) ==")
+    # GET nunca escreve: link não apaga conta.
+    checa("apagar por GET não existe", c.get("/admin/usuarios/u2/apagar").status_code == 405)
+    checa("zerar cota por GET não existe", c.get("/admin/usuarios/u2/cota").status_code == 405)
+
+    print("\n   -- zerar cota --")
+    r = c.post("/admin/usuarios/u2/cota", follow_redirects=True)
+    checa("zerar cota redireciona de volta ao usuário", r.status_code == 200)
+    checa("avisa o que foi zerado", "Cota" in r.text and "zerada" in r.text)
+    uso = consultas.detalhe_usuario("u2")["uso"][0]
+    checa("as chamadas foram a zero", uso["chamadas"] == 0)
+    checa("mas os tokens continuam contados", uso["tokens"] == 5350,
+          f"tokens={uso['tokens']}")
+    checa("e o custo do mês não foi falsificado", uso["custo"] > 0)
+
+    # Conta que nunca usou a IA não tem linha em ai_usage — e a ação avisa em
+    # vez de fingir que fez algo.
+    r = c.post("/admin/usuarios/u3/cota", follow_redirects=True)
+    checa("conta sem uso avisa que não há o que zerar", "Nada a zerar" in r.text)
+
+    print("\n   -- apagar dados: confirmação errada não apaga --")
+    r = c.post("/admin/usuarios/u1/apagar", data={"confirmacao": "qualquer coisa"},
+               follow_redirects=True)
+    checa("recusa confirmação errada", "não confere" in r.text)
+    checa("a conta continua lá", consultas.detalhe_usuario("u1") is not None)
+
+    print("\n   -- apagar dados: confirmação certa --")
+    antes = consultas.detalhe_usuario("u1")
+    checa("antes: a conta tem 1 viagem", len(antes["viagens"]) == 1)
+    r = c.post("/admin/usuarios/u1/apagar", data={"confirmacao": "ANA@exemplo.com  "},
+               follow_redirects=False)
+    checa("apaga e volta para a lista", r.status_code == 303)
+    checa("a conta sumiu", consultas.detalhe_usuario("u1") is None)
+
+    with store.connect() as con:
+        sobrou_viagem = con.execute("SELECT COUNT(*) FROM trips WHERE owner_uid='u1'").fetchone()[0]
+        sobrou_uso = con.execute("SELECT COUNT(*) FROM ai_usage WHERE uid='u1'").fetchone()[0]
+        membro_orfao = con.execute("SELECT COUNT(*) FROM trip_members WHERE uid='u1'").fetchone()[0]
+        lisboa = con.execute("SELECT COUNT(*) FROM trips WHERE owner_uid='u2'").fetchone()[0]
+    checa("as viagens dela sumiram", sobrou_viagem == 0)
+    checa("o uso dela sumiu", sobrou_uso == 0)
+    checa("não sobrou vínculo órfão", membro_orfao == 0)
+    checa("a viagem de OUTRA pessoa continua de pé", lisboa == 1)
+
+    print("\n   -- auditoria --")
+    r = c.get("/admin/auditoria")
+    checa("auditoria abre", r.status_code == 200)
+    checa("registrou o zerar_cota", "zerar_cota" in r.text)
+    checa("registrou o apagar_dados", "apagar_dados" in r.text)
+    checa("guarda o IP de quem fez", "testclient" in r.text)
+    checa("auditoria exige sessão",
+          TestClient(app).get("/admin/auditoria", follow_redirects=False).status_code == 303)
 
     print("\n== logout ==")
     r = c.get("/admin/sair", follow_redirects=False)

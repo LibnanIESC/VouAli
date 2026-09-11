@@ -26,6 +26,7 @@ from ..security import (
 from ..services import admin_2fa, rate_limit
 from ..style import (
     data_curta,
+    data_hora,
     esc,
     linha,
     moeda,
@@ -41,7 +42,7 @@ from ..style import (
     td,
     vazio,
 )
-from .. import consultas
+from .. import acoes, consultas
 
 router = APIRouter(prefix="/admin")
 
@@ -311,7 +312,7 @@ def _linha_uso(m: dict) -> str:
 
 
 @router.get("/usuarios/{uid}", response_class=HTMLResponse)
-def usuario(request: Request, uid: str):
+def usuario(request: Request, uid: str, aviso: str = "", tipo: str = "ok"):
     barrado = _exigir_sessao(request)
     if barrado:
         return barrado
@@ -323,6 +324,7 @@ def usuario(request: Request, uid: str):
             status_code=404,
         )
 
+    aviso = f"<div class='notice {'ok' if tipo == 'ok' else 'bad'}'>{esc(aviso)}</div>" if aviso else ""
     viagens = "".join(_linha_viagem(v) for v in u["viagens"]) or vazio(4, "Nenhuma viagem.")
     uso = "".join(_linha_uso(m) for m in u["uso"]) or vazio(6, "Nunca usou a IA.")
     total = sum(m["custo"] for m in u["uso"])
@@ -359,6 +361,8 @@ def usuario(request: Request, uid: str):
     {uso}
   </table>
 </div>
+
+{_acoes_do_usuario(u, aviso)}
 
 <p><a href='/admin/usuarios'>← Voltar</a></p>
 """
@@ -451,3 +455,132 @@ def custo(request: Request, periodo: str = ""):
 </div>
 """
     return HTMLResponse(pagina("Custo", corpo, "/admin/custo"))
+
+
+# ── Ações (A5) ───────────────────────────────────────────────────────────────
+#
+# As únicas rotas que escrevem. Todas exigem confirmação digitada, todas deixam
+# rastro em `admin_acoes`, e nenhuma delas aceita GET — link não apaga conta.
+
+def _acoes_do_usuario(u: dict, aviso: str) -> str:
+    periodo = consultas.periodo_atual()
+    return f"""
+<div class='card'>
+  <h2>Ações</h2>
+  {aviso}
+
+  <h3 style='font-size:14px;margin:14px 0 6px;color:#223A5E'>Devolver a cota de {esc(periodo)}</h3>
+  <p style='margin:0 0 8px;font-size:13px;color:#8a8272'>
+    Zera as chamadas do mês desta conta e libera o uso de novo. Os tokens
+    continuam contados — o gasto do mês não é apagado, só a cota.
+  </p>
+  <form method='post' action='/admin/usuarios/{esc(u["uid"])}/cota'>
+    <button class='btn' type='submit'>Zerar cota do mês</button>
+  </form>
+
+  <h3 style='font-size:14px;margin:22px 0 6px;color:#C62828'>Apagar os dados desta conta</h3>
+  <p style='margin:0 0 8px;font-size:13px;color:#8a8272'>
+    Apaga a conta, as viagens que ela criou (inclusive para quem foi convidado)
+    e o histórico de uso. Das viagens de outras pessoas, ela apenas sai.
+    <strong>Não tem desfazer.</strong>
+  </p>
+  <div class='notice warn'>
+    A conta do <strong>Firebase</strong> continua existindo — o painel não tem
+    credencial dela, de propósito. Para exclusão definitiva, apague também o
+    usuário no Firebase Console; senão o próximo login recria uma conta vazia
+    com o mesmo e-mail.
+  </div>
+  <form method='post' action='/admin/usuarios/{esc(u["uid"])}/apagar'
+        style='display:flex;gap:10px;align-items:center'>
+    <input name='confirmacao' placeholder='Digite {esc(u["email"] or u["uid"])} para confirmar' required>
+    <button class='btn danger' type='submit' style='flex:0 0 auto'>Apagar dados</button>
+  </form>
+</div>"""
+
+
+@router.post("/usuarios/{uid}/cota")
+def zerar_cota(request: Request, uid: str):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    periodo = consultas.periodo_atual()
+    r = acoes.zerar_cotas(uid, periodo)
+    if not r["ok"]:
+        return _voltar_ao_usuario(uid, f"Nada a zerar: {r['motivo']}.", "bad")
+
+    acoes.registrar(ip_do_pedido(request), "zerar_cota", uid,
+                    f"periodo={periodo} chat={r['chat']} gen={r['gen']} tip={r['tip']}")
+    return _voltar_ao_usuario(
+        uid,
+        f"Cota de {periodo} zerada ({r['gen']} roteiros, {r['chat']} conversas, "
+        f"{r['tip']} dicas). Os tokens continuam contados.",
+    )
+
+
+@router.post("/usuarios/{uid}/apagar")
+def apagar_usuario(request: Request, uid: str, confirmacao: str = Form("")):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    u = consultas.detalhe_usuario(uid)
+    if not u:
+        return RedirectResponse("/admin/usuarios", status_code=303)
+
+    # A confirmação é digitada, não um clique em "ok": apagar dados de alguém
+    # não pode acontecer por engano de mira.
+    esperado = (u["email"] or u["uid"]).strip().lower()
+    if confirmacao.strip().lower() != esperado:
+        return _voltar_ao_usuario(uid, "Confirmação não confere. Nada foi apagado.", "bad")
+
+    r = acoes.apagar_dados(uid)
+    if not r["ok"]:
+        return _voltar_ao_usuario(uid, f"Não consegui apagar: {r['motivo']}.", "bad")
+
+    acoes.registrar(ip_do_pedido(request), "apagar_dados", uid,
+                    f"email={r['email']} viagens_apagadas={r['viagens_apagadas']} "
+                    f"viagens_deixadas={r['viagens_deixadas']}")
+    return RedirectResponse("/admin/usuarios?apagado=1", status_code=303)
+
+
+def _voltar_ao_usuario(uid: str, aviso: str, tipo: str = "ok") -> RedirectResponse:
+    from urllib.parse import quote
+    return RedirectResponse(
+        f"/admin/usuarios/{uid}?aviso={quote(aviso)}&tipo={tipo}",
+        status_code=303,
+    )
+
+
+@router.get("/auditoria", response_class=HTMLResponse)
+def auditoria(request: Request):
+    """Toda ação que escreveu alguma coisa, com IP e horário."""
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    registros = acoes.historico()
+    linhas = "".join(
+        linha(
+            td(esc(data_hora(a["quando"]))),
+            td(f"<code>{esc(a['acao'])}</code>"),
+            td(esc(a["alvo"])),
+            td(esc(a["detalhe"])),
+            td(esc(a["ip"])),
+        )
+        for a in registros
+    ) or vazio(5, "Nenhuma ação registrada.")
+
+    corpo = f"""
+<h1>Auditoria</h1>
+<div class='card'>
+  <p style='margin:-4px 0 12px;font-size:13px;color:#8a8272'>
+    Tudo o que o painel escreveu no banco. Leitura não entra aqui — só o que muda dado.
+  </p>
+  <table>
+    <tr><th>Quando</th><th>Ação</th><th>Alvo</th><th>Detalhe</th><th>IP</th></tr>
+    {linhas}
+  </table>
+</div>
+"""
+    return HTMLResponse(pagina("Auditoria", corpo, "/admin/auditoria"))

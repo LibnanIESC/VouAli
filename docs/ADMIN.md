@@ -45,7 +45,7 @@ Ancorado no schema real: `users`, `trips`, `trip_members`, `ai_usage`.
 | **Dashboard** | usuários (total, novos em 30 dias), viagens (total, compartilhadas), chamadas de IA no mês por tipo, custo estimado em R$, quanto do `ALI_MONTHLY_CAP` já foi consumido |
 | **Usuários** | lista com busca por e-mail; detalhe com conta, viagens (nome, datas, papel), consumo do mês e custo |
 | **Custo** | custo por usuário, média, p90 e projeção do mês |
-| **Ações** | excluir conta (reusa `store.excluir_conta`), zerar o contador de cota de um usuário no mês |
+| **Ações** | apagar os dados de uma conta, zerar a cota do mês, e a trilha de auditoria |
 
 A tela de **Custo** é a etapa 6.1 do [MONETIZACAO.md](MONETIZACAO.md). O
 `ai_usage` já grava `tokens_in` e `tokens_out` por conta e por mês; falta
@@ -60,6 +60,27 @@ apenas ler. É ela que troca estimativa por número real na hora de decidir pre�
 > (colunas `tokens_gen_in/out`, `tokens_chat_in/out`, …). Vale fazer **antes**
 > de escolher preço para valer; não vale mexer no backend agora, sem
 > laboratório, só por causa disso.
+
+### Sobre as ações que escrevem
+
+São as únicas escritas do painel nas tabelas do app, e todas deixam rastro em
+`admin_acoes` — quem, quando, de qual IP, sobre quem. No painel do Já Tomou a
+auditoria de ações destrutivas ficou como pendência; aqui ela nasce junto.
+
+**Apagar dados** segue a mesma regra do app: as viagens que a pessoa criou somem
+de verdade, inclusive para quem ela convidou; das viagens de outros ela apenas
+sai. Exige digitar o e-mail da conta — não é um clique em "ok".
+
+> ⚠️ **O painel apaga os dados, não a conta do Firebase.** Ele não tem
+> credencial do Firebase, de propósito: é uma credencial poderosa a menos em um
+> serviço exposto na internet. Para exclusão definitiva — o caso de quem pede
+> por e-mail pela página `/excluir-conta` — apague também o usuário no Firebase
+> Console. Sem isso, o próximo login recria uma conta vazia com o mesmo e-mail.
+
+**Zerar cota** zera só os contadores de chamadas do mês. Os tokens ficam: são o
+gasto real, e apagá-los faria o painel mentir sobre quanto o mês custou. A
+conta fica com 0 chamadas e os tokens de antes — estranho de olhar, honesto de
+contabilizar.
 
 ### O que o painel NÃO mostra
 
@@ -106,7 +127,7 @@ guarda o segredo TOTP e hashes.
 | **A2** | Dashboard |
 | **A3** | Usuários e detalhe |
 | **A4** | Custo por usuário — a etapa 6.1 |
-| **A5** | Ações: excluir conta, zerar cota |
+| **A5** | Ações: apagar dados, zerar cota, auditoria |
 
 A1 é a maior, e cerca de dois terços dela é adaptação do `admin/` do Já Tomou:
 a paleta vira a do VouAli (navy `#223A5E` + laranja `#F28C28`) e a persistência

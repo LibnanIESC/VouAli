@@ -35,7 +35,16 @@ SCHEMA = [
         sucesso INTEGER,
         quando INTEGER
     )""",
+    """CREATE TABLE IF NOT EXISTS admin_acoes (
+        id TEXT PRIMARY KEY,
+        quando INTEGER,
+        ip TEXT,
+        acao TEXT,
+        alvo TEXT,
+        detalhe TEXT
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_tentativas_ip ON admin_login_attempts(ip, quando)",
+    "CREATE INDEX IF NOT EXISTS idx_acoes_quando ON admin_acoes(quando)",
 ]
 
 

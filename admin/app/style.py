@@ -96,6 +96,7 @@ _NAV = [
     ("/admin", "Dashboard"),
     ("/admin/usuarios", "Usuários"),
     ("/admin/custo", "Custo"),
+    ("/admin/auditoria", "Auditoria"),
 ]
 
 
@@ -121,6 +122,15 @@ def data_curta(ts) -> str:
     if n <= 0:
         return "—"
     return datetime.fromtimestamp(n, timezone.utc).strftime("%d/%m/%Y")
+
+
+def data_hora(ts) -> str:
+    """Timestamp unix -> '10/09/2026 14:32'. Auditoria sem hora não serve."""
+    from datetime import datetime, timezone
+    n = int(ts or 0)
+    if n <= 0:
+        return "—"
+    return datetime.fromtimestamp(n, timezone.utc).strftime("%d/%m/%Y %H:%M")
 
 
 def linha(*celulas: str) -> str:
