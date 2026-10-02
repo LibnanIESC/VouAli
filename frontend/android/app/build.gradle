@@ -41,6 +41,12 @@ android {
             if (arquivoDeChaves.exists()) {
                 signingConfig signingConfigs.release
             }
+            // PENDENTE (prazo Play Store: fev/2027) — ligar o R8 na 1.0.6:
+            //   minifyEnabled true  +  shrinkResources true
+            // Resolve o aviso de "otimização DEX < 25%" e passa a gerar o
+            // mapping (relatórios de falha legíveis). CUIDADO: testar o AAB
+            // assinado antes de promover — o R8 pode quebrar o login Google/
+            // Firebase (reflection) se faltar regra em proguard-rules.pro.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

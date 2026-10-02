@@ -204,6 +204,15 @@ A cada nova versão, suba `versionCode` (1 → 2 → 3…) e `versionName` em
 `versionCode`. Mantenha o `versionName` igual ao `version` do `package.json`,
 que é o número mostrado nos Ajustes.
 
+> ⏳ **Pendência — ligar o R8 na 1.0.6 (prazo Play Store: fevereiro/2027).**
+> Hoje `minifyEnabled false`, o que gera o aviso "otimização de código DEX
+> abaixo de 25%" e também o aviso de mapping ausente a cada envio. Ligar
+> `minifyEnabled true` + `shrinkResources true` resolve os dois. **Teste o AAB
+> assinado antes de promover**: o R8 pode quebrar o login Google/Firebase (que
+> usa reflection) se faltar regra em `app/proguard-rules.pro`. Fazer como versão
+> própria, com teste interno. Os avisos de *edge-to-edge* (APIs antigas do
+> plugin StatusBar) não exigem ação — os insets já são tratados via `safe-area`.
+
 ---
 
 ## 3. Formulário *Data safety*
