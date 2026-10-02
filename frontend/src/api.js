@@ -394,7 +394,7 @@ export async function apiGenerate(params) {
   } catch (e) { return { error: "offline" }; }
 }
 
-// Busca fotos de capa pelo destino (via servidor, que fala com o Pexels).
+// Busca fotos de capa pelo destino (via servidor, que fala com o Pixabay).
 // Devolve [] em qualquer falha — a busca é um atalho, nunca pode travar o form.
 export async function apiFotos(q) {
   try {

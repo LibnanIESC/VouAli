@@ -40,10 +40,10 @@ try:
 except Exception:
     _ali_client = None
 
-# Busca de foto de capa (Pexels). A chave fica só no servidor — o app nunca a
+# Busca de foto de capa (Pixabay). A chave fica só no servidor — o app nunca a
 # vê, nem precisa: ele pede /api/fotos e recebe uma lista de URLs prontas.
-PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
-# Protege a nossa cota do Pexels contra um loop no cliente (janela global).
+PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
+# Protege a nossa cota do provedor contra um loop no cliente (janela global).
 FOTO_RATE_MAX = int(os.getenv("FOTO_RATE_MAX", "40"))
 FOTO_RATE_WINDOW = int(os.getenv("FOTO_RATE_WINDOW", "60"))
 _foto_calls = deque()
@@ -992,11 +992,11 @@ def config():
 
 @app.get("/api/fotos")
 async def fotos(request: Request, q: str = ""):
-    """Busca fotos de capa no Pexels pelo destino. Só para quem está logado —
-    e a chave do Pexels nunca sai do servidor. Devolve uma lista enxuta de
+    """Busca fotos de capa no Pixabay pelo destino. Só para quem está logado —
+    e a chave do Pixabay nunca sai do servidor. Devolve uma lista enxuta de
     URLs; o app guarda a que a pessoa escolher como link da capa."""
     me(request)                                  # exige sessão válida
-    if not PEXELS_API_KEY:
+    if not PIXABAY_API_KEY:
         return {"error": "not_configured"}
     termo = (q or "").strip()[:80]
     if not termo:
@@ -1013,9 +1013,9 @@ async def fotos(request: Request, q: str = ""):
     try:
         async with httpx.AsyncClient(timeout=8) as cli:
             r = await cli.get(
-                "https://api.pexels.com/v1/search",
-                params={"query": termo, "per_page": 24, "orientation": "landscape"},
-                headers={"Authorization": PEXELS_API_KEY},
+                "https://pixabay.com/api/",
+                params={"key": PIXABAY_API_KEY, "q": termo, "image_type": "photo",
+                        "orientation": "horizontal", "per_page": 24, "safesearch": "true"},
             )
         if r.status_code != 200:
             return {"error": "upstream"}
@@ -1024,17 +1024,18 @@ async def fotos(request: Request, q: str = ""):
         return {"error": "upstream"}
 
     fotos = []
-    for p in dados.get("photos", []):
-        src = p.get("src") or {}
-        url_foto = src.get("landscape") or src.get("large") or src.get("original")
+    for p in dados.get("hits", []):
+        # webformatURL (640px) é a imagem que o Pixabay disponibiliza para exibir;
+        # previewURL é a miniatura leve para a grade.
+        url_foto = p.get("webformatURL")
         if not url_foto:
             continue
         fotos.append({
-            "thumb": src.get("tiny") or src.get("small") or url_foto,
+            "thumb": p.get("previewURL") or url_foto,
             "url": url_foto,
-            "autor": str(p.get("photographer") or "").strip(),
+            "autor": str(p.get("user") or "").strip(),
         })
-    return {"fotos": fotos, "fonte": "Pexels"}
+    return {"fotos": fotos, "fonte": "Pixabay"}
 
 @app.get("/api/usage")
 def usage(request: Request):

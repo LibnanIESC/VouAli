@@ -65,6 +65,8 @@ Volume em `/app/data` guarda o SQLite.
 | `MAX_BODY_BYTES` | Teto de tamanho de qualquer requisição (padrão ~1,5 MB; 413 acima). Ver [docs/SEGURANCA.md](docs/SEGURANCA.md). |
 | `ALI_MAX_CONTEXT_CHARS` | Teto do contexto enviado à IA por chamada (padrão 60 000 ≈ 15 k tokens) — trava o custo de um pedido só. |
 | `MAX_TRIPS_POR_CONTA` / `MAX_MEMBROS_POR_VIAGEM` | Tetos anti-abuso (padrão 60 / 20; 409 ao estourar). |
+| `MOEDA_PADRAO` | Moeda usada quando o destino não sugere nenhuma (padrão `R$`). |
+| `PIXABAY_API_KEY` | Liga a busca de foto de capa (`/api/fotos`). Sem ela, o botão avisa que não está ligada. Chave grátis em pixabay.com/api. |
 | `ENVIRONMENT` | Rótulo do ambiente, exposto em `/api/health`. |
 | `DATA_DIR` | Pasta do SQLite (padrão `/app/data`). |
 | `PORT` | Definido automaticamente pelo Railway. |

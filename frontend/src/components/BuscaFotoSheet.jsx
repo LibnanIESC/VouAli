@@ -4,7 +4,7 @@ import { apiFotos } from "../api";
 import { btn, field, NAVY, INK2, INK3 } from "../theme";
 
 /**
- * Busca de foto de capa na internet (Pexels, via servidor).
+ * Busca de foto de capa na internet (Pixabay, via servidor).
  *
  * Já abre buscando o destino. A pessoa toca numa foto e a URL volta pronta para
  * o campo de link — nada de copiar e colar. A busca é um atalho: qualquer falha
@@ -63,7 +63,7 @@ export default function BuscaFotoSheet({ destinoInicial, onPick, onClose }) {
                 </button>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: INK3, marginTop: 10, textAlign: "center" }}>Fotos por Pexels</div>
+            <div style={{ fontSize: 11, color: INK3, marginTop: 10, textAlign: "center" }}>Fotos por Pixabay</div>
           </>
         )}
       </div>
