@@ -4,7 +4,9 @@ import { btn, field, lbl } from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero } from "../utils";
 
 // Formulário de item de orçamento (planejado x gasto).
-export default function BudgetForm({ item, currency = "US$", onSave, onClose, onDelete }) {
+import { MOEDA_PADRAO } from "../tripmeta";
+
+export default function BudgetForm({ item, currency = MOEDA_PADRAO, onSave, onClose, onDelete }) {
   // Os valores ficam como TEXTO enquanto se digita e viram número ao salvar —
   // ver o porquê em utils.js (digitarNumero).
   const [f, setF] = useState(() => {

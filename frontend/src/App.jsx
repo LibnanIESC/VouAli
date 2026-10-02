@@ -5,7 +5,7 @@ import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flus
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { montarBackup, lerBackup, nomeDoArquivo } from "./backup";
-import { diaDeHoje, rotuloDoDia } from "./tripmeta";
+import { diaDeHoje, rotuloDoDia, MOEDA_PADRAO } from "./tripmeta";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar, salvarArquivo } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
 // virar um campo da viagem). Usado apenas se a meta da NY não tiver o valor.
@@ -330,7 +330,7 @@ export default function App() {
   const planned = budget.reduce((a, b) => a + Number(b.v || 0), 0);
   const spent = budget.reduce((a, b) => a + Number(b.spent || 0), 0);
   // Moeda e teto vêm da viagem (fallback só para bases antigas sem esses campos).
-  const cur = activeMeta.currency || "US$";
+  const cur = activeMeta.currency || MOEDA_PADRAO;
   // Viajantes (só leitura no orçamento — nada é recalculado retroativamente)
   const nAdults = Number(activeMeta.adults) > 0 ? Number(activeMeta.adults) : 0;
   const nChildren = Number(activeMeta.children) > 0 ? Number(activeMeta.children) : 0;

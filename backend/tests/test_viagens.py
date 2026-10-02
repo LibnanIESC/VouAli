@@ -81,7 +81,7 @@ def test_viagem_legada_recebe_padroes(fresh, tmp_path):
     con.close()
 
     velha = next(m for m in client.get("/api/trips").json()["trips"]["list"] if m["id"] == "velha")
-    assert velha["currency"] == "US$" and velha["budget"] == 0
+    assert velha["currency"] == "R$" and velha["budget"] == 0
     assert velha["adults"] == 1 and velha["children"] == 0
     assert velha["interests"] == "" and velha["groupTypes"] == ""
     assert velha["origin"] == "" and velha["transport"] == ""

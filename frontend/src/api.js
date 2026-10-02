@@ -394,6 +394,17 @@ export async function apiGenerate(params) {
   } catch (e) { return { error: "offline" }; }
 }
 
+// Busca fotos de capa pelo destino (via servidor, que fala com o Pexels).
+// Devolve [] em qualquer falha — a busca é um atalho, nunca pode travar o form.
+export async function apiFotos(q) {
+  try {
+    const res = await fetchAuth(`/api/fotos?q=${encodeURIComponent(q || "")}`);
+    if (!res.ok) return { error: "http_" + res.status, fotos: [] };
+    const j = await res.json();
+    return { fotos: Array.isArray(j.fotos) ? j.fotos : [], error: j.error };
+  } catch (e) { return { error: "offline", fotos: [] }; }
+}
+
 // Gera uma dica do Ali (sob demanda) para uma parada do roteiro.
 export async function apiAliDica(stop, trip) {
   try {

@@ -371,3 +371,19 @@ def test_gerar_roteiro_tambem_limita_o_prompt(cenario):
     prompt += f"\nEstilo/interesses: {body['style']}\nPeríodo: {body['dateLabel']}"
     prompt = prompt[:modulo.MAX_AI_CHARS]
     assert len(prompt) <= modulo.MAX_AI_CHARS
+
+
+# ── Busca de foto (Pexels): atrás de login e sem vazar a chave ────────────────
+
+def test_fotos_exige_login(cenario):
+    _, client, _ = cenario
+    assert client.get("/api/fotos?q=paris").status_code == 401
+
+
+def test_fotos_sem_chave_nao_quebra_nem_vaza(cenario):
+    """Sem PEXELS_API_KEY configurada, responde not_configured — nunca tenta a
+    rede nem expõe o que falta além do necessário."""
+    modulo, client, _ = cenario
+    modulo.PEXELS_API_KEY = ""
+    r = client.get("/api/fotos?q=paris", headers=como(VITIMA))
+    assert r.status_code == 200 and r.json().get("error") == "not_configured"

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import AliAvatar from "./AliAvatar";
 import { apiAli, apiAliStream } from "../api";
+import { MOEDA_PADRAO } from "../tripmeta";
 import { NAVY, STEEL, ORANGE, SAND_L, HELV, INK3 } from "../theme";
 
 const WELCOME = "Oi! Sou o Ali 👋 Pode perguntar o que quiser sobre a viagem — o que fazer se chover num dia, onde comer perto de uma parada, como cortar gastos, o que priorizar... tô aqui pra isso.";
@@ -42,7 +43,7 @@ function toHistory(msgs) {
 
 const hora = (t) => new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-export default function AliChat({ trip, destino, currency = "US$", status = "synced" }) {
+export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status = "synced" }) {
   const [msgs, setMsgs] = useState([{ role: "assistant", content: WELCOME, at: Date.now() }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

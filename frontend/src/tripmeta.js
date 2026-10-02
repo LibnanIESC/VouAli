@@ -1,9 +1,14 @@
 // Helpers de metadados da viagem: moeda, datas e interesses.
 
+// Moeda padrão da base (brasileira). Vale só como fallback — o destino sugere
+// a moeda (Paris → €) e a pessoa pode trocar. Precisa casar com MOEDA_PADRAO
+// do backend.
+export const MOEDA_PADRAO = "R$";
+
 export const CURRENCIES = [
+  { code: "R$", label: "R$ · Real" },
   { code: "US$", label: "US$ · Dólar" },
   { code: "€", label: "€ · Euro" },
-  { code: "R$", label: "R$ · Real" },
   { code: "£", label: "£ · Libra" },
   { code: "¥", label: "¥ · Iene" },
   { code: "CHF", label: "CHF · Franco suíço" },

@@ -40,6 +40,14 @@ try:
 except Exception:
     _ali_client = None
 
+# Busca de foto de capa (Pexels). A chave fica só no servidor — o app nunca a
+# vê, nem precisa: ele pede /api/fotos e recebe uma lista de URLs prontas.
+PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
+# Protege a nossa cota do Pexels contra um loop no cliente (janela global).
+FOTO_RATE_MAX = int(os.getenv("FOTO_RATE_MAX", "40"))
+FOTO_RATE_WINDOW = int(os.getenv("FOTO_RATE_WINDOW", "60"))
+_foto_calls = deque()
+
 # Roteamento de modelo: conversa e dicas podem usar um modelo mais barato que
 # a geração de roteiro. Sem configurar, tudo segue no ALI_MODEL de sempre.
 ALI_MODEL_CHAT = os.getenv("ALI_MODEL_CHAT", "") or ALI_MODEL
@@ -49,6 +57,11 @@ def _efeito_ok(modelo: str) -> bool:
     return any(k in modelo for k in ("opus-5", "opus-4-8", "opus-4-7", "opus-4-6", "sonnet-5", "sonnet-4-6", "fable-5", "mythos-5"))
 
 # Cotas mensais por usuário (modo com contas). Generosas de propósito.
+# Moeda padrão da base (brasileira). Só vale como fallback: o app sugere a
+# moeda pelo destino (Paris → €) e a pessoa pode trocar. Um lugar só para o
+# valor evita que front e back discordem.
+MOEDA_PADRAO = os.getenv("MOEDA_PADRAO", "R$")
+
 QUOTAS = {
     "chat": int(os.getenv("QUOTA_CHAT", "50")),
     "gen": int(os.getenv("QUOTA_GEN", "3")),
@@ -319,7 +332,7 @@ def _trip_context(trip: dict) -> str:
                 if ins:
                     line += f" — dica: {ins}"
                 parts.append(line)
-    cur = str(trip.get("currency") or "US$").strip() or "US$"
+    cur = str(trip.get("currency") or MOEDA_PADRAO).strip() or MOEDA_PADRAO
     budget = trip.get("budget") or []
     if budget:
         b = "; ".join(
@@ -526,7 +539,7 @@ def _with_meta_defaults(trips):
         for k, default in META_NUMS.items():
             m.setdefault(k, default)
         if not m.get("currency"):
-            m["currency"] = "US$"
+            m["currency"] = MOEDA_PADRAO
     return trips
 
 def _build_meta(body):
@@ -535,7 +548,7 @@ def _build_meta(body):
     for k in META_FIELDS:
         meta[k] = str(body.get(k) or "").strip()
     meta["name"] = meta["name"] or "Nova viagem"
-    meta["currency"] = meta["currency"] or "US$"
+    meta["currency"] = meta["currency"] or MOEDA_PADRAO
     for k, default in META_NUMS.items():
         try:
             meta[k] = float(body[k]) if body.get(k) not in (None, "") else default
@@ -576,7 +589,7 @@ async def create_trip(request: Request):
     for k in META_FIELDS:
         meta[k] = str(body.get(k) or "").strip()
     meta["name"] = meta["name"] or "Nova viagem"
-    meta["currency"] = meta["currency"] or "US$"
+    meta["currency"] = meta["currency"] or MOEDA_PADRAO
     for k, default in META_NUMS.items():
         try:
             meta[k] = float(body[k]) if body.get(k) not in (None, "") else default
@@ -919,7 +932,7 @@ async def ali_gerar(request: Request):
     style = str(body.get("style", "")).strip()
     date_label = str(body.get("dateLabel", "")).strip()
     budget = body.get("budget")
-    cur = str(body.get("currency") or "US$").strip() or "US$"
+    cur = str(body.get("currency") or MOEDA_PADRAO).strip() or MOEDA_PADRAO
     prompt = f"Destino: {destination}\nNúmero de dias: {days}\nMoeda: {cur} (use SEMPRE esta moeda nos valores)"
     rl = _route_line(body)
     if rl:
@@ -976,6 +989,52 @@ def config():
     """Configuração pública que o app busca ao abrir — evita reconstruir o
     frontend a cada ambiente. Não expõe segredo algum."""
     return {"authMode": auth.AUTH_MODE, "firebase": auth.web_config() if auth.AUTH_MODE == "firebase" else None}
+
+@app.get("/api/fotos")
+async def fotos(request: Request, q: str = ""):
+    """Busca fotos de capa no Pexels pelo destino. Só para quem está logado —
+    e a chave do Pexels nunca sai do servidor. Devolve uma lista enxuta de
+    URLs; o app guarda a que a pessoa escolher como link da capa."""
+    me(request)                                  # exige sessão válida
+    if not PEXELS_API_KEY:
+        return {"error": "not_configured"}
+    termo = (q or "").strip()[:80]
+    if not termo:
+        return {"fotos": []}
+
+    agora = time.time()
+    while _foto_calls and agora - _foto_calls[0] > FOTO_RATE_WINDOW:
+        _foto_calls.popleft()
+    if len(_foto_calls) >= FOTO_RATE_MAX:
+        return {"error": "rate_limited"}
+    _foto_calls.append(agora)
+
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=8) as cli:
+            r = await cli.get(
+                "https://api.pexels.com/v1/search",
+                params={"query": termo, "per_page": 24, "orientation": "landscape"},
+                headers={"Authorization": PEXELS_API_KEY},
+            )
+        if r.status_code != 200:
+            return {"error": "upstream"}
+        dados = r.json()
+    except Exception:
+        return {"error": "upstream"}
+
+    fotos = []
+    for p in dados.get("photos", []):
+        src = p.get("src") or {}
+        url_foto = src.get("landscape") or src.get("large") or src.get("original")
+        if not url_foto:
+            continue
+        fotos.append({
+            "thumb": src.get("tiny") or src.get("small") or url_foto,
+            "url": url_foto,
+            "autor": str(p.get("photographer") or "").strip(),
+        })
+    return {"fotos": fotos, "fonte": "Pexels"}
 
 @app.get("/api/usage")
 def usage(request: Request):

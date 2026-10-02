@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sheet from "./Sheet";
 import AliAvatar from "./AliAvatar";
+import CalendarioPeriodo from "./CalendarioPeriodo";
+import BuscaFotoSheet from "./BuscaFotoSheet";
 import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
-import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup } from "../tripmeta";
+import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup, MOEDA_PADRAO } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3 } from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero, estimativaGeracao } from "../utils";
 import { fotoParaCapa } from "../imagem";
@@ -140,6 +142,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
   // neste celular não serviria para ninguém mais.
   const fotoRef = useRef(null);
   const [lendoFoto, setLendoFoto] = useState(false);
+  const [calAberto, setCalAberto] = useState(false);
+  const [buscaFoto, setBuscaFoto] = useState(false);
   const escolherFoto = async (e) => {
     const arquivo = e.target.files && e.target.files[0];
     e.target.value = "";                 // permite escolher a mesma foto de novo
@@ -167,7 +171,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
         dateLabel: label,
         days: nDias,
         budget: numeroDoCampo(f.budget) > 0 ? numeroDoCampo(f.budget) : undefined,
-        currency: f.currency || "US$",
+        currency: f.currency || MOEDA_PADRAO,
         style: interesses,
         adults, children, groupTypes: grupos.join(", "),
         origin: String(f.origin || "").trim(), transport: transporte,
@@ -247,24 +251,19 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
           </div>
         )}
 
-        {/* Datas com seletor de calendário */}
-        <div style={{ display: "flex", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={lbl}>Início</label>
-            <input type="date" style={field} value={f.startDate || ""} onChange={up("startDate")} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={lbl}>Fim</label>
-            <input type="date" style={field} value={f.endDate || ""} onChange={up("endDate")} min={f.startDate || undefined} />
-          </div>
-        </div>
-        {(label || diasCalc > 0) && (
-          <div style={{ fontSize: 13, color: INK2, fontWeight: 600, marginTop: 8 }}>
-            {label}{diasCalc > 0 ? ` · ${diasCalc} ${diasCalc === 1 ? "dia" : "dias"}` : ""}
-          </div>
-        )}
-        {f.startDate && f.endDate && diasCalc === 0 && (
-          <div style={{ fontSize: 13, color: "#C62828", fontWeight: 600, marginTop: 8 }}>A data final precisa ser igual ou depois da inicial.</div>
+        {/* Datas: um botão abre o calendário de período (início → fim). O
+            próprio calendário garante fim ≥ início, então não há mais o estado
+            de erro que os dois campos separados permitiam. */}
+        <label style={lbl}>Datas da viagem</label>
+        <button type="button" onClick={() => setCalAberto(true)} aria-label="Escolher as datas da viagem"
+          style={{ ...field, textAlign: "left", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", color: label ? NAVY : "#9b968c" }}>
+          <span>{label ? `${label}${diasCalc > 0 ? ` · ${diasCalc} ${diasCalc === 1 ? "dia" : "dias"}` : ""}` : "Escolher início e fim"}</span>
+          <span aria-hidden="true">📅</span>
+        </button>
+        {calAberto && (
+          <CalendarioPeriodo start={f.startDate} end={f.endDate}
+            onClose={() => setCalAberto(false)}
+            onConfirm={(s, e) => { setF((c) => ({ ...c, startDate: s, endDate: e })); setCalAberto(false); }} />
         )}
 
         {/* Sem datas ainda dá para gerar: o Ali só precisa saber quantos dias.
@@ -314,7 +313,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
           </div>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Moeda</label>
-            <select style={{ ...field, appearance: "auto" }} value={f.currency || "US$"} onChange={up("currency")}>
+            <select style={{ ...field, appearance: "auto" }} value={f.currency || MOEDA_PADRAO} onChange={up("currency")}>
               {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
             </select>
           </div>
@@ -347,6 +346,15 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
             </button>
           ) : null}
         </div>
+        <button type="button" onClick={() => setBuscaFoto(true)}
+          style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), width: "100%", marginTop: 8 }}>
+          Buscar foto na internet
+        </button>
+        {buscaFoto && (
+          <BuscaFotoSheet destinoInicial={f.destination || f.name}
+            onPick={(url) => setF((c) => ({ ...c, bg: url }))}
+            onClose={() => setBuscaFoto(false)} />
+        )}
         <input ref={fotoRef} type="file" accept="image/*" onChange={escolherFoto} style={{ display: "none" }} aria-hidden="true" tabIndex={-1} />
         <input style={{ ...field, marginTop: 10 }} value={f.bg && f.bg.startsWith("data:") ? "" : f.bg}
           onChange={up("bg")} disabled={!!(f.bg && f.bg.startsWith("data:"))}
