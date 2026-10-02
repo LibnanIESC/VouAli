@@ -1,14 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sheet from "./Sheet";
-import { btn, field, lbl } from "../theme";
+import { btn, field, lbl, DANGER} from "../theme";
 
 // Formulário genérico de campos de texto (usado por "comprar antes" e notas).
-export default function TextForm({ title, initial, fields, onSave, onClose, onDelete, canDelete }) {
+export default function TextForm({ title, initial, fields, onSave, onClose, onDelete, canDelete, onSujo }) {
   const [f, setF] = useState(initial);
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const snap = JSON.stringify(f);
+  const inicialRef = useRef(snap);
+  useEffect(() => { onSujo && onSujo(snap !== inicialRef.current); return () => onSujo && onSujo(false); }, [snap]); // eslint-disable-line react-hooks/exhaustive-deps
   const acoes = (
     <>
-      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: DANGER, border: `1.5px solid ${DANGER}` })}>Excluir</button>}
       <button onClick={() => onSave(f)} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
     </>
   );

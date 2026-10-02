@@ -1,5 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { CloseIcon } from "./Icons";
+
+const FOCAVEIS = 'input,textarea,select,button,a[href],[tabindex]:not([tabindex="-1"])';
 
 const LIMIAR = 8;    // px de movimento antes de decidir entre rolar e arrastar
 const FECHA = 120;   // px puxados para baixo que fecham a gaveta
@@ -20,7 +22,37 @@ export default function Sheet({ children, onClose, acoes }) {
   const [arrastando, setArrastando] = useState(false);
   const [tocado, setTocado] = useState(false);
   const rolagem = useRef(null);
+  const painel = useRef(null);    // o cartão da gaveta (para foco e trap)
   const gesto = useRef(null);     // gesto em andamento
+
+  // Acessibilidade: ao abrir, leva o foco para dentro da gaveta (no cartão, não
+  // num campo — abrir o teclado do celular sozinho seria pior); Esc fecha; e ao
+  // fechar devolve o foco para quem abriu.
+  useEffect(() => {
+    const anterior = document.activeElement;
+    const t = setTimeout(() => {
+      if (!painel.current || painel.current.contains(document.activeElement)) return; // respeita autoFocus
+      painel.current.focus();
+    }, 40);
+    const aoEsc = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", aoEsc);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("keydown", aoEsc);
+      if (anterior && anterior.focus) try { anterior.focus(); } catch (_) {}
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Prende o Tab dentro da gaveta — quem navega por teclado não escapa para a
+  // tela de trás, que está inerte sob o véu.
+  const aoTeclar = (e) => {
+    if (e.key !== "Tab" || !painel.current) return;
+    const itens = painel.current.querySelectorAll(FOCAVEIS);
+    if (!itens.length) return;
+    const primeiro = itens[0], ultimo = itens[itens.length - 1];
+    if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo.focus(); }
+    else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus(); }
+  };
   const dyRef = useRef(0);        // o mesmo dy, legível na hora de soltar
   const arrastou = useRef(false); // acabou de arrastar? então o toque não é clique
 
@@ -84,10 +116,11 @@ export default function Sheet({ children, onClose, acoes }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: `rgba(0,0,0,${veu})`, display: "flex", justifyContent: "center", alignItems: "flex-end", zIndex: 50, transition: arrastando ? "none" : "background .2s" }}>
       <div
+        ref={painel} tabIndex={-1} role="dialog" aria-modal="true" onKeyDown={aoTeclar}
         onClick={(e) => e.stopPropagation()}
         onClickCapture={aoClicarCapturando}
         onPointerDown={aoPressionar} onPointerMove={aoMover} onPointerUp={aoSoltar} onPointerCancel={aoSoltar}
-        style={{ width: "100%", maxWidth: 440, maxHeight: "92vh", display: "flex", flexDirection: "column", background: "#f5f4f0", borderRadius: "20px 20px 0 0", overflow: "hidden", transform: tocado ? `translateY(${dy}px)` : undefined, transition: arrastando ? "none" : "transform .26s cubic-bezier(.4,0,.2,1)", animation: tocado ? "none" : "slideUp .25s ease", boxShadow: "0 -8px 30px rgba(0,0,0,0.28)" }}>
+        style={{ outline: "none", width: "100%", maxWidth: 440, maxHeight: "92vh", display: "flex", flexDirection: "column", background: "#f5f4f0", borderRadius: "20px 20px 0 0", overflow: "hidden", transform: tocado ? `translateY(${dy}px)` : undefined, transition: arrastando ? "none" : "transform .26s cubic-bezier(.4,0,.2,1)", animation: tocado ? "none" : "slideUp .25s ease", boxShadow: "0 -8px 30px rgba(0,0,0,0.28)" }}>
 
         {/* Barra do topo: 46px para o botão de fechar (44px de alvo de toque)
             caber inteiro. Mais baixa, ele invadia o conteúdo logo abaixo. */}

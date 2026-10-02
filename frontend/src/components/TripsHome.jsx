@@ -37,7 +37,7 @@ function TripCard({ t, atual, onOpen, onEdit, onShare, podeCompartilhar, abrindo
   const selo = SELO[st.estado];
   const acao = (rotulo, Icon, onClick) => (
     <button onClick={onClick} aria-label={`${rotulo} — ${t.name}`}
-      style={{ width: 40, height: 40, borderRadius: 12, border: "none", background: "rgba(12,22,40,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      style={{ width: 44, height: 44, borderRadius: 12, border: "none", background: "rgba(12,22,40,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Icon color="#fff" size={17} />
     </button>
   );

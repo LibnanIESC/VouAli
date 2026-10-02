@@ -33,6 +33,10 @@ import ShareSheet from "./components/ShareSheet";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
 
+// Overlays que são formulários com edição — fechá-los com alterações pendentes
+// pede confirmação (ver `descartar`/`fecharForm`).
+const FORM_KINDS = ["tripForm", "stopForm", "dayForm", "budgetForm", "prebuyForm", "noteForm"];
+
 // Skeleton do carregamento inicial (evita o "flash" de dados trocando).
 const Ghost = ({ h, w = "100%", r = 12, mb = 10 }) => (
   <div aria-hidden="true" style={{ height: h, width: w, background: "#e9e2d4", borderRadius: r, marginBottom: mb, animation: "pulse 1.4s ease-in-out infinite" }} />
@@ -76,6 +80,11 @@ export default function App() {
   const [abrindo, setAbrindo] = useState(null);  // id da viagem sendo carregada
   const [gerandoRoteiro, setGerandoRoteiro] = useState(false); // Ali montando o roteiro
   const [ov, setOv] = useState(null);
+  // Guarda de descarte: pedir confirmação antes de fechar um formulário com
+  // alterações não salvas. É um ActionSheet POR CIMA do formulário (não troca
+  // o `ov`), para que "Continuar editando" devolva o formulário intacto.
+  const [descartar, setDescartar] = useState(null);   // callback a executar ao descartar
+  const formSujoRef = useRef(false);
   const [reorder, setReorder] = useState(false);
   const [sync, setSync] = useState("synced");
   const [trips, setTrips] = useState({ active: null, list: [] });
@@ -188,14 +197,25 @@ export default function App() {
   useEffect(() => { ajustarBarraDeStatus(topoClaro); }, [topoClaro]);
 
   // Botão voltar do Android: fecha o que está aberto antes de sair do app.
-  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false, vista: "lista" });
-  estadoRef.current = { ov, tab, reorder, vista };
+  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false, vista: "lista", descartar: null });
+  estadoRef.current = { ov, tab, reorder, vista, descartar };
+  // Fecha o formulário pedindo confirmação se houver edição pendente.
+  const fecharForm = () => {
+    if (formSujoRef.current) setDescartar(() => () => { formSujoRef.current = false; setOv(null); });
+    else setOv(null);
+  };
   useEffect(() => {
     let remover = () => {};
     tratarBotaoVoltar(
-      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder, aba: estadoRef.current.tab, vista: estadoRef.current.vista }),
+      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder || !!estadoRef.current.descartar, aba: estadoRef.current.tab, vista: estadoRef.current.vista }),
       {
-        fecharOverlay: () => { if (estadoRef.current.ov) setOv(null); else setReorder(false); },
+        fecharOverlay: () => {
+          const st = estadoRef.current;
+          if (st.descartar) { setDescartar(null); return; }   // volta fecha o aviso primeiro
+          if (!st.ov) { setReorder(false); return; }
+          if (FORM_KINDS.includes(st.ov.kind) && formSujoRef.current) setDescartar(() => () => { formSujoRef.current = false; setOv(null); });
+          else setOv(null);
+        },
         irParaRoteiro: () => setTab("roteiro"),
         irParaLista: () => setVista("lista"),
       },
@@ -659,7 +679,12 @@ export default function App() {
             <div style={{ textAlign: "center", marginTop: 50 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: NAVY, marginBottom: 6 }}>Esta viagem ainda não tem dias.</div>
               <div style={{ fontSize: 14, color: INK2, fontWeight: 500, marginBottom: 18 }}>Adicione o primeiro dia para começar o roteiro.</div>
-              {!somenteLeitura && <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>}
+              {!somenteLeitura && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 280, margin: "0 auto" }}>
+                  <button onClick={() => setOv({ kind: "dayForm", day: null })} style={btn(ORANGE, { color: NAVY })}>+ Adicionar dia</button>
+                  <button onClick={() => setTab("ali")} style={btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` })}>Pedir ajuda ao Ali</button>
+                </div>
+              )}
             </div>
           )}
           {booted && tab === "roteiro" && day && (
@@ -853,7 +878,7 @@ export default function App() {
             { id: "roteiro", label: "Roteiro", Icon: MapIcon },
             { id: "orcamento", label: "Orçamento", Icon: MoneyIcon },
             { id: "ali", label: "Ali", Icon: ({ on }) => <AliAvatar size={28} ring={on ? "#223A5E" : undefined} /> },
-            { id: "info", label: "Info", Icon: PinIcon },
+            { id: "info", label: "Listas", Icon: PinIcon },
           ].map((t) => {
             const on = tab === t.id;
             return (
@@ -931,9 +956,17 @@ export default function App() {
         <ShareSheet trip={ov.trip} onClose={() => setOv(null)} />
       )}
       {ov?.kind === "tripForm" && (
-        <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={() => setOv(null)} onGerando={setGerandoRoteiro}
+        <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={fecharForm} onGerando={setGerandoRoteiro}
+          onSujo={(b) => { formSujoRef.current = b; }}
           onSave={(data) => ov.trip ? saveTripMeta(data) : createTrip(data)}
           onDelete={() => setOv({ kind: "confirmDeleteTrip", id: ov.trip.id, name: ov.trip.name })} />
+      )}
+      {ov?.kind === "confirm" && (
+        <ActionSheet message={ov.message} onClose={() => setOv(ov.back || null)}
+          actions={[
+            { label: ov.label || "Excluir", danger: true, onClick: ov.onConfirm },
+            { label: "Cancelar", onClick: () => setOv(ov.back || null) },
+          ]} />
       )}
       {ov?.kind === "confirmDeleteTrip" && (
         <ActionSheet message={`Excluir a viagem "${ov.name}" e todo o seu roteiro? Isso não pode ser desfeito.`}
@@ -957,43 +990,54 @@ export default function App() {
       {ov?.kind === "detail" && (
         <StopDetail stop={ov.stop} color={dc} onClose={() => setOv(null)} somenteLeitura={somenteLeitura}
           onEdit={() => setOv({ kind: "stopForm", stop: ov.stop })}
-          onDelete={() => deleteStop(ov.stop.id)} />
+          onDelete={() => { const s = ov.stop; setOv({ kind: "confirm", message: `Excluir "${s.n}" do roteiro?`, back: ov, onConfirm: () => deleteStop(s.id) }); }} />
       )}
       {ov?.kind === "stopForm" && (
-        <StopForm stop={ov.stop} color={dc} trip={aliTrip} onClose={() => setOv(null)} onSave={saveStop} />
+        <StopForm stop={ov.stop} color={dc} trip={aliTrip} onClose={fecharForm} onSujo={(b) => { formSujoRef.current = b; }} onSave={saveStop} />
       )}
       {ov?.kind === "dayForm" && (
         <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1}
           index={ov.day ? days.findIndex((d) => d.id === ov.day.id) : -1} total={days.length}
           rotulo={temDatasAutomaticas ? rotuloDe(ov.day ? days.findIndex((d) => d.id === ov.day.id) : days.length) : null}
           onMove={(where) => moveDay(ov.day.id, where)}
-          onClose={() => setOv(null)}
+          onClose={fecharForm} onSujo={(b) => { formSujoRef.current = b; }}
           onSave={(data) => ov.day ? saveDay(data) : addDay(data)}
-          onDelete={() => deleteDay(ov.day.id)} />
+          onDelete={() => { const d = ov.day; setOv({ kind: "confirm", message: `Excluir o dia "${d.title}" e as paradas dele? Não dá para desfazer.`, back: ov, onConfirm: () => deleteDay(d.id) }); }} />
       )}
       {ov?.kind === "tetoForm" && (
         <TetoForm value={budgetTotal} currency={cur} onClose={() => setOv(null)}
           onSave={(v) => { saveTripMeta({ id: trips.active, budget: v }); toastMsg("Teto atualizado. ✅"); }} />
       )}
       {ov?.kind === "budgetForm" && (
-        <BudgetForm item={ov.item} currency={cur} onClose={() => setOv(null)}
+        <BudgetForm item={ov.item} currency={cur} onClose={fecharForm} onSujo={(b) => { formSujoRef.current = b; }}
           onSave={(data) => { const nb = ov.item ? budget.map((b) => b.id === data.id ? data : b) : [...budget, { ...data, id: uid() }]; setBudgetP(nb); setOv(null); }}
-          onDelete={() => { setBudgetP(budget.filter((b) => b.id !== ov.item.id)); setOv(null); }} />
+          onDelete={() => { const it = ov.item; setOv({ kind: "confirm", message: `Excluir "${it.k}" do orçamento?`, back: ov, onConfirm: () => { setBudgetP(budget.filter((b) => b.id !== it.id)); setOv(null); } }); }} />
       )}
       {ov?.kind === "prebuyForm" && (
-        <TextForm title={ov.item ? "Editar item" : "Novo item"} canDelete={!!ov.item}
+        <TextForm title={ov.item ? "Editar item" : "Novo item"} canDelete={!!ov.item} onSujo={(b) => { formSujoRef.current = b; }}
           initial={ov.item || { text: "" }} fields={[{ k: "text", label: "Texto" }]}
-          onClose={() => setOv(null)}
+          onClose={fecharForm}
           onSave={(data) => { if (!data.text?.trim()) return; const np = ov.item ? prebuy.map((p) => p.id === data.id ? data : p) : [...prebuy, { id: uid(), text: data.text, done: false }]; setPrebuyP(np); setOv(null); }}
-          onDelete={() => { setPrebuyP(prebuy.filter((p) => p.id !== ov.item.id)); setOv(null); }} />
+          onDelete={() => { const it = ov.item; setOv({ kind: "confirm", message: `Excluir "${it.text}"?`, back: ov, onConfirm: () => { setPrebuyP(prebuy.filter((p) => p.id !== it.id)); setOv(null); } }); }} />
       )}
       {ov?.kind === "noteForm" && (
-        <TextForm title={ov.item ? "Editar nota" : "Nova nota"} canDelete={!!ov.item}
+        <TextForm title={ov.item ? "Editar nota" : "Nova nota"} canDelete={!!ov.item} onSujo={(b) => { formSujoRef.current = b; }}
           initial={ov.item || { title: "", body: "" }}
           fields={[{ k: "title", label: "Título", ph: "Ex: 🚕 Táxi do aeroporto" }, { k: "body", label: "Texto", area: true }]}
-          onClose={() => setOv(null)}
+          onClose={fecharForm}
           onSave={(data) => { if (!data.title?.trim()) return; const nn = ov.item ? notes.map((n) => n.id === data.id ? data : n) : [...notes, { ...data, id: uid() }]; setNotesP(nn); setOv(null); }}
-          onDelete={() => { setNotesP(notes.filter((n) => n.id !== ov.item.id)); setOv(null); }} />
+          onDelete={() => { const it = ov.item; setOv({ kind: "confirm", message: `Excluir a nota "${it.title}"?`, back: ov, onConfirm: () => { setNotesP(notes.filter((n) => n.id !== it.id)); setOv(null); } }); }} />
+      )}
+
+      {/* Aviso ao fechar um formulário com alterações não salvas (M4). Fica por
+          cima do formulário — "Continuar editando" devolve a tela intacta. */}
+      {descartar && (
+        <ActionSheet message="Descartar as alterações desta tela?"
+          onClose={() => setDescartar(null)}
+          actions={[
+            { label: "Descartar", danger: true, onClick: () => { const fn = descartar; setDescartar(null); fn(); } },
+            { label: "Continuar editando", onClick: () => setDescartar(null) },
+          ]} />
       )}
 
       {/* Tela de desbloqueio (senha do app) — substitui o window.prompt */}

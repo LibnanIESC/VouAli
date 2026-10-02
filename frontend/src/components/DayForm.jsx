@@ -1,15 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sheet from "./Sheet";
 import { ChevronIcon, ChevronsIcon } from "./Icons";
-import { btn, field, lbl, onColor, NAVY } from "../theme";
+import { btn, field, lbl, onColor, NAVY, DANGER, CORES_DIA } from "../theme";
 
 // Formulário de criação/edição de um dia do roteiro.
 // `rotulo` vem preenchido quando a viagem tem data de início: aí a data do dia
 // é calculada pela posição dele no roteiro, e os campos de sigla, data e
 // símbolo somem — deixar um campo que não faz mais nada é pior que não tê-lo.
-export default function DayForm({ day, onSave, onClose, onDelete, canDelete, index = -1, total = 0, onMove, rotulo }) {
+export default function DayForm({ day, onSave, onClose, onDelete, canDelete, index = -1, total = 0, onMove, rotulo, onSujo }) {
   const [f, setF] = useState(day || { label: "", date: "", title: "", sub: "", line: "", color: "#365D7A" });
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const snap = JSON.stringify(f);
+  const inicialRef = useRef(snap);
+  useEffect(() => { onSujo && onSujo(snap !== inicialRef.current); return () => onSujo && onSujo(false); }, [snap]); // eslint-disable-line react-hooks/exhaustive-deps
   const symbol = rotulo ? rotulo.numero : (f.line || "?").slice(0, 3);
   const isFirst = index <= 0;
   const isLast = index === total - 1;
@@ -19,7 +22,7 @@ export default function DayForm({ day, onSave, onClose, onDelete, canDelete, ind
   );
   const acoes = (
     <>
-      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: DANGER, border: `1.5px solid ${DANGER}` })}>Excluir</button>}
       <button onClick={() => f.title.trim() && onSave(f)} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
     </>
   );
@@ -51,17 +54,21 @@ export default function DayForm({ day, onSave, onClose, onDelete, canDelete, ind
         )}
         <label style={lbl}>Subtítulo</label>
         <input style={field} value={f.sub} onChange={up("sub")} placeholder="Ex: Trem A · dia leve" />
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-          {!rotulo && (
-            <div style={{ flex: 1 }}>
-              <label style={lbl}>Símbolo (bolinha)</label>
-              <input style={field} value={f.line} onChange={up("line")} placeholder="Ex: A, 7, L" maxLength={3} />
-            </div>
-          )}
-          <div style={{ flex: 1 }}>
-            <label style={lbl}>Cor</label>
-            <input type="color" value={f.color || "#365D7A"} onChange={up("color")} style={{ ...field, height: 44, padding: 4, cursor: "pointer" }} />
-          </div>
+        {!rotulo && (
+          <>
+            <label style={lbl}>Símbolo (bolinha)</label>
+            <input style={field} value={f.line} onChange={up("line")} placeholder="Ex: A, 7, L" maxLength={3} />
+          </>
+        )}
+        <label style={lbl}>Cor</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 6 }}>
+          {CORES_DIA.map((c) => {
+            const on = (f.color || "#365D7A").toLowerCase() === c.toLowerCase();
+            return (
+              <button key={c} type="button" onClick={() => setF({ ...f, color: c })} aria-label={`Cor ${c}`} aria-pressed={on}
+                style={{ width: 42, height: 42, flex: "0 0 auto", borderRadius: "50%", background: c, cursor: "pointer", border: on ? `3px solid ${NAVY}` : "3px solid transparent", boxShadow: on ? "0 0 0 2px #fff inset" : "none" }} />
+            );
+          })}
         </div>
         {day && total > 1 && (
           <>

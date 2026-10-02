@@ -7,7 +7,7 @@ import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
 import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup, MOEDA_PADRAO } from "../tripmeta";
-import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3 } from "../theme";
+import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3, DANGER} from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero, estimativaGeracao } from "../utils";
 import { fotoParaCapa } from "../imagem";
 
@@ -83,7 +83,7 @@ function parseInteresses(txt) {
 
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
-export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, onGerando }) {
+export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, onGerando, onSujo }) {
   const [f, setF] = useState(() => {
     const t = trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" };
     return { ...t, budget: campoDeNumero(t.budget) };   // o teto é texto enquanto se digita
@@ -99,7 +99,12 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
   const [outros, setOutros] = useState(ini.outros);
   const [dias, setDias] = useState("5");         // usado só quando não há datas
   const isNew = !trip;
-  const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Marca que o usuário mexeu em algo digitado — o App confirma antes de
+  // descartar. Só o texto digitado precisa de guarda; toques (tags, datas,
+  // foto) são rápidos de refazer, então não disparam o aviso.
+  const [tocou, setTocou] = useState(false);
+  useEffect(() => { onSujo && onSujo(tocou); return () => onSujo && onSujo(false); }, [tocou]); // eslint-disable-line react-hooks/exhaustive-deps
+  const up = (k) => (e) => { setF({ ...f, [k]: e.target.value }); setTocou(true); };
 
   // Viajantes e perfil do grupo
   const adults = Number(f.adults) >= 0 ? Number(f.adults) : 1;
@@ -197,7 +202,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
   // tocava — criando uma viagem vazia sem nunca ver a opção do Ali.
   const acoes = gerando ? null : (
     <>
-      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+      {canDelete && <button onClick={onDelete} style={btn("#fff", { color: DANGER, border: `1.5px solid ${DANGER}` })}>Excluir</button>}
       {isNew && (
         <button onClick={() => submit(false)} disabled={!f.name.trim()}
           style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), flex: "0 0 auto", padding: "0 16px", opacity: !f.name.trim() ? 0.6 : 1 }}>
@@ -272,7 +277,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
         {isNew && diasCalc === 0 && (
           <>
             <label style={lbl}>Quantos dias</label>
-            <input type="number" style={field} value={dias} onChange={(e) => setDias(e.target.value)} min={1} max={12} aria-label="Número de dias da viagem" />
+            <input type="number" style={field} value={dias} onChange={(e) => { setDias(e.target.value); setTocou(true); }} min={1} max={12} aria-label="Número de dias da viagem" />
             <div style={{ fontSize: 12, color: INK3, marginTop: 6 }}>Usado se você ainda não tem as datas. Preencha-as acima e ele calcula sozinho.</div>
           </>
         )}
@@ -309,7 +314,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1.3 }}>
             <label style={lbl}>Orçamento (teto)</label>
-            <input inputMode="decimal" style={field} value={f.budget} onChange={(e) => setF({ ...f, budget: digitarNumero(e.target.value) })} placeholder="Ex: 3000" />
+            <input inputMode="decimal" style={field} value={f.budget} onChange={(e) => { setF({ ...f, budget: digitarNumero(e.target.value) }); setTocou(true); }} placeholder="Ex: 3000" />
           </div>
           <div style={{ flex: 1 }}>
             <label style={lbl}>Moeda</label>
@@ -331,7 +336,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
             );
           })}
         </div>
-        <input style={{ ...field, marginTop: 10 }} value={outros} onChange={(e) => setOutros(e.target.value)} placeholder="Outros (separe por vírgula)" aria-label="Outros interesses" />
+        <input style={{ ...field, marginTop: 10 }} value={outros} onChange={(e) => { setOutros(e.target.value); setTocou(true); }} placeholder="Outros (separe por vírgula)" aria-label="Outros interesses" />
 
         <label style={lbl}>Foto de capa</label>
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>

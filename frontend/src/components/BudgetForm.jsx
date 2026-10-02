@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sheet from "./Sheet";
-import { btn, field, lbl } from "../theme";
+import { btn, field, lbl, DANGER} from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero } from "../utils";
 
 // Formulário de item de orçamento (planejado x gasto).
 import { MOEDA_PADRAO } from "../tripmeta";
 
-export default function BudgetForm({ item, currency = MOEDA_PADRAO, onSave, onClose, onDelete }) {
+export default function BudgetForm({ item, currency = MOEDA_PADRAO, onSave, onClose, onDelete, onSujo }) {
   // Os valores ficam como TEXTO enquanto se digita e viram número ao salvar —
   // ver o porquê em utils.js (digitarNumero).
   const [f, setF] = useState(() => {
@@ -15,10 +15,13 @@ export default function BudgetForm({ item, currency = MOEDA_PADRAO, onSave, onCl
   });
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const upValor = (k) => (e) => setF({ ...f, [k]: digitarNumero(e.target.value) });
+  const snap = JSON.stringify(f);
+  const inicialRef = useRef(snap);
+  useEffect(() => { onSujo && onSujo(snap !== inicialRef.current); return () => onSujo && onSujo(false); }, [snap]); // eslint-disable-line react-hooks/exhaustive-deps
   const salvar = () => f.k.trim() && onSave({ ...f, v: numeroDoCampo(f.v), spent: numeroDoCampo(f.spent) });
   const acoes = (
     <>
-      {item && <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>}
+      {item && <button onClick={onDelete} style={btn("#fff", { color: DANGER, border: `1.5px solid ${DANGER}` })}>Excluir</button>}
       <button onClick={salvar} style={{ ...btn("#223A5E"), flex: 1 }}>Salvar</button>
     </>
   );

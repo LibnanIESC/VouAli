@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sheet from "./Sheet";
 import { SparkIcon } from "./Icons";
 import { apiAliDica } from "../api";
@@ -6,10 +6,14 @@ import { toast } from "../toast";
 import { btn, field, lbl, ORANGE, NAVY, HELV } from "../theme";
 
 // Formulário de criação/edição de parada.
-export default function StopForm({ stop, color, trip, onSave, onClose }) {
+export default function StopForm({ stop, color, trip, onSave, onClose, onSujo }) {
   const [f, setF] = useState(stop || { t: "", n: "", d: "", getting: "", todo: "", insight: "", link: "" });
   const [gerando, setGerando] = useState(false);
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  // Avisa o App quando há edição pendente, para confirmar antes de descartar.
+  const snap = JSON.stringify(f);
+  const inicialRef = useRef(snap);
+  useEffect(() => { onSujo && onSujo(snap !== inicialRef.current); return () => onSujo && onSujo(false); }, [snap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const gerarDica = async () => {
     if (gerando || !f.n.trim()) return;
@@ -25,10 +29,7 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
   };
 
   const acoes = (
-    <>
-      <button onClick={onClose} style={{ ...btn("#fff", { color: "#666", border: "1.5px solid #ccc" }), flex: 1 }}>Cancelar</button>
-      <button onClick={() => f.n.trim() && onSave(f)} style={{ ...btn(color), flex: 1 }}>Salvar</button>
-    </>
+    <button onClick={() => f.n.trim() && onSave(f)} style={{ ...btn(color), flex: 1 }}>Salvar</button>
   );
 
   return (
@@ -38,7 +39,7 @@ export default function StopForm({ stop, color, trip, onSave, onClose }) {
         <label style={lbl}>Nome</label>
         <input style={field} value={f.n} onChange={up("n")} placeholder="Ex: Empire State Building" />
         <label style={lbl}>Horário</label>
-        <input style={field} value={f.t} onChange={up("t")} placeholder="Ex: 15h" />
+        <input style={field} value={f.t} onChange={up("t")} placeholder="Ex: 15:00" inputMode="numeric" />
         <label style={lbl}>Resumo</label>
         <input style={field} value={f.d} onChange={up("d")} placeholder="Uma linha curta" />
         <label style={lbl}>Como chegar</label>

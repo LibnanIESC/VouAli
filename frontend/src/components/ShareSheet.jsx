@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from "react";
 import Sheet from "./Sheet";
+import ActionSheet from "./ActionSheet";
 import { apiMembers, apiInvite, apiRemoveMember } from "../api";
 import { toast } from "../toast";
-import { btn, field, lbl, NAVY, ORANGE, SAND, STEEL, HELV, INK2, INK3 } from "../theme";
+import { btn, field, lbl, NAVY, ORANGE, SAND, STEEL, HELV, INK2, INK3, DANGER } from "../theme";
 
 // Quem participa da viagem: convidar por e-mail, ver membros e remover.
 export default function ShareSheet({ trip, onClose }) {
   const [dados, setDados] = useState(null);      // { role, members, invites }
   const [email, setEmail] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [aRemover, setARemover] = useState(null);   // { quem, nome } — confirmação
 
   useEffect(() => {
     (async () => setDados(await apiMembers(trip.id) || { role: "", members: [], invites: [] }))();
@@ -31,8 +33,9 @@ export default function ShareSheet({ trip, onClose }) {
     toast(r.status === "member" ? "Pronto! Já tem acesso à viagem. ✅" : "Convite guardado — vale assim que a pessoa entrar. ✉️");
   };
 
-  const remover = async (quem, nome) => {
-    if (!window.confirm(`Remover ${nome} desta viagem?`)) return;
+  const confirmarRemocao = async () => {
+    const quem = aRemover.quem;
+    setARemover(null);
     const r = await apiRemoveMember(trip.id, quem);
     if (!r || r.error) { toast("Não consegui remover agora."); return; }
     setDados({ role: dados.role, members: r.members, invites: r.invites });
@@ -50,13 +53,14 @@ export default function ShareSheet({ trip, onClose }) {
       {papel === "owner" ? (
         <span style={{ fontSize: 10.5, fontWeight: 800, color: ORANGE, letterSpacing: 0.6, flex: "0 0 auto" }}>DONO</span>
       ) : souDono ? (
-        <button onClick={() => remover(chave, titulo)} aria-label={`Remover ${titulo}`}
-          style={{ width: 40, height: 40, flex: "0 0 auto", borderRadius: 10, border: "1.5px solid #e6dfd2", background: "#fff", color: "#C62828", fontSize: 16, cursor: "pointer" }}>×</button>
+        <button onClick={() => setARemover({ quem: chave, nome: titulo })} aria-label={`Remover ${titulo}`}
+          style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 10, border: "1.5px solid #e6dfd2", background: "#fff", color: DANGER, fontSize: 18, cursor: "pointer" }}>×</button>
       ) : null}
     </div>
   );
 
   return (
+    <>
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 28px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>Quem vai junto</div>
@@ -100,5 +104,13 @@ export default function ShareSheet({ trip, onClose }) {
         )}
       </div>
     </Sheet>
+    {aRemover && (
+      <ActionSheet message={`Remover ${aRemover.nome} desta viagem?`} onClose={() => setARemover(null)}
+        actions={[
+          { label: "Remover", danger: true, onClick: confirmarRemocao },
+          { label: "Cancelar", onClick: () => setARemover(null) },
+        ]} />
+    )}
+    </>
   );
 }

@@ -1,20 +1,20 @@
 import React from "react";
 import Sheet from "./Sheet";
 import AliTip from "./AliTip";
-import { btn } from "../theme";
+import { btn, DANGER, INK2 } from "../theme";
 
 // Detalhe de uma parada do roteiro (como chegar, o que fazer, insight).
 export default function StopDetail({ stop, color, onEdit, onDelete, onClose, somenteLeitura }) {
   const Section = ({ title, children }) => children ? (
     <div style={{ marginTop: 18 }}>
       <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1, color, textTransform: "uppercase" }}>{title}</div>
-      <div style={{ fontSize: 14.5, color: "#333", lineHeight: 1.55, marginTop: 5, fontWeight: 500 }}>{children}</div>
+      <div style={{ fontSize: 14.5, color: INK2, lineHeight: 1.55, marginTop: 5, fontWeight: 500 }}>{children}</div>
     </div>
   ) : null;
   const acoes = somenteLeitura ? null : (
     <>
       <button onClick={onEdit} style={{ ...btn("#223A5E"), flex: 1 }}>Editar</button>
-      <button onClick={onDelete} style={btn("#fff", { color: "#d11", border: "1.5px solid #d11" })}>Excluir</button>
+      <button onClick={onDelete} style={btn("#fff", { color: DANGER, border: `1.5px solid ${DANGER}` })}>Excluir</button>
     </>
   );
   return (

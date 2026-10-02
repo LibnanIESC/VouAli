@@ -37,6 +37,12 @@ export const FS = { caps: 12, support: 14, body: 16, sub: 20, title: 24, display
 export const INK = NAVY;        // texto principal sobre superfícies claras
 export const INK2 = "#4A5A6E";  // texto de apoio (≈7:1 sobre branco)
 export const INK3 = "#66738A";  // rótulos/caps (≈4.8:1 sobre branco)
+export const DANGER = "#C62828";    // Vermelho de ação destrutiva (excluir, remover)
+
+// Paleta de cores de dia: tons escuros o bastante para texto branco em cima e
+// distintos entre si. Substitui o seletor hex livre — mais fácil de tocar e
+// garante que a cor escolhida apareça como está (sem o ajuste do readable()).
+export const CORES_DIA = ["#365D7A", "#2E7D52", "#C2410C", "#7A4FA3", "#B4345A", "#1D6F84", "#8A5A2B", "#4A5A6E"];
 
 // ---------- Área segura (barra de status do celular) ----------
 // Dentro do app, o conteúdo desenha POR BAIXO da barra do sistema (hora,
