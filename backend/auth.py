@@ -3,9 +3,10 @@
 Dois modos, escolhidos por AUTH_MODE:
 
 - "token"    (padrão) — comportamento antigo: uma senha compartilhada
-              (TRIP_TOKEN). É o que roda em PRODUÇÃO hoje, e não muda.
+              (TRIP_TOKEN). Rodou a viagem de NY; aquele serviço foi
+              desativado (out/2026). Mantido para dev e compatibilidade.
 - "firebase" — contas de verdade: o app manda o ID token do Firebase e aqui
-              ele é verificado. É o modo do staging e do futuro app público.
+              ele é verificado. É o modo que roda em PRODUÇÃO hoje.
 """
 import base64
 import json

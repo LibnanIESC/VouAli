@@ -41,11 +41,12 @@ roda **dentro do aparelho** — então ela precisa saber onde fica o servidor.
 Crie o arquivo `frontend/.env.production.local`:
 
 ```
-VITE_API_BASE=https://vouali.up.railway.app
+VITE_API_BASE=https://vouali-app.up.railway.app
 ```
 
-> Para testar contra o staging, use `https://vouali-stg.up.railway.app`.
-> Sem essa variável, o app tentaria falar consigo mesmo e não acharia a API.
+> Esse é o servidor de produção. Em desenvolvimento local, o proxy do Vite já
+> leva `/api` ao backend na porta 8000, então nem precisa da variável.
+> Sem ela (e sem o proxy), o app tentaria falar consigo mesmo e não acharia a API.
 
 ---
 

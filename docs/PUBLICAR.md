@@ -32,23 +32,20 @@ de conta de quem não tem mais o app instalado.
 
 ## 0.1 Os ambientes
 
-Decidido em 26/08/2026. Há três papéis e, até a viagem de Nova York terminar,
-apenas dois servidores para eles.
+Hoje há **um único serviço**: a produção.
 
-| Endereço | Papel até 13/10/2026 | Depois |
-|---|---|---|
-| `vouali.up.railway.app` | Viagem de Nova York — **não se toca** | vira o laboratório |
-| `vouali-app.up.railway.app` | **Produção do app público** | continua produção |
+| Endereço | Papel |
+|---|---|
+| `vouali-app.up.railway.app` | **Produção do app público** (Firebase + Postgres) |
 
-O que o staging tinha já é o que a produção precisa: contas Firebase,
-Postgres, cotas. Por isso ele foi promovido em vez de recriado — e renomeado
-de `vouali-stg` para `vouali-app`, porque "stg" numa política de privacidade
-publicada por uma empresa não passa boa impressão.
+> **Histórico.** Até a viagem de Nova York (out/2026) existia também o serviço
+> `vouali.up.railway.app` — a versão original, de senha compartilhada, que rodou
+> aquela viagem. Com a viagem concluída com sucesso pelo app de produção, esse
+> projeto foi **apagado do Railway em 29/10/2026** (a NY já estava migrada para a
+> produção). O antigo `vouali-stg` já havia sido promovido a `vouali-app`.
 
-> O serviço promovido continua publicando a partir do branch **`staging`**, e
-> isso é de propósito. Apontá-lo para `main` levaria todo o código novo ao
-> serviço da viagem de NY, que é o que não pode acontecer. Os nomes se
-> arrumam em outubro, sem risco.
+> O `vouali-app` publica a partir do branch **`staging`** — é de onde sai o
+> frontend e o backend de produção.
 
 > ⚠️ **Até 13/10 não existe laboratório.** Toda alteração no BACKEND que for
 > ao ar cai direto nos usuários. Alteração no APP não corre esse risco: dá
