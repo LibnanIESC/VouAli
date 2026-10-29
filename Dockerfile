@@ -1,8 +1,8 @@
 # ---------- Stage 1: build the React front-end ----------
 FROM node:20-alpine AS web
 WORKDIR /web
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci                 # build determinístico a partir do lock
 COPY frontend/ ./
 RUN npm run build          # -> /web/dist
 

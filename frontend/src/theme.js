@@ -9,15 +9,9 @@ export const CREAM = "#FBF4E9";     // Areia Clara — fundo padrão
 export const NAVY = "#223A5E";      // Azul Marinho — marca, títulos, estrutura
 export const STEEL = "#365D7A";     // Azul Petróleo — botões e links
 export const ORANGE = "#F28C28";    // Laranja — destaques e ação principal
-export const ORANGE_D = "#DD7D1C";  // Laranja escuro — hover
 export const SAND = "#E9D8BF";      // Bege — cards e superfícies
 export const SAND_L = "#F5E8D4";    // Areia — superfícies secundárias
 export const BROWN = "#7A5A3A";     // Marrom — detalhes e texto de apoio
-
-// Superfícies / efeitos
-export const PHOTO = "https://images.unsplash.com/photo-1557780486-7347b5578a23?fm=jpg&q=70&w=1600&auto=format&fit=crop";
-export const CARD_DARK = "linear-gradient(135deg,#1c3050 0%,#2b4a6d 100%)";
-export const HSHADOW = "0 1px 4px rgba(0,0,0,0.45)";
 
 // ---------- Contraste de cor (cores de dia escolhidas pelo usuário) ----------
 // Luminância aproximada (0 escuro … 1 claro). Cores vazias/curtas contam como claras.
@@ -32,9 +26,7 @@ export const onColor = (hex) => (isLight(hex) ? NAVY : "#fff");
 // Acento legível sobre superfícies claras: se a cor for clara demais, cai no marinho.
 export const readable = (hex) => (isLight(hex) ? NAVY : hex);
 
-// ---------- Tipografia (escala fixa: 12/14/16/20/24/28) & texto ----------
-export const FS = { caps: 12, support: 14, body: 16, sub: 20, title: 24, display: 28 };
-export const INK = NAVY;        // texto principal sobre superfícies claras
+// ---------- Texto ----------
 export const INK2 = "#4A5A6E";  // texto de apoio (≈7:1 sobre branco)
 export const INK3 = "#66738A";  // rótulos/caps (≈4.8:1 sobre branco)
 export const DANGER = "#C62828";    // Vermelho de ação destrutiva (excluir, remover)
