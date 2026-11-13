@@ -3,10 +3,11 @@ import Sheet from "./Sheet";
 import { SparkIcon } from "./Icons";
 import { apiAliDica } from "../api";
 import { toast } from "../toast";
+import { ehPaywall } from "../saldo";
 import { btn, field, lbl, ORANGE, NAVY, HELV } from "../theme";
 
 // Formulário de criação/edição de parada.
-export default function StopForm({ stop, color, trip, onSave, onClose, onSujo }) {
+export default function StopForm({ stop, color, trip, onSave, onClose, onSujo, tripId, onPaywall, onUsou }) {
   const [f, setF] = useState(stop || { t: "", n: "", d: "", getting: "", todo: "", insight: "", link: "" });
   const [gerando, setGerando] = useState(false);
   const up = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -18,9 +19,11 @@ export default function StopForm({ stop, color, trip, onSave, onClose, onSujo })
   const gerarDica = async () => {
     if (gerando || !f.n.trim()) return;
     setGerando(true);
-    const r = await apiAliDica({ n: f.n, t: f.t, d: f.d, getting: f.getting, todo: f.todo }, trip || {});
+    const r = await apiAliDica({ n: f.n, t: f.t, d: f.d, getting: f.getting, todo: f.todo }, trip || {}, tripId);
     setGerando(false);
-    if (r && r.dica) setF((cur) => ({ ...cur, insight: r.dica }));
+    if (r && r.dica) { setF((cur) => ({ ...cur, insight: r.dica })); onUsou && onUsou(); }
+    // Sem saldo: a tela do passe abre POR CIMA do formulário, que fica intacto.
+    else if (ehPaywall(r) && onPaywall) onPaywall(r);
     else if (r && r.error === "not_configured") toast("A IA ainda não está ligada — falta a chave no servidor.");
     else if (r && r.error === "rate_limited") toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂");
     else if (r && r.error === "quota") toast(`Você já usou as ${r.limite} dicas do mês. Escreva a sua — renova no dia 1º. 🙂`);

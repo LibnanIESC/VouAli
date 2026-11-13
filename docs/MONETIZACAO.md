@@ -1,8 +1,9 @@
 # Fase 6 — Monetização
 
-Como o VouAli se paga. O modelo está **decidido** (nov/2026) e o **servidor está
-pronto**, atrás de uma chave desligada. Falta a tela de compra no app e o que
-depende de contas externas — ver [COBRANCA-PASSO-A-PASSO.md](COBRANCA-PASSO-A-PASSO.md).
+Como o VouAli se paga. O modelo está **decidido** (nov/2026), o **servidor e o
+app (versão 1.1.0) estão prontos**, e tudo fica atrás de uma chave desligada.
+Falta o que depende de contas externas e o teste com compra de verdade — ver
+[COBRANCA-PASSO-A-PASSO.md](COBRANCA-PASSO-A-PASSO.md).
 
 ---
 
@@ -157,6 +158,7 @@ Regras que protegem os dois lados:
 | Variável | Padrão | O que faz |
 |---|---|---|
 | `COBRANCA` | `off` | **A chave.** `off`: cota mensal de sempre. `on`: saldo que não renova |
+| `COBRANCA_TESTE` | — | E-mails (separados por vírgula) para os quais a cobrança **já vale** com a chave desligada. Serve para testar a compra de verdade sem afetar ninguém |
 | `DEGUSTACAO_MAX_DIAS` | `4` | Tamanho máximo da viagem que a degustação cobre |
 | `DEGUSTACAO_ROTEIROS` / `_CHATS` / `_DICAS` | `1` / `5` / `3` | Tamanho da degustação |
 | `PASSE_ROTEIROS` / `_CHATS` / `_DICAS` | `3` / `100` / `50` | Tamanho do passe |
@@ -166,6 +168,38 @@ Regras que protegem os dois lados:
 | `REVENUECAT_WEBHOOK_AUTH` | — | Segredo que o RevenueCat manda no aviso. Sem ele, o webhook fica fechado |
 | `REVENUECAT_SANDBOX` | `0` | `1` faz compra de **teste** virar saldo. Ligar só enquanto testa |
 | `COMPRA_RATE_MAX` | `10` | Conferências de compra por conta, por janela |
+
+### No app (versão 1.1.0)
+
+| Arquivo | Papel |
+|---|---|
+| `frontend/src/compras.js` | Fala com a loja (SDK do RevenueCat). Identifica a conta, busca o produto e o **preço**, abre o pagamento. Não decide saldo |
+| `frontend/src/saldo.js` | Contas e **textos** do saldo e do aviso de "acabou" — puros, com testes |
+| `frontend/src/components/PasseSheet.jsx` | A tela do passe: motivo do bloqueio, o que o passe traz, comprar, "Já comprei" |
+| `frontend/src/api.js` | `apiSaldo`, `apiSincronizarCompras`; as chamadas de IA mandam `trip_id` |
+
+Como as peças se encaixam:
+
+- **A loja sabe de quem é a compra.** Ao entrar, o app identifica a conta no
+  SDK com o `uid` do Firebase — o mesmo que o servidor usa para perguntar ao
+  RevenueCat. Compra sem identificação ficaria num usuário anônimo e nunca
+  viraria saldo; por isso `comprar` sempre identifica antes.
+- **O produto é buscado pelo id** que o servidor informa (`produto_passe`), não
+  por uma "oferta" do RevenueCat. Uma configuração a menos para dar errado.
+- **Depois de pagar, o app chama `/api/compras/sincronizar`** e só mostra o
+  passe como ativo quando o servidor devolve o saldo novo. Se a conferência
+  atrasar, o webhook credita por conta própria e o botão "Já comprei" resolve.
+- **A tela do passe abre por cima** do que estiver aberto (formulário de
+  parada, de viagem nova), sem perder o que foi digitado. Ao comprar a partir
+  da geração de um roteiro, o roteiro é gerado em seguida, sozinho.
+- **No site não há compra** (quem cobra é a loja do app): a tela aponta para a
+  Google Play. O saldo vale na conta, então quem comprou no celular usa no site.
+- **Com `COBRANCA=off` nada disso aparece**: `/api/saldo` responde
+  `{"cobranca": false}` e o app segue mostrando a cota mensal.
+
+A chave pública do SDK (`goog_…`) fica em `compras.js`; ela vai dentro de todo
+app e não é segredo. Para testar com a loja de testes do RevenueCat, gere o app
+com `VITE_REVENUECAT_ANDROID=test_…`.
 
 ### Por que existe a chave `COBRANCA`
 
@@ -192,9 +226,9 @@ passa inteira, sem alteração.
 | **6.1** | Painel de custo por usuário | ✅ feito (painel admin) |
 | **6.2** | Modelo e preço decididos | ✅ nov/2026 |
 | **6.3** | Servidor: saldo, degustação, passe, compras, webhook | ✅ feito, com `COBRANCA=off` |
-| **6.4** | App: paywall, tela de compra (preço da loja), saldo da viagem, SDK do RevenueCat | pendente |
-| **6.5** | Contas externas: comerciante, RevenueCat, produto, contador | pendente — [passo a passo](COBRANCA-PASSO-A-PASSO.md) |
-| **6.6** | Privacidade e *Data safety* (compras passam pelo RevenueCat) | pendente |
+| **6.4** | App: paywall, tela de compra (preço da loja), saldo da viagem, SDK do RevenueCat | ✅ feito na versão 1.1.0 |
+| **6.5** | Contas externas: comerciante, RevenueCat, produto, contador | em andamento — RevenueCat, credenciais, segredos e webhook ✅; faltam contador, perfil de pagamentos e o produto ([passo a passo](COBRANCA-PASSO-A-PASSO.md)) |
+| **6.6** | Privacidade e *Data safety* (compras passam pelo RevenueCat) | textos ✅ (`/privacidade`, `/termos`); falta declarar no Play Console |
 | **6.7** | Teste de ponta a ponta com compra de teste; publicar; ligar `COBRANCA=on` | pendente |
 | **6.8** | Recargas (fase 2): criar os 3 produtos e a tela | servidor já pronto |
 
@@ -213,6 +247,15 @@ passa inteira, sem alteração.
   como ação no painel admin.
 - **Nota fiscal.** O Google é quem vende ao consumidor; a nota é sobre o
   repasse. O enquadramento é do contador.
+- **Compra real ainda não testada.** A tela foi conferida no navegador com uma
+  compra simulada; o pagamento de verdade só dá para testar no celular, pelo
+  **teste interno**, depois de o produto existir no Play Console.
+- **Excluir a conta não apaga o cliente no RevenueCat.** O saldo no nosso banco
+  é apagado; o registro da transação fica com o RevenueCat e o Google. A
+  política de privacidade diz isso. Apagar também lá (a API deles permite) é
+  uma melhoria possível.
+- **Os Termos dizem que o saldo não some com o tempo** (não há prazo de
+  validade no código). Se um dia houver validade, os Termos mudam antes.
 
 ---
 

@@ -201,7 +201,9 @@ A cada nova versão, suba `versionCode` (1 → 2 → 3…) e `versionName` em
 `versionCode`. Mantenha o `versionName` igual ao `version` do `package.json`,
 que é o número mostrado nos Ajustes.
 
-> ⏳ **Pendência — ligar o R8 na 1.0.6 (prazo Play Store: fevereiro/2027).**
+> ⏳ **Pendência — ligar o R8 numa versão própria, depois da 1.1.0 (prazo Play
+> Store: fevereiro/2027).** A 1.1.0 trouxe as compras e ficou sem R8 de
+> propósito: duas mudanças arriscadas não vão no mesmo pacote.
 > Hoje `minifyEnabled false`, o que gera o aviso "otimização de código DEX
 > abaixo de 25%" e também o aviso de mapping ausente a cada envio. Ligar
 > `minifyEnabled true` + `shrinkResources true` resolve os dois. **Teste o AAB

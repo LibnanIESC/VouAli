@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import AliAvatar from "./AliAvatar";
 import { apiAli, apiAliStream } from "../api";
 import { MOEDA_PADRAO } from "../tripmeta";
+import { ehPaywall, falaDoAliSemSaldo, resta, quantos } from "../saldo";
 import { NAVY, STEEL, ORANGE, SAND_L, HELV, INK3 } from "../theme";
 
 const WELCOME = "Oi! Sou o Ali 👋 Pode perguntar o que quiser sobre a viagem — o que fazer se chover num dia, onde comer perto de uma parada, como cortar gastos, o que priorizar... tô aqui pra isso.";
@@ -43,7 +44,9 @@ function toHistory(msgs) {
 
 const hora = (t) => new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status = "synced" }) {
+// `saldo` só existe com a cobrança ligada no servidor; sem ele nada muda aqui.
+// `onPaywall(motivo)` abre a tela do passe; `onUsou()` pede o saldo atualizado.
+export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status = "synced", tripId, saldo, onPaywall, onUsou }) {
   const [msgs, setMsgs] = useState([{ role: "assistant", content: WELCOME, at: Date.now() }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,19 +70,26 @@ export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status
     // palavra é a linguagem de ferramenta de IA e quebra essa metáfora —
     // ainda mais com as respostas do Ali sendo curtas (até 3 frases).
     const historico = toHistory(next);
-    let r = await apiAliStream(historico, trip);
-    if (r && r.fallback) r = await apiAli(historico, trip);   // servidor sem streaming
+    let r = await apiAliStream(historico, trip, undefined, tripId);
+    if (r && r.fallback) r = await apiAli(historico, trip, tripId);   // servidor sem streaming
 
     setLoading(false);
     let reply;
-    if (r && r.reply) reply = r.reply;
+    let semSaldo = null;      // motivo do bloqueio, para o botão do passe na bolha
+    if (r && r.reply) { reply = r.reply; onUsou && onUsou(); }
+    else if (ehPaywall(r)) { reply = falaDoAliSemSaldo(r); semSaldo = r; }
     else if (r && r.error === "not_configured") reply = "A IA ainda não está ligada aqui — falta configurar a chave ANTHROPIC_API_KEY no servidor. Enquanto isso, sigo bom de dicas no roteiro. 🙂";
     else if (r && r.error === "rate_limited") reply = "Ê, quanta pergunta boa de uma vez! 😄 Dá uns segundinhos e manda de novo.";
     else if (r && r.error === "quota") reply = `Por hoje o papo comigo chegou no limite do mês (${r.limite} conversas) 😅 Ele renova no dia 1º — e o roteiro, o orçamento e as dicas que já estão salvos continuam todos aqui.`;
     else if (r && r.error === "ai_paused") reply = "Estou de recesso rapidinho por aqui ⏸️ Volto já — o app segue funcionando normalmente.";
     else reply = "Ops, não consegui responder agora. Tenta de novo em instantes.";
-    setMsgs((m) => [...m, { role: "assistant", content: reply, at: Date.now() }]);
+    setMsgs((m) => [...m, { role: "assistant", content: reply, at: Date.now(), semSaldo }]);
   };
+
+  // Com a cobrança ligada, avisa quando as conversas estão no fim — antes de
+  // acabarem, e não no meio de uma pergunta.
+  const restam = saldo ? resta(saldo, "chat") : null;
+  const poucas = restam !== null && restam <= 10;
 
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
 
@@ -94,6 +104,12 @@ export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status
             {loading ? "digitando…" : subtitulo}
           </div>
         </div>
+        {poucas && onPaywall && (
+          <button onClick={() => onPaywall(null)} aria-label={`Restam ${quantos(restam, "chat")}. Ver o passe de viagem`}
+            style={{ marginLeft: "auto", flex: "0 0 auto", background: restam === 0 ? "#fdece9" : SAND_L, color: restam === 0 ? "#8c3a2c" : NAVY, border: "none", borderRadius: 999, padding: "8px 12px", minHeight: 36, fontSize: 12, fontWeight: 800, fontFamily: HELV, cursor: "pointer", whiteSpace: "nowrap" }}>
+            {restam === 0 ? "Sem conversas" : `Restam ${restam}`}
+          </button>
+        )}
       </div>
 
       {/* Mensagens (sem avatar repetido; fundo areia com textura sutil) */}
@@ -107,6 +123,12 @@ export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status
                 fontSize: 14.5, lineHeight: 1.5, padding: "8px 12px 6px", borderRadius: meu ? "14px 14px 3px 14px" : "14px 14px 14px 3px",
                 boxShadow: "0 1px 2px rgba(20,32,56,0.14)", whiteSpace: "pre-wrap" }}>
               {m.content}
+              {m.semSaldo && onPaywall && (
+                <button onClick={() => onPaywall(m.semSaldo)}
+                  style={{ display: "block", marginTop: 10, background: ORANGE, color: NAVY, border: "none", borderRadius: 999, padding: "9px 16px", minHeight: 40, fontSize: 13.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer" }}>
+                  Ver o passe de viagem
+                </button>
+              )}
               <span style={{ display: "block", textAlign: "right", fontSize: 10.5, fontWeight: 600, marginTop: 3, color: meu ? "rgba(255,255,255,0.72)" : "#9aa4b2" }}>{hora(m.at)}</span>
             </div>
           );

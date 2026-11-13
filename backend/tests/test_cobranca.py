@@ -518,6 +518,30 @@ def test_webhook_tolera_enganos_de_colagem(tmp_path):
     assert aviso(client, teste, segredo="segredo-do-webhoo").status_code == 401
 
 
+def test_conta_de_teste_ja_e_cobrada_com_a_chave_geral_desligada(tmp_path, monkeypatch):
+    """É assim que se testa a compra de verdade sem mexer com mais ninguém:
+    só a conta listada vê saldo e paywall; as outras seguem na cota mensal."""
+    m, client = montar(tmp_path, COBRANCA="off", COBRANCA_TESTE=" Ana@Exemplo.com , outra@x.com ")
+    tid = viagem(client, ANA, dias=8)
+    # a conta de teste: sem cota mensal, com saldo — e bloqueada na viagem longa
+    assert saldo(client, ANA, tid)["cobranca"] is True
+    assert client.get("/api/usage", headers=como(ANA)).json()["quotas"] is None
+    r = conversar(client, ANA, tid)
+    assert r["error"] == "paywall" and r["motivo"] == "dias"
+    # comprou: passa
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    assert sincronizar(client, ANA, tid).json()["novos"] == 1
+    assert "reply" in conversar(client, ANA, tid)
+    # os demais não percebem nada
+    assert saldo(client, BRUNO) == {"cobranca": False}
+    assert client.get("/api/usage", headers=como(BRUNO)).json()["quotas"]["chat"] > 0
+    assert "reply" in conversar(client, BRUNO)
+    saude = client.get("/api/health")
+    assert saude.json()["cobranca"] == {"ligada": False, "contas_de_teste": 2, "revenuecat": True,
+                                        "webhook": False, "sandbox": False}
+    assert "exemplo.com" not in saude.text.lower()
+
+
 def test_health_diz_se_a_cobranca_esta_configurada_sem_expor_segredo(tmp_path):
     m, client = montar(tmp_path)
     assert client.get("/api/health").json()["cobranca"]["webhook"] is False

@@ -293,6 +293,40 @@ export async function apiUsage() {
   } catch (e) { return null; }
 }
 
+// ---------- Saldo do Ali e compras (cobrança) ----------
+/**
+ * Quanto resta do Ali numa viagem. null quando a cobrança está desligada no
+ * servidor (vale a cota mensal de sempre) ou quando não deu para saber.
+ *
+ * Exige `cobranca === true` no corpo: qualquer outra coisa que chegue com
+ * status 200 não é saldo, e tratá-la como tal mostraria zeros a quem pagou.
+ */
+export async function apiSaldo(tripId) {
+  try {
+    const res = await fetchAuth(`/api/saldo${tripId ? `?trip=${encodeURIComponent(tripId)}` : ""}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && j.cobranca === true && j.disponivel ? j : null;
+  } catch (e) { return null; }
+}
+
+/**
+ * Avisa o servidor de que pode haver compra nova. O app NÃO diz o que comprou:
+ * quem confere é o servidor, direto com a loja. Devolve { ok, novos, saldo }
+ * ou { error }.
+ */
+export async function apiSincronizarCompras(tripId) {
+  try {
+    const res = await fetchAuth("/api/compras/sincronizar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tripId ? { trip_id: tripId } : {}),
+    });
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json();
+  } catch (e) { return { error: "offline" }; }
+}
+
 // ---------- Compartilhamento de viagem ----------
 export async function apiMembers(id) {
   try {
@@ -322,12 +356,16 @@ export async function apiRemoveMember(id, quem) {
 }
 
 // ---------- Chat com o Ali (IA) ----------
-export async function apiAli(messages, trip) {
+// `tripId` diz ao servidor de qual viagem é o pedido — é do saldo DELA que a
+// unidade sai. Sem ele o servidor assume a viagem ativa.
+const comViagem = (corpo, tripId) => (tripId ? { ...corpo, trip_id: tripId } : corpo);
+
+export async function apiAli(messages, trip, tripId) {
   try {
     const res = await fetchAuth("/api/ali", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, trip }),
+      body: JSON.stringify(comViagem({ messages, trip }, tripId)),
     });
     if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
     if (!res.ok) return { error: "http_" + res.status };
@@ -338,13 +376,13 @@ export async function apiAli(messages, trip) {
 // Conversa com o Ali recebendo o texto conforme ele sai (streaming).
 // `onDelta(pedaco)` é chamado a cada trecho. Se o streaming não funcionar,
 // devolve { fallback: true } para o chamador usar apiAli() do jeito antigo.
-export async function apiAliStream(messages, trip, onDelta) {
+export async function apiAliStream(messages, trip, onDelta, tripId) {
   let res;
   try {
     res = await fetchAuth("/api/ali/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, trip }),
+      body: JSON.stringify(comViagem({ messages, trip }, tripId)),
     });
   } catch (e) { return { fallback: true }; }
 
@@ -406,12 +444,12 @@ export async function apiFotos(q) {
 }
 
 // Gera uma dica do Ali (sob demanda) para uma parada do roteiro.
-export async function apiAliDica(stop, trip) {
+export async function apiAliDica(stop, trip, tripId) {
   try {
     const res = await fetchAuth("/api/ali/dica", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stop, trip }),
+      body: JSON.stringify(comViagem({ stop, trip }, tripId)),
     });
     if (res.status === 401) { promptToken(); return { error: "unauthorized" }; }
     if (!res.ok) return { error: "http_" + res.status };

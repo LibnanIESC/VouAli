@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
-import { apiUsage, url } from "../api";
+import { apiUsage, apiSaldo, url } from "../api";
+import { TIPOS, origemDoSaldo } from "../saldo";
 import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
 
 // Barrinha de consumo de um recurso da IA no mês.
@@ -20,11 +21,60 @@ function Consumo({ rotulo, usado, limite }) {
   );
 }
 
+const ROTULO = { gen: "Roteiros", chat: "Conversas", tip: "Dicas" };
+
+/**
+ * Quanto resta do Ali — só aparece com a cobrança ligada no servidor.
+ *
+ * Dentro de uma viagem mostra o que dá para gastar NELA (passe ou degustação).
+ * Na lista de viagens não há viagem em foco: mostra o que é da conta — a
+ * degustação e os passes comprados que ainda não foram usados em viagem alguma.
+ */
+function SaldoDoAli({ saldo, naViagem, onPasse }) {
+  const origem = origemDoSaldo(saldo);
+  const fonte = naViagem ? saldo.disponivel : saldo.degustacao;
+  const legenda = !naViagem
+    ? `Degustação gratuita, para uma viagem de até ${saldo.max_dias} dias.`
+    : origem === "passe" ? "Do passe desta viagem. Quem viaja com você usa o mesmo."
+    : origem === "degustacao" ? `Da degustação gratuita, que vale para viagens de até ${saldo.max_dias} dias.`
+    : saldo.dias > saldo.max_dias ? `A degustação vale para viagens de até ${saldo.max_dias} dias; esta tem ${saldo.dias}.`
+    : "A degustação desta conta já foi usada.";
+  return (
+    <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
+      {TIPOS.map((t) => {
+        const n = Math.max(0, Number((fonte || {})[t]) || 0);
+        return (
+          <div key={t} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 9 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: NAVY }}>{ROTULO[t]}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: n === 0 ? "#C62828" : INK3 }}>{n === 0 ? "acabou" : `restam ${n}`}</span>
+          </div>
+        );
+      })}
+      <div style={{ fontSize: 12.5, color: INK3, marginTop: 2, lineHeight: 1.5 }}>{legenda}</div>
+      {saldo.soltos > 0 && (
+        <div style={{ fontSize: 12.5, color: INK2, marginTop: 8, lineHeight: 1.5, fontWeight: 600 }}>
+          Você tem {saldo.soltos === 1 ? "1 passe comprado" : `${saldo.soltos} passes comprados`} ainda sem viagem. Ele entra na primeira viagem em que você usar o Ali.
+        </div>
+      )}
+      <button onClick={onPasse} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 14 }}>Passe de viagem</button>
+    </div>
+  );
+}
+
 // Ajustes do app (backup por enquanto; ponto natural para futuras configurações).
-export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout, onExcluirConta }) {
+// `tripId` é a viagem aberta (vazio na lista de viagens); `saldoVer` muda
+// quando uma compra é ativada, para o saldo mostrado aqui se atualizar.
+export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout, onExcluirConta, tripId, saldoVer, onPasse }) {
   const fileRef = useRef(null);
   const [uso, setUso] = useState(null);
+  const [saldo, setSaldo] = useState(null);
   useEffect(() => { (async () => setUso(await apiUsage()))(); }, []);
+  useEffect(() => {
+    if (!user) return;
+    let vivo = true;
+    (async () => { const s = await apiSaldo(tripId); if (vivo) setSaldo(s); })();
+    return () => { vivo = false; };
+  }, [tripId, saldoVer]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 30px" }}>
@@ -46,6 +96,13 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
                 </button>
               )}
             </div>
+          </>
+        )}
+
+        {saldo && (
+          <>
+            <label style={{ ...lbl, marginTop: 18 }}>{tripId ? "Ali nesta viagem" : "Ali na sua conta"}</label>
+            <SaldoDoAli saldo={saldo} naViagem={!!tripId} onPasse={onPasse} />
           </>
         )}
 

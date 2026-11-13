@@ -6,6 +6,7 @@ import BuscaFotoSheet from "./BuscaFotoSheet";
 import { SparkIcon } from "./Icons";
 import { apiGenerate } from "../api";
 import { toast } from "../toast";
+import { ehPaywall } from "../saldo";
 import { CURRENCIES, INTERESSES, GRUPOS, TRANSPORTES, ehTransporteConhecido, guessCurrency, daysBetween, formatDateLabel, suggestGroup, MOEDA_PADRAO } from "../tripmeta";
 import { btn, field, lbl, NAVY, ORANGE, SAND, CREAM, HELV, DISPLAY, INK2, INK3, DANGER} from "../theme";
 import { digitarNumero, numeroDoCampo, campoDeNumero, estimativaGeracao } from "../utils";
@@ -83,7 +84,7 @@ function parseInteresses(txt) {
 
 // Formulário de criação/edição de uma viagem.
 // Ao criar, permite escolher entre "começar vazia" ou "gerar com o Ali".
-export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, onGerando, onSujo }) {
+export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, onGerando, onSujo, onPaywall }) {
   const [f, setF] = useState(() => {
     const t = trip || { name: "", dateLabel: "", destination: "", origin: "", transport: "", bg: "", currency: "", startDate: "", endDate: "", interests: "", adults: 1, children: 0, groupTypes: "" };
     return { ...t, budget: campoDeNumero(t.budget) };   // o teto é texto enquanto se digita
@@ -182,7 +183,12 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
         origin: String(f.origin || "").trim(), transport: transporte,
       });
       setGerando(false);
-      if (r && r.state) { onSave({ ...meta, data: r.state }); return; }
+      // `passe`: o roteiro foi pago com um passe comprado antes de a viagem
+      // existir. Mandá-lo junto prende o passe à viagem que nasce agora.
+      if (r && r.state) { onSave({ ...meta, data: r.state, ...(r.passe ? { passe: r.passe } : {}) }); return; }
+      // Sem saldo: abre a tela do passe por cima do formulário. Comprou, o
+      // roteiro é gerado em seguida, sem a pessoa preencher nada de novo.
+      if (ehPaywall(r) && onPaywall) { onPaywall(r, () => submitRef.current && submitRef.current(true)); return; }
       if (r && r.error === "not_configured") { toast("A IA ainda não está ligada — falta a chave no servidor."); return; }
       if (r && r.error === "rate_limited") { toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂"); return; }
       if (r && r.error === "quota") { toast(`Você já usou os ${r.limite} roteiros do mês. Crie a viagem vazia e monte com o Ali aos poucos. 🙂`); return; }
@@ -192,6 +198,10 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
     }
     onSave(meta); // criar vazia OU salvar edição
   };
+  // Sempre a versão mais nova de `submit`: quem a chama depois da compra não
+  // pode usar a que foi criada antes, com o formulário de então.
+  const submitRef = useRef(null);
+  submitRef.current = submit;
 
   // Enquanto o Ali monta o roteiro não há o que salvar nem cancelar.
   //

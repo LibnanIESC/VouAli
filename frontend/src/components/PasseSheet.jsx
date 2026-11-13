@@ -1,0 +1,194 @@
+import React, { useState, useEffect, useRef } from "react";
+import Sheet from "./Sheet";
+import AliAvatar from "./AliAvatar";
+import { apiSaldo, apiSincronizarCompras, url } from "../api";
+import { podeComprarAqui, buscarProduto, comprar, reenviarRecibos, LOJA_URL } from "../compras";
+import { textoDoPaywall, quantos, TIPOS } from "../saldo";
+import { toast } from "../toast";
+import { btn, HELV, DISPLAY, NAVY, ORANGE, STEEL, INK2, INK3 } from "../theme";
+
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const O_QUE = {
+  gen: "gerados pelo Ali, do zero",
+  chat: "para tirar dúvidas e ajustar o plano",
+  tip: "sob medida para as suas paradas",
+};
+
+/**
+ * Tela do passe de viagem: explica por que o Ali parou e vende o passe.
+ *
+ * Três regras que valem aqui:
+ *  - O PREÇO vem da loja, nunca do código. Mudou no Play Console, mudou aqui.
+ *  - O que o passe contém vem do SERVIDOR (`pacotes.passe`), pelo mesmo motivo.
+ *  - Pagar não credita nada por si só: depois da loja, o servidor confere a
+ *    compra e é ELE quem devolve o saldo novo. Um app adulterado não ganha nada.
+ *
+ * `tripId` é a viagem em que o passe vai valer. Fica vazio quando a viagem
+ * ainda não existe (gerando o roteiro de uma viagem nova): o passe nasce solto
+ * e se prende à viagem criada em seguida.
+ */
+export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) {
+  const [saldo, setSaldo] = useState(undefined);       // undefined = buscando · null = indisponível
+  const [oferta, setOferta] = useState(undefined);     // { produto, preco } · null = a loja não respondeu
+  const [ocupado, setOcupado] = useState("");          // "" | "comprando" | "conferindo" | "restaurando"
+  const [aviso, setAviso] = useState("");
+  const vivo = useRef(true);
+  useEffect(() => () => { vivo.current = false; }, []);
+
+  const naLoja = podeComprarAqui();
+
+  useEffect(() => {
+    (async () => {
+      const s = await apiSaldo(tripId);
+      if (!vivo.current) return;
+      setSaldo(s);
+      if (!naLoja) { setOferta(null); return; }
+      const o = s ? await buscarProduto(uid, s.produto_passe) : null;
+      if (vivo.current) setOferta(o);
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { titulo, texto } = textoDoPaywall(motivo || {});
+  const pacote = (saldo && saldo.pacotes && saldo.pacotes.passe) || null;
+
+  // A loja confirma o pagamento antes de o RevenueCat registrar a compra do
+  // lado dele; a conferência pode chegar um instante cedo demais. Algumas
+  // tentativas curtas cobrem isso sem deixar a pessoa olhando para o nada.
+  // Devolve a última resposta do servidor: "conferi e não há compra nova" é
+  // uma resposta diferente de "não consegui conferir", e a pessoa precisa
+  // saber qual das duas aconteceu.
+  const conferir = async (tentativas) => {
+    let r = null;
+    for (let i = 0; i < tentativas; i++) {
+      r = await apiSincronizarCompras(tripId);
+      if (r && r.ok && r.novos > 0) return r;
+      if (r && r.error && r.error !== "upstream" && r.error !== "offline") return r;
+      if (i < tentativas - 1) await espera(1800);
+    }
+    return r;
+  };
+
+  const ativar = (r) => {
+    toast("Passe ativado. Boa viagem! ✅");
+    onAtivado && onAtivado(r.saldo || null);
+  };
+
+  const aoComprar = async () => {
+    if (ocupado || !oferta) return;
+    setAviso("");
+    setOcupado("comprando");
+    const fim = await comprar(uid, oferta.produto);
+    if (!vivo.current) return;
+    if (fim.cancelado) { setOcupado(""); return; }
+    if (fim.pendente) {
+      setOcupado("");
+      setAviso("O pagamento está em análise. O passe aparece aqui assim que o Google confirmar.");
+      return;
+    }
+    if (!fim.ok) {
+      setOcupado("");
+      setAviso(fim.erro === "rede"
+        ? "Sem conexão com a loja. Confira a internet e tente de novo."
+        : "A loja não concluiu a compra. Nada foi cobrado — tente de novo em instantes.");
+      return;
+    }
+    setOcupado("conferindo");
+    const r = await conferir(4);
+    if (!vivo.current) return;
+    setOcupado("");
+    if (r && r.ok && r.novos > 0) { ativar(r); return; }
+    // Pagou e a conferência não fechou: o servidor ainda recebe o aviso da
+    // loja por conta própria. Dizer isso evita a pessoa comprar duas vezes.
+    setAviso("Pagamento recebido! O passe está sendo ativado — se não aparecer em um minuto, toque em “Já comprei”.");
+  };
+
+  const aoRestaurar = async () => {
+    if (ocupado) return;
+    setAviso("");
+    setOcupado("restaurando");
+    await reenviarRecibos(uid);
+    const r = await conferir(1);
+    if (!vivo.current) return;
+    setOcupado("");
+    if (r && r.ok && r.novos > 0) { ativar(r); return; }
+    if (r && r.error === "rate_limited") { setAviso("Muitas conferências seguidas. Espere um minutinho e tente de novo."); return; }
+    setAviso(r && r.ok
+      ? "Não encontrei compra nova nesta conta. Se você pagou há pouco, espere um minuto e tente de novo."
+      : "Não consegui conferir agora. Tente de novo em instantes.");
+  };
+
+  const rotuloComprar = ocupado === "comprando" ? "Abrindo a loja…"
+    : ocupado === "conferindo" ? "Ativando o passe…"
+    : oferta && oferta.preco ? `Comprar passe · ${oferta.preco}` : "Comprar passe";
+
+  return (
+    <Sheet onClose={ocupado === "comprando" || ocupado === "conferindo" ? () => {} : onClose}>
+      <div style={{ padding: "8px 22px 30px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+          <AliAvatar size={76} portrait ring={ORANGE} />
+          <div style={{ fontSize: 22, fontWeight: 800, color: NAVY, marginTop: 14, fontFamily: DISPLAY, lineHeight: 1.2 }}>{titulo}</div>
+          <div style={{ fontSize: 14.5, color: INK2, fontWeight: 500, marginTop: 8, lineHeight: 1.55, maxWidth: 340 }}>{texto}</div>
+        </div>
+
+        <div style={{ background: "#fff", borderRadius: 16, padding: "16px 16px 6px", marginTop: 20, boxShadow: "0 4px 12px rgba(20,32,56,0.07)" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>O passe de uma viagem traz</div>
+          {saldo === undefined && <div aria-hidden="true" style={{ height: 96, borderRadius: 10, background: "#f1ece2", marginBottom: 10, animation: "pulse 1.4s ease-in-out infinite" }} />}
+          {pacote && TIPOS.filter((t) => Number(pacote[t]) > 0).map((t) => (
+            <div key={t} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
+              <span aria-hidden="true" style={{ flex: "0 0 auto", width: 22, height: 22, borderRadius: 11, background: ORANGE, color: NAVY, fontSize: 13, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>✓</span>
+              <span style={{ fontSize: 14.5, color: INK2, lineHeight: 1.45 }}>
+                <strong style={{ color: NAVY }}>{quantos(pacote[t], t)}</strong> {O_QUE[t]}
+              </span>
+            </div>
+          ))}
+          {saldo === null && (
+            <div style={{ fontSize: 14, color: INK2, lineHeight: 1.5, marginBottom: 10 }}>
+              Não consegui carregar os detalhes agora. Confira a internet e abra de novo.
+            </div>
+          )}
+        </div>
+
+        {aviso && (
+          <div role="status" style={{ background: "#fff6e9", border: "1px solid #f3d9b1", borderRadius: 12, padding: "11px 13px", marginTop: 14, fontSize: 13.5, color: "#7a4b12", fontWeight: 600, lineHeight: 1.45 }}>{aviso}</div>
+        )}
+
+        {naLoja ? (
+          <>
+            <button onClick={aoComprar} disabled={!!ocupado || !oferta}
+              style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 18, minHeight: 52, fontSize: 16, opacity: ocupado || !oferta ? 0.6 : 1 }}>
+              {oferta === undefined ? "Consultando a loja…" : rotuloComprar}
+            </button>
+            {oferta === null && saldo !== undefined && (
+              <div style={{ fontSize: 13, color: INK3, marginTop: 10, textAlign: "center", lineHeight: 1.5 }}>
+                A loja não respondeu agora. Feche e abra esta tela de novo em instantes.
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* No site não há como cobrar: quem cobra é a loja do app. Melhor
+                dizer onde comprar do que mostrar um botão que não anda. */}
+            <a href={LOJA_URL} target="_blank" rel="noreferrer"
+              style={{ ...btn(ORANGE, { color: NAVY }), display: "flex", alignItems: "center", justifyContent: "center", width: "100%", boxSizing: "border-box", marginTop: 18, minHeight: 52, fontSize: 16, textDecoration: "none" }}>
+              Comprar no app para Android
+            </a>
+            <div style={{ fontSize: 13, color: INK3, marginTop: 10, textAlign: "center", lineHeight: 1.5 }}>
+              A compra é feita pelo app, na Google Play. O passe vale na sua conta — aqui no site também.
+            </div>
+          </>
+        )}
+
+        <button onClick={aoRestaurar} disabled={!!ocupado}
+          style={{ width: "100%", marginTop: 8, background: "none", border: "none", padding: "10px 6px", minHeight: 44, color: STEEL, fontSize: 14, fontWeight: 700, fontFamily: HELV, cursor: ocupado ? "default" : "pointer", textDecoration: "underline", opacity: ocupado ? 0.6 : 1 }}>
+          {ocupado === "restaurando" ? "Conferindo…" : "Já comprei"}
+        </button>
+
+        <div style={{ fontSize: 12, color: INK3, marginTop: 8, textAlign: "center", lineHeight: 1.55 }}>
+          Pagamento único, sem assinatura e sem renovação automática. O passe vale para uma viagem, e quem viaja com você usa o mesmo.
+          Planejar na mão continua grátis. <a href={url("/termos")} target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Termos de uso</a>
+        </div>
+      </div>
+    </Sheet>
+  );
+}

@@ -78,6 +78,16 @@ AI_MONTHLY_CAP = int(os.getenv("ALI_MONTHLY_CAP", "0"))
 # na hora e o app não: só se liga depois que a versão com a tela de compra
 # estiver na mão das pessoas.
 COBRANCA = os.getenv("COBRANCA", "off").strip().lower() in ("on", "1", "true", "sim")
+# Contas (e-mails, separados por vírgula) para as quais a cobrança JÁ vale, com
+# a chave geral ainda desligada. É como se testa a compra de verdade — tela do
+# passe, pagamento, saldo, reembolso — sem mudar nada para os outros usuários.
+COBRANCA_TESTE = {e.strip().lower() for e in os.getenv("COBRANCA_TESTE", "").split(",") if e.strip()}
+
+def _cobra(usuario):
+    """A cobrança vale para esta conta?"""
+    if not usuario:
+        return False
+    return COBRANCA or str(usuario.get("email") or "").strip().lower() in COBRANCA_TESTE
 
 def _saldo_env(prefixo, roteiros, chats, dicas):
     """Tamanho de um pacote, ajustável por variável de ambiente."""
@@ -241,7 +251,7 @@ def _autorizar(usuario, tipo, body, dias_pedidos=None):
     `dias_pedidos` vale para a geração de roteiro (o tamanho é o que foi
     pedido); nos outros casos conta o que está gravado na viagem.
     """
-    if not usuario or not COBRANCA:
+    if not _cobra(usuario):
         pode, detalhe = _cota(usuario, tipo)
         return pode, detalhe, None
     uid = usuario["uid"]
@@ -1135,6 +1145,7 @@ def health():
         # se os segredos da cobrança chegaram ao servidor.
         "cobranca": {
             "ligada": COBRANCA,
+            "contas_de_teste": len(COBRANCA_TESTE),
             "revenuecat": bool(REVENUECAT_API_KEY),
             "webhook": bool(REVENUECAT_WEBHOOK_AUTH),
             "sandbox": REVENUECAT_SANDBOX,
@@ -1204,7 +1215,7 @@ def usage(request: Request):
         uso = store.uso_do_usuario(con, usuario["uid"])
     # Com a cobrança ligada não existe mais cota do mês: quem responde quanto
     # resta é /api/saldo. `quotas` nulo faz o app antigo esconder o painel.
-    return {"period": uso["period"], "quotas": None if COBRANCA else QUOTAS,
+    return {"period": uso["period"], "quotas": None if _cobra(usuario) else QUOTAS,
             "used": {k: uso[k] for k in store.TIPOS_USO},
             "tokens": {"in": uso["tokens_in"], "out": uso["tokens_out"]}}
 
@@ -1237,7 +1248,7 @@ def _resumo_saldo(con, uid, trip_id):
 def saldo(request: Request, trip: str = ""):
     """Quanto resta do Ali para uma viagem (a ativa, se nenhuma for informada)."""
     usuario = me(request)
-    if not usuario or not COBRANCA:
+    if not _cobra(usuario):
         return {"cobranca": False}
     with user_con(usuario) as con:
         tid = trip.strip()

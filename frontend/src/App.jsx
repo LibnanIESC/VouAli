@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao, apiSaldo } from "./api";
+import { identificar, esquecer } from "./compras";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { montarBackup, lerBackup, nomeDoArquivo } from "./backup";
@@ -30,6 +31,7 @@ import TripsHome from "./components/TripsHome";
 import TripForm from "./components/TripForm";
 import TetoForm from "./components/TetoForm";
 import ShareSheet from "./components/ShareSheet";
+import PasseSheet from "./components/PasseSheet";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
 
@@ -85,6 +87,13 @@ export default function App() {
   // o `ov`), para que "Continuar editando" devolva o formulário intacto.
   const [descartar, setDescartar] = useState(null);   // callback a executar ao descartar
   const formSujoRef = useRef(false);
+  // Cobrança. `saldo` é o que resta do Ali na viagem aberta — null enquanto a
+  // cobrança estiver desligada no servidor, e aí nada disto aparece. `passe` é
+  // a tela de compra: como o aviso de descarte, fica POR CIMA do que estiver
+  // aberto (o formulário de baixo continua intacto).
+  const [saldo, setSaldo] = useState(null);
+  const [saldoVer, setSaldoVer] = useState(0);
+  const [passe, setPasse] = useState(null);       // { motivo, tripId, depois }
   const [reorder, setReorder] = useState(false);
   const [sync, setSync] = useState("synced");
   const [trips, setTrips] = useState({ active: null, list: [] });
@@ -193,12 +202,12 @@ export default function App() {
   // escura dentro da viagem e sob qualquer gaveta (que escurece o fundo todo).
   // A espera da geração é exceção: mesmo com a gaveta aberta, ela cobre tudo
   // de creme. No site isto não faz nada.
-  const topoClaro = gerandoRoteiro || (!ov && !needKey && (conferindoAcesso || precisaLogin || vista === "lista"));
+  const topoClaro = gerandoRoteiro || (!ov && !passe && !needKey && (conferindoAcesso || precisaLogin || vista === "lista"));
   useEffect(() => { ajustarBarraDeStatus(topoClaro); }, [topoClaro]);
 
   // Botão voltar do Android: fecha o que está aberto antes de sair do app.
-  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false, vista: "lista", descartar: null });
-  estadoRef.current = { ov, tab, reorder, vista, descartar };
+  const estadoRef = useRef({ ov: null, tab: "roteiro", reorder: false, vista: "lista", descartar: null, passe: null });
+  estadoRef.current = { ov, tab, reorder, vista, descartar, passe };
   // Fecha o formulário pedindo confirmação se houver edição pendente.
   const fecharForm = () => {
     if (formSujoRef.current) setDescartar(() => () => { formSujoRef.current = false; setOv(null); });
@@ -207,11 +216,12 @@ export default function App() {
   useEffect(() => {
     let remover = () => {};
     tratarBotaoVoltar(
-      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder || !!estadoRef.current.descartar, aba: estadoRef.current.tab, vista: estadoRef.current.vista }),
+      () => ({ temOverlay: !!estadoRef.current.ov || estadoRef.current.reorder || !!estadoRef.current.descartar || !!estadoRef.current.passe, aba: estadoRef.current.tab, vista: estadoRef.current.vista }),
       {
         fecharOverlay: () => {
           const st = estadoRef.current;
           if (st.descartar) { setDescartar(null); return; }   // volta fecha o aviso primeiro
+          if (st.passe) { setPasse(null); return; }           // depois a tela do passe
           if (!st.ov) { setReorder(false); return; }
           if (FORM_KINDS.includes(st.ov.kind) && formSujoRef.current) setDescartar(() => () => { formSujoRef.current = false; setOv(null); });
           else setOv(null);
@@ -277,6 +287,38 @@ export default function App() {
     return () => { vivo = false; };
   }, [autenticado, vista]);
 
+  // ---------- Cobrança: saldo do Ali e identidade na loja ----------
+  // A loja precisa saber de QUEM é a compra antes de qualquer pagamento. Só
+  // existe dentro do app Android; no site isto não faz nada.
+  const uidLogado = authMode === "firebase" && user ? user.uid : null;
+  useEffect(() => { if (uidLogado) identificar(uidLogado); }, [uidLogado]);
+
+  // Quanto resta do Ali na viagem aberta. A resposta só vale se a viagem ainda
+  // for a mesma — trocar de viagem no meio não pode pintar o saldo da anterior.
+  const atualizarSaldo = async () => {
+    if (!uidLogado) return;
+    const id = ativaRef.current;
+    const s = await apiSaldo(id);
+    if (ativaRef.current === id) setSaldo(s);
+  };
+  useEffect(() => {
+    if (!uidLogado || vista !== "viagem" || !trips.active) return;
+    setSaldo(null);
+    atualizarSaldo();
+  }, [uidLogado, vista, trips.active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Abre a tela do passe. `tripId` vazio = a viagem ainda não existe (roteiro
+  // de viagem nova) ou a pessoa está na lista: o passe nasce sem viagem.
+  const abrirPasse = (motivo, tripId, depois) => setPasse({ motivo: motivo || null, tripId: tripId || null, depois: depois || null });
+  const passeAtivado = (novo) => {
+    const p = passe;
+    setPasse(null);
+    setSaldoVer((v) => v + 1);
+    if (novo && p && p.tripId && p.tripId === ativaRef.current) setSaldo(novo);
+    else atualizarSaldo();
+    if (p && p.depois) p.depois();
+  };
+
   // Apaga a conta no servidor e volta o app ao estado de quem nunca entrou.
   // A cópia local sai junto: sem isso, a próxima abertura mostraria as viagens
   // de uma conta que não existe mais.
@@ -289,7 +331,10 @@ export default function App() {
     replaceState(null);
     setBooted(false);
     setOv(null);
+    setPasse(null);
+    setSaldo(null);
     setVista("lista");
+    esquecer();
     if (fbRef.current) await fbRef.current.logout();
     toastMsg("Sua conta foi excluída. 👋");
   };
@@ -299,11 +344,14 @@ export default function App() {
     await flushNow();
     resetSessao();                 // ETag e versão desta conta não valem para a próxima
     limparCache();                 // a próxima conta não pode ver esta viagem
+    esquecer();                    // a loja também esquece de quem era a conta
     await fbRef.current.logout();
     setTrips({ active: null, list: [] });
     replaceState(null);
     setBooted(false);
     setOv(null);
+    setPasse(null);
+    setSaldo(null);
     setVista("lista");
   };
 
@@ -663,7 +711,9 @@ export default function App() {
         {/* O espaço reservado embaixo precisa passar do botão "+" (que flutua a
             140px do fundo), senão ele cobre o horário do último card. */}
         <div style={{ flex: 1, minHeight: 0, overflowY: tab === "ali" ? "hidden" : "auto", padding: tab === "ali" ? 0 : "18px 16px calc(156px + env(safe-area-inset-bottom))", display: tab === "ali" ? "flex" : "block", flexDirection: "column", background: CREAM }}>
-          {tab === "ali" && <AliChat trip={aliTrip} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync} />}
+          {tab === "ali" && <AliChat trip={aliTrip} destino={activeMeta.destination || activeMeta.name} currency={cur} status={sync}
+            tripId={trips.active} saldo={saldo} onUsou={atualizarSaldo}
+            onPaywall={uidLogado ? (motivo) => abrirPasse(motivo, trips.active) : null} />}
           {/* Explica o que sumiu: sem esta linha, os botões de edição
               desaparecem e a pessoa acha que o app quebrou. */}
           {somenteLeitura && tab !== "ali" && (
@@ -940,6 +990,8 @@ export default function App() {
         <AjustesSheet onClose={() => setOv(null)} onExport={exportBackup}
           onImportFile={(f) => { setOv(null); importBackup(f); }}
           user={user} onLogout={sair}
+          tripId={vista === "viagem" ? trips.active : null} saldoVer={saldoVer}
+          onPasse={() => abrirPasse(null, vista === "viagem" ? trips.active : null)}
           onExcluirConta={user ? () => setOv({ kind: "excluirConta" }) : null} />
       )}
       {ov?.kind === "excluirConta" && (
@@ -958,6 +1010,7 @@ export default function App() {
       {ov?.kind === "tripForm" && (
         <TripForm trip={ov.trip} canDelete={!!ov.trip} onClose={fecharForm} onGerando={setGerandoRoteiro}
           onSujo={(b) => { formSujoRef.current = b; }}
+          onPaywall={uidLogado ? (motivo, depois) => abrirPasse(motivo, null, depois) : null}
           onSave={(data) => ov.trip ? saveTripMeta(data) : createTrip(data)}
           onDelete={() => setOv({ kind: "confirmDeleteTrip", id: ov.trip.id, name: ov.trip.name })} />
       )}
@@ -993,7 +1046,9 @@ export default function App() {
           onDelete={() => { const s = ov.stop; setOv({ kind: "confirm", message: `Excluir "${s.n}" do roteiro?`, back: ov, onConfirm: () => deleteStop(s.id) }); }} />
       )}
       {ov?.kind === "stopForm" && (
-        <StopForm stop={ov.stop} color={dc} trip={aliTrip} onClose={fecharForm} onSujo={(b) => { formSujoRef.current = b; }} onSave={saveStop} />
+        <StopForm stop={ov.stop} color={dc} trip={aliTrip} onClose={fecharForm} onSujo={(b) => { formSujoRef.current = b; }} onSave={saveStop}
+          tripId={trips.active} onUsou={atualizarSaldo}
+          onPaywall={uidLogado ? (motivo) => abrirPasse(motivo, trips.active) : null} />
       )}
       {ov?.kind === "dayForm" && (
         <DayForm day={ov.day} canDelete={!!ov.day && days.length > 1}
@@ -1027,6 +1082,12 @@ export default function App() {
           onClose={fecharForm}
           onSave={(data) => { if (!data.title?.trim()) return; const nn = ov.item ? notes.map((n) => n.id === data.id ? data : n) : [...notes, { ...data, id: uid() }]; setNotesP(nn); setOv(null); }}
           onDelete={() => { const it = ov.item; setOv({ kind: "confirm", message: `Excluir a nota "${it.title}"?`, back: ov, onConfirm: () => { setNotesP(notes.filter((n) => n.id !== it.id)); setOv(null); } }); }} />
+      )}
+
+      {/* Tela do passe de viagem: por cima de qualquer formulário aberto. */}
+      {passe && (
+        <PasseSheet motivo={passe.motivo} tripId={passe.tripId} uid={uidLogado}
+          onClose={() => setPasse(null)} onAtivado={passeAtivado} />
       )}
 
       {/* Aviso ao fechar um formulário com alterações não salvas (M4). Fica por

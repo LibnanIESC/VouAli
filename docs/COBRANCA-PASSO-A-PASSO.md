@@ -8,18 +8,23 @@ elas.
 > Os nomes dos menus do Play Console e do RevenueCat mudam de vez em quando. Se
 > um não bater exatamente, procure pelo termo em **negrito**.
 
-| | Etapa | Quando | Espera |
+| | Etapa | Situação | Espera |
 |---|---|---|---|
-| 1 | Contador: modelo fiscal | **agora** | ⏳ depende dele |
-| 2 | Perfil de pagamentos no Google Play | **agora** | ⏳ alguns dias |
-| 3 | Conta e projeto no RevenueCat | **agora** | minutos |
-| 4 | Ligar o RevenueCat ao Google Play | depois da 3 | ⏳ até ~36 h |
-| 5 | Segredos no Railway | depois da 3 | minutos |
-| 6 | Webhook do RevenueCat | depois da 5 | minutos |
-| 7 | Produto `passe_viagem` no Play Console | **depois que eu entregar o app com compra** | minutos |
+| 1 | Contador: modelo fiscal | **a fazer** | ⏳ depende dele |
+| 2 | Perfil de pagamentos no Google Play | **a fazer** | ⏳ alguns dias |
+| 3 | Conta e projeto no RevenueCat | ✅ feito (13/11/2026) | — |
+| 4 | Ligar o RevenueCat ao Google Play | ✅ feito — credenciais válidas | — |
+| 5 | Segredos no Railway | ✅ feito | — |
+| 6 | Webhook do RevenueCat | ✅ feito — teste devolveu 200 | — |
+| 7 | Subir a versão 1.1.0 e criar o produto `passe_viagem` | **a fazer** (o app já está pronto) | minutos |
 | 8 | Testadores de licença | junto com a 7 | minutos |
-| 9 | Privacidade e *Data safety* | antes de publicar | minutos |
+| 9 | Privacidade, *Data safety* e status de comerciante | antes de publicar | minutos |
 | 10 | Ligar a cobrança | por último | — |
+
+> Para conferir de fora se os segredos chegaram ao servidor, abra
+> `https://vouali-app.up.railway.app/api/health` e veja o bloco `cobranca`:
+> `revenuecat` e `webhook` têm de estar `true`. Ele mostra só sim/não, nunca o
+> valor.
 
 ---
 
@@ -144,8 +149,20 @@ cabeçalho não é idêntico ao do Railway.
 ## 7. Produto no Play Console
 
 > ⚠️ Só dá para criar produto depois que existir no Play Console uma versão do
-> app **com a biblioteca de compra**. Essa versão sou eu que preparo (etapa 6.4
-> do plano); você sobe o AAB em **Teste interno** e então segue aqui.
+> app **com a biblioteca de compra**. Essa versão é a **1.1.0** (código 7), já
+> pronta. Comece por subir o AAB.
+
+### 7a. Subir a versão 1.1.0 em teste interno
+
+1. O arquivo é `frontend/android/app/build/outputs/bundle/release/app-release.aab`.
+2. Play Console → app **VouAli** → **Testar e lançar** → **Teste interno** →
+   **Criar nova versão**.
+3. Envie o AAB, escreva uma nota curta (ex.: "Passe de viagem") e avance até
+   **Salvar e publicar** no teste interno.
+4. Se o Play Console avisar sobre a permissão de **faturamento**
+   (`com.android.vending.BILLING`), é o esperado: é ela que permite a compra.
+
+### 7b. Criar o produto
 
 1. Play Console → **Monetizar com o Google Play** → **Produtos** → **Produtos
    únicos** (*In-app products*) → **Criar produto**.
@@ -156,11 +173,26 @@ cabeçalho não é idêntico ao do Railway.
 4. **Preço:** R$ 29,90. É **aqui** que o preço mora: para mudar no futuro,
    edite este campo — sem atualizar o app e sem me chamar.
 5. **Ativar** o produto.
-6. No RevenueCat: **Products** → importe `passe_viagem`; depois **Offerings** →
-   na oferta `default`, crie um pacote apontando para ele.
+6. No RevenueCat: **Product catalog** → **Products** → importe `passe_viagem`
+   do app VouAli. Não é preciso montar *Offering*: o app busca o produto direto
+   pelo id.
 
 **Pronto quando:** o produto estiver **ativo** no Play Console e aparecer na
-oferta `default` do RevenueCat.
+lista de produtos do RevenueCat.
+
+### 7c. Testar a compra no celular
+
+1. Faça a etapa 8 (testadores de licença) antes.
+2. Instale a versão 1.1.0 pelo link do **teste interno**.
+3. Ligue a cobrança **só para a sua conta**: no Railway, crie a variável
+   `COBRANCA_TESTE` com o e-mail da conta que você usa no app (mais de um?
+   separe por vírgula) e clique em **Deploy**. Para todos os outros nada muda:
+   `COBRANCA` continua `off`.
+4. Crie uma viagem de mais de 4 dias com o Ali → aparece a tela do passe →
+   **Comprar passe** → pague com a conta de teste → o roteiro é gerado.
+5. Em **Ajustes**, confira o saldo da viagem.
+6. Peça o reembolso da compra de teste no Play Console (**Pedidos**) e me
+   avise: é o teste que confirma que o saldo é retirado.
 
 ---
 
@@ -176,15 +208,22 @@ mostrar que é uma **compra de teste**.
 
 ---
 
-## 9. Privacidade e *Data safety*
+## 9. Privacidade, *Data safety* e status de comerciante
 
 A compra passa por um terceiro novo (RevenueCat), e isso precisa estar dito.
 
-1. **Política de privacidade:** eu escrevo o trecho novo junto com a tela de
-   compra; você revisa e publica.
+1. **Política de privacidade e Termos de Uso:** já atualizados e no ar em
+   `https://vouali-app.up.railway.app/privacidade` e `/termos`. **Leia os
+   dois** — são compromissos da empresa — e me diga se quer mudar algo.
 2. Play Console → **Conteúdo do app** → **Segurança dos dados**: declare a
    coleta de **Informações financeiras → Histórico de compras**, usada para
-   **funcionalidade do app**.
+   **funcionalidade do app**, compartilhada com um provedor de serviço.
+3. **Status de comerciante** (prazo do Google: fevereiro de 2027): Play Console
+   → aviso "Declare seu status de comerciante" → **Esta é uma conta de
+   comerciante**. O telefone informado fica **público** na página do app; use
+   um número da empresa. Depois, em **Conteúdo do app**, confirme o status do
+   VouAli e informe o link dos Termos:
+   `https://vouali-app.up.railway.app/termos`.
 
 ---
 
@@ -193,7 +232,7 @@ A compra passa por um terceiro novo (RevenueCat), e isso precisa estar dito.
 Só depois de: compra de teste funcionando de ponta a ponta, versão nova
 **publicada** e a maioria das pessoas já atualizada.
 
-1. Railway → `REVENUECAT_SANDBOX` = `0`.
+1. Railway → `REVENUECAT_SANDBOX` = `0` e **apague** `COBRANCA_TESTE`.
 2. Reveja `ALI_MONTHLY_CAP` para caber quem pagou, com folga.
 3. Railway → `COBRANCA` = `on`.
 
