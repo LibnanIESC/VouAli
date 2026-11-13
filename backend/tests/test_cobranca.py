@@ -503,6 +503,28 @@ def test_webhook_exige_o_segredo(tmp_path, monkeypatch):
 def test_webhook_sem_segredo_configurado_fica_fechado(tmp_path):
     m, client = montar(tmp_path)
     assert aviso(client, {"type": "NON_RENEWING_PURCHASE", "app_user_id": ANA["uid"]}, segredo="").status_code == 401
+    assert aviso(client, {"type": "TEST", "app_user_id": "x"}, segredo="Bearer ").status_code == 401
+
+
+def test_webhook_tolera_enganos_de_colagem(tmp_path):
+    """Espaço/quebra de linha colados no Railway e "Bearer " na frente não
+    podem fechar o webhook — mas segredo errado continua barrado."""
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="  segredo-do-webhook\n")
+    teste = {"type": "TEST", "app_user_id": "conta-que-nao-existe"}
+    assert aviso(client, teste, segredo="segredo-do-webhook").status_code == 200
+    assert aviso(client, teste, segredo="Bearer segredo-do-webhook").status_code == 200
+    assert aviso(client, teste, segredo="segredo-do-webhook ").status_code == 200
+    assert aviso(client, teste, segredo="Bearer errado").status_code == 401
+    assert aviso(client, teste, segredo="segredo-do-webhoo").status_code == 401
+
+
+def test_health_diz_se_a_cobranca_esta_configurada_sem_expor_segredo(tmp_path):
+    m, client = montar(tmp_path)
+    assert client.get("/api/health").json()["cobranca"]["webhook"] is False
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook", REVENUECAT_API_KEY="sk_teste_123")
+    r = client.get("/api/health")
+    assert r.json()["cobranca"]["webhook"] is True and r.json()["cobranca"]["revenuecat"] is True
+    assert "segredo-do-webhook" not in r.text and "sk_teste_123" not in r.text
 
 
 def test_webhook_falha_se_nao_conseguir_conferir(tmp_path, monkeypatch):

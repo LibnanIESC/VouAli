@@ -103,8 +103,10 @@ PRODUTOS = {
 }
 
 # RevenueCat confere o recibo com o Google. A chave secreta fica só no servidor.
-REVENUECAT_API_KEY = os.getenv("REVENUECAT_API_KEY", "")
-REVENUECAT_WEBHOOK_AUTH = os.getenv("REVENUECAT_WEBHOOK_AUTH", "")
+# `.strip()`: um espaço ou quebra de linha colado junto no painel do Railway
+# não pode invalidar o segredo.
+REVENUECAT_API_KEY = os.getenv("REVENUECAT_API_KEY", "").strip()
+REVENUECAT_WEBHOOK_AUTH = os.getenv("REVENUECAT_WEBHOOK_AUTH", "").strip()
 # Compra de teste (sandbox) só vira saldo se isto estiver ligado.
 REVENUECAT_SANDBOX = os.getenv("REVENUECAT_SANDBOX", "0").strip().lower() in ("on", "1", "true", "sim")
 COMPRA_RATE_MAX = int(os.getenv("COMPRA_RATE_MAX", "10"))     # conferências por conta, por janela
@@ -1129,6 +1131,14 @@ def health():
         "auth": bool(TOKEN),
         "authMode": auth.status(),
         "db": "postgres" if store.DATABASE_URL else "sqlite",
+        # Só "está configurado ou não" — nunca o valor. Deixa conferir de fora
+        # se os segredos da cobrança chegaram ao servidor.
+        "cobranca": {
+            "ligada": COBRANCA,
+            "revenuecat": bool(REVENUECAT_API_KEY),
+            "webhook": bool(REVENUECAT_WEBHOOK_AUTH),
+            "sandbox": REVENUECAT_SANDBOX,
+        },
     }
 
 @app.get("/api/config")

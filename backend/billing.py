@@ -53,7 +53,18 @@ async def compras_de(uid, api_key):
 
 def webhook_ok(cabecalho, segredo):
     """O RevenueCat manda no Authorization o valor que configuramos no painel
-    dele. Sem segredo configurado, nenhum aviso é aceito."""
+    dele. Sem segredo configurado, nenhum aviso é aceito.
+
+    Tolera espaço nas pontas e o prefixo "Bearer " — enganos comuns ao colar o
+    valor no painel — sem afrouxar a comparação do segredo em si."""
+    segredo = _sem_bearer(segredo)
     if not segredo:
         return False
-    return hmac.compare_digest(str(cabecalho or "").encode(), str(segredo).encode())
+    return hmac.compare_digest(_sem_bearer(cabecalho).encode(), segredo.encode())
+
+
+def _sem_bearer(valor):
+    valor = str(valor or "").strip()
+    if valor[:7].lower() == "bearer ":
+        valor = valor[7:].strip()
+    return valor
