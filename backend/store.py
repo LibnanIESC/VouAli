@@ -59,6 +59,28 @@ SCHEMA = [
         updated_at INTEGER,
         PRIMARY KEY (uid, period)
     )""",
+    # Saldo de IA que NÃO renova: degustação, passe de viagem, recarga.
+    # `trip_id` nulo = degustação (é da conta) ou passe ainda sem viagem.
+    """CREATE TABLE IF NOT EXISTS ai_grants (
+        id TEXT PRIMARY KEY,
+        uid TEXT NOT NULL,
+        trip_id TEXT,
+        origin TEXT NOT NULL,
+        chat INTEGER NOT NULL DEFAULT 0,
+        gen INTEGER NOT NULL DEFAULT 0,
+        tip INTEGER NOT NULL DEFAULT 0,
+        chat_used INTEGER NOT NULL DEFAULT 0,
+        gen_used INTEGER NOT NULL DEFAULT 0,
+        tip_used INTEGER NOT NULL DEFAULT 0,
+        txn_id TEXT,
+        store_txn TEXT,
+        revoked INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER
+    )""",
+    # Uma transação da loja vira no máximo UM saldo (NULLs não colidem).
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_grants_txn ON ai_grants(txn_id)",
+    "CREATE INDEX IF NOT EXISTS idx_grants_uid ON ai_grants(uid)",
+    "CREATE INDEX IF NOT EXISTS idx_grants_trip ON ai_grants(trip_id)",
     "CREATE INDEX IF NOT EXISTS idx_members_uid ON trip_members(uid)",
     "CREATE INDEX IF NOT EXISTS idx_trips_owner ON trips(owner_uid)",
     "CREATE INDEX IF NOT EXISTS idx_invites_email ON trip_invites(email)",
@@ -349,6 +371,9 @@ def delete_trip(con, trip_id, uid):
     if papel == "owner":
         con.execute("DELETE FROM trip_members WHERE trip_id=?", (trip_id,))
         con.execute("DELETE FROM trips WHERE id=?", (trip_id,))
+        # O passe pago não some junto com a viagem: volta a ficar solto com
+        # quem comprou, e o que sobrou dele serve à próxima viagem.
+        con.execute("UPDATE ai_grants SET trip_id=NULL WHERE trip_id=?", (trip_id,))
     else:
         con.execute("DELETE FROM trip_members WHERE trip_id=? AND uid=?", (trip_id, uid))
     con.execute("UPDATE users SET active_trip=NULL WHERE active_trip=?", (trip_id,))
@@ -385,11 +410,14 @@ def excluir_conta(con, uid, email=""):
         con.execute("DELETE FROM trip_members WHERE trip_id=?", (tid,))
         con.execute("DELETE FROM trip_invites WHERE trip_id=?", (tid,))
         con.execute("DELETE FROM trips WHERE id=?", (tid,))
+        # Passe que um convidado comprou para esta viagem volta para ele.
+        con.execute("UPDATE ai_grants SET trip_id=NULL WHERE trip_id=?", (tid,))
     con.execute("DELETE FROM trip_members WHERE uid=?", (uid,))
     if email:
         con.execute("DELETE FROM trip_invites WHERE email=?", (norm_email(email),))
     con.execute("DELETE FROM trip_invites WHERE invited_by=?", (uid,))
     con.execute("DELETE FROM ai_usage WHERE uid=?", (uid,))
+    con.execute("DELETE FROM ai_grants WHERE uid=?", (uid,))
     con.execute("DELETE FROM users WHERE uid=?", (uid,))
     return resumo
 
@@ -449,6 +477,138 @@ def uso_total(con, period=None):
     ).fetchone()
     return {"chat": row[0], "gen": row[1], "tip": row[2], "tokens_in": row[3], "tokens_out": row[4],
             "chamadas": row[0] + row[1] + row[2], "period": period}
+
+
+# ---------- saldo da IA (degustação, passe, recarga) ----------
+# Diferente do `ai_usage`, que zera todo mês, este saldo NÃO renova: acabou,
+# só volta comprando. É o que impede a conta gratuita de custar para sempre.
+
+ORIGEM_DEGUSTACAO = "degustacao"
+_COLUNAS_GRANT = ("id, uid, trip_id, origin, chat, gen, tip, "
+                  "chat_used, gen_used, tip_used, txn_id, revoked, created_at")
+
+
+def _grant(row):
+    chaves = ("id", "uid", "trip_id", "origin", "chat", "gen", "tip",
+              "chat_used", "gen_used", "tip_used", "txn_id", "revoked", "created_at")
+    return dict(zip(chaves, row))
+
+
+def resto(grant, tipo):
+    """Quanto ainda dá para usar daquele tipo neste saldo."""
+    return max(0, int(grant[tipo] or 0) - int(grant[tipo + "_used"] or 0))
+
+
+def garantir_degustacao(con, uid, chat=0, gen=0, tip=0):
+    """Cria a degustação da conta na primeira vez; depois disso não mexe mais.
+
+    O id é derivado do uid: é a chave primária que garante UMA por conta,
+    mesmo com dois pedidos chegando juntos.
+    """
+    con.execute(
+        "INSERT INTO ai_grants(id, uid, trip_id, origin, chat, gen, tip, created_at) "
+        "VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
+        (f"deg:{uid}", uid, None, ORIGEM_DEGUSTACAO, int(chat), int(gen), int(tip), _now()),
+    )
+
+
+def degustacao(con, uid):
+    row = con.execute(f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE id=?", (f"deg:{uid}",)).fetchone()
+    return _grant(row) if row else None
+
+
+def conceder(con, uid, origin, chat=0, gen=0, tip=0, trip_id=None, txn_id=None, store_txn=None):
+    """Credita um saldo pago. Devolve o id, ou None se a transação já tinha
+    virado saldo antes — a mesma compra nunca credita duas vezes."""
+    gid = uuid.uuid4().hex[:12]
+    con.execute(
+        "INSERT INTO ai_grants(id, uid, trip_id, origin, chat, gen, tip, txn_id, store_txn, created_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(txn_id) DO NOTHING",
+        (gid, uid, trip_id, origin, int(chat), int(gen), int(tip), txn_id, store_txn, _now()),
+    )
+    return gid if con.execute("SELECT 1 FROM ai_grants WHERE id=?", (gid,)).fetchone() else None
+
+
+def grants_da_viagem(con, trip_id):
+    """Saldos pagos presos a esta viagem, do mais antigo ao mais novo."""
+    rows = con.execute(
+        f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE trip_id=? AND revoked=0 AND origin<>? "
+        "ORDER BY created_at, id",
+        (trip_id, ORIGEM_DEGUSTACAO),
+    ).fetchall()
+    return [_grant(r) for r in rows]
+
+
+def grants_soltos(con, uid):
+    """Saldos pagos da conta que ainda não foram presos a nenhuma viagem."""
+    rows = con.execute(
+        f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE uid=? AND trip_id IS NULL AND revoked=0 AND origin<>? "
+        "ORDER BY created_at, id",
+        (uid, ORIGEM_DEGUSTACAO),
+    ).fetchall()
+    return [_grant(r) for r in rows]
+
+
+def prender(con, grant_id, uid, trip_id):
+    """Prende um saldo solto a uma viagem. Só o dono do saldo, e só uma vez."""
+    cur = con.execute(
+        "UPDATE ai_grants SET trip_id=? WHERE id=? AND uid=? AND trip_id IS NULL AND revoked=0 AND origin<>?",
+        (trip_id, grant_id, uid, ORIGEM_DEGUSTACAO),
+    )
+    return cur.rowcount > 0
+
+
+def consumir(con, grant_id, tipo):
+    """Reserva uma unidade ANTES de chamar a IA. Devolve False se não havia.
+
+    A condição mora no próprio UPDATE: com dois pedidos simultâneos e uma
+    unidade só, o banco deixa passar um e recusa o outro.
+    """
+    if tipo not in TIPOS_USO:
+        return False
+    cur = con.execute(
+        f"UPDATE ai_grants SET {tipo}_used = {tipo}_used + 1 "
+        f"WHERE id=? AND revoked=0 AND {tipo}_used < {tipo}",
+        (grant_id,),
+    )
+    return cur.rowcount > 0
+
+
+def devolver(con, grant_id, tipo):
+    """Estorna a reserva de um pedido que falhou do nosso lado."""
+    if tipo not in TIPOS_USO:
+        return
+    con.execute(
+        f"UPDATE ai_grants SET {tipo}_used = {tipo}_used - 1 WHERE id=? AND {tipo}_used > 0",
+        (grant_id,),
+    )
+
+
+def revogar(con, txn):
+    """Reembolso: o saldo daquela transação deixa de valer."""
+    if not txn:
+        return 0
+    cur = con.execute("UPDATE ai_grants SET revoked=1 WHERE revoked=0 AND (txn_id=? OR store_txn=?)", (txn, txn))
+    return cur.rowcount
+
+
+def dias_da_viagem(con, trip_id):
+    """Tamanho da viagem pelo que está GRAVADO, nunca pelo que o app declara:
+    o maior entre os dias do roteiro e o intervalo das datas."""
+    row = con.execute("SELECT meta, state FROM trips WHERE id=?", (trip_id,)).fetchone()
+    if not row:
+        return 0
+    meta = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or {})
+    state = json.loads(row[1]) if isinstance(row[1], str) else (row[1] or {})
+    dias = len(state.get("days") or [])
+    try:
+        from datetime import date
+        ini = date.fromisoformat(str(meta.get("startDate") or ""))
+        fim = date.fromisoformat(str(meta.get("endDate") or ""))
+        dias = max(dias, (fim - ini).days + 1)
+    except ValueError:
+        pass
+    return dias
 
 
 class Conflict(Exception):

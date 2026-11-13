@@ -1,7 +1,8 @@
 # Fase 6 — Monetização
 
-Plano para o VouAli se pagar. Nada aqui bloqueia a publicação: o app vai ao ar
-gratuito, e a assinatura entra depois — com dados de uso real na mão.
+Como o VouAli se paga. O modelo está **decidido** (nov/2026) e o **servidor está
+pronto**, atrás de uma chave desligada. Falta a tela de compra no app e o que
+depende de contas externas — ver [COBRANCA-PASSO-A-PASSO.md](COBRANCA-PASSO-A-PASSO.md).
 
 ---
 
@@ -11,27 +12,8 @@ O VouAli tem **custo variável por uso**. Cada conversa com o Ali e cada roteiro
 gerado consomem API da Anthropic, e a geração é a operação cara: ela escreve o
 roteiro inteiro, com orçamento e notas.
 
-Isso o separa de um app como o "Já Tomou?", onde o 3º remédio custa zero e o
-limite é puro produto. Aqui:
-
 - **Usuário gratuito generoso demais dá prejuízo**, não "menos lucro".
 - **"Ilimitado" é perigoso**: um usuário pesado custa mais do que paga.
-
-Todo o desenho abaixo sai daí.
-
----
-
-## 2. Onde fica a parede
-
-O momento em que alguém decide que o VouAli vale dinheiro é **ver o Ali montar
-um roteiro completo em quinze segundos**. Isso precisa ser sentido de graça —
-uma vez.
-
-> **"O primeiro roteiro é por nossa conta."**
-
-Um roteiro grátis por CONTA, não por mês. Por mês, cada usuário que nunca vai
-pagar custaria doze gerações por ano; uma vez na vida é a degustação que
-converte sem sangrar.
 
 ### Quanto custa cada operação
 
@@ -44,157 +26,200 @@ Levantado em set/2026, com um roteiro de 10 dias (~2 mil tokens de entrada,
 | Mensagem no chat | R$ 0,17 | **R$ 0,07** | R$ 0,03 |
 | Dica de parada | R$ 0,06 | **R$ 0,02** | R$ 0,01 |
 
-Esses números derrubaram a primeira versão desta página: os limites que estavam
-escritos para o plano pago — 10 roteiros e 300 conversas por mês — custariam
-**R$ 71/mês por assinante em Opus 5**, mais que qualquer mensalidade de mercado.
-Um plano desenhado sem a conta na mão vende prejuízo com desconto.
+O Google fica com **15%** de cada venda: R$ 29,90 chegam como R$ 25,42.
 
-O Google fica com **15%** da assinatura, então R$ 19,90 chegam como R$ 16,90.
+### O vazamento que o modelo fecha
 
-### Os planos
+A cota de IA sempre foi **mensal e renovável** (`QUOTA_*`): 3 roteiros, 50
+conversas e 30 dicas *todo mês, para sempre, de graça*. Um usuário que nunca
+paga podia custar **R$ 4,50/mês — R$ 54/ano**. O modelo abaixo troca isso por
+saldo que **não renova**: a mesma pessoa passa a custar no máximo **R$ 1,21 na
+vida toda**.
 
-| | Grátis | Passe de viagem | Premium anual |
+---
+
+## 2. O modelo
+
+| Camada | O que é | Custa a quem usa |
+|---|---|---|
+| **Planejar na mão** | Viagens, paradas, orçamento, listas, compartilhar, offline — sem limite | nada, para sempre |
+| **Degustação** | A primeira experiência com o Ali: **1 roteiro + 5 conversas + 3 dicas**, só em viagem de **até 4 dias**. Uma vez por conta; **não renova** | nada |
+| **Passe de viagem** | Destrava o Ali para **uma viagem**: **3 roteiros + 100 conversas + 50 dicas** | **R$ 29,90** (único) |
+| **Recargas** *(fase 2)* | +3 roteiros · +100 conversas · +50 dicas, vendidas separadamente | ~R$ 14,90 · 12,90 · 6,90 |
+
+**Por que passe e não assinatura.** App de viagem é usado em rajadas: planeja,
+viaja, some por meses. Mensalidade pune esse uso e é cancelada entre uma viagem
+e outra. O passe cobra quando há viagem.
+
+**Por que o limite de dias na degustação.** Quatro dias bastam para ver o Ali
+montar um roteiro de verdade — e a viagem que a pessoa realmente quer planejar
+quase sempre é maior. O limite é o convite ao passe *e* o teto do custo: roteiro
+curto custa menos para gerar.
+
+**Por que planejar na mão é grátis sem limite.** É só leitura e escrita no
+banco: custo perto de zero. Limitar viagem pune quem organiza, não quem custa.
+*Vigiar:* se o volume de contas gratuitas crescer muito sem conversão, o que
+pesa é a degustação (cadastros × R$ 1,21) e o banco — e a degustação encolhe
+mudando uma variável.
+
+**Nada de "ilimitado" na comunicação.** Números generosos que ninguém normal
+alcança dão o mesmo efeito, sem o risco.
+
+### A conta do preço
+
+| | Conteúdo | Custo-teto | Custo realista |
 |---|---|---|---|
-| Preço | — | **R$ 24,90** (único) | **R$ 129,90/ano** |
-| Viagens | **ilimitadas** | ilimitadas | ilimitadas |
-| Roteiro gerado pelo Ali | **1, uma vez** | 3 naquela viagem | 12 por ano |
-| Conversas com o Ali | 10 por mês | 100 na viagem | 400 por ano |
-| Dicas de parada | 5 por mês | 30 na viagem | 150 por ano |
-| Orçamento, offline, compartilhar, exportar | tudo | tudo | tudo |
+| Degustação | 1 roteiro + 5 conversas + 3 dicas | R$ 1,21 | ~R$ 1,00 |
+| Passe | 3 roteiros + 100 conversas + 50 dicas | R$ 10,40 | ~R$ 6,40 |
 
-**O passe existe por causa da sazonalidade**, não como extra. Uma viagem custa
-cerca de R$ 2,60 em IA e é vendida a R$ 24,90 — e converte quem viaja uma vez
-por ano e nunca assinaria nada. O anual atende quem viaja sempre, num preço já
-familiar no setor (TripIt, Wanderlog e Roadtrippers ficam todos perto de
-US$ 50/ano).
+A cada **100 cadastros**, a degustação de todos custa R$ 121. Cada passe
+vendido deixa R$ 25,42 − R$ 6,40 = **R$ 19,02**. Logo, **~6,4% de conversão**
+já paga a degustação de quem nunca comprou; daí em diante cada passe é ~R$ 19
+de margem, antes do custo fixo do servidor. A R$ 24,90 o equilíbrio subiria
+para ~8%.
 
-Números conferidos contra o custo: nenhum dos dois planos dá prejuízo mesmo com
-o assinante que usa tudo.
+### Onde cada número se ajusta
 
-**Viagens ilimitadas no grátis** é deliberado: limitar viagem pune quem
-organiza, não quem custa. E quanto mais viagens a pessoa cadastra, mais o app
-vira parte da rotina dela — e mais provável que pague quando quiser o Ali.
+| O que | Onde | Precisa atualizar o app? |
+|---|---|---|
+| **Preço** do passe | Play Console (o app mostra o que a loja informar) | não |
+| **Tamanho** da degustação e do passe | variáveis de ambiente no Railway (tabela abaixo) | não |
+| **Limite de dias** da degustação | `DEGUSTACAO_MAX_DIAS` | não |
 
-**Nada de "ilimitado" na comunicação.** Com custo por uso, prometer ilimitado é
-convite a prejuízo. Números generosos que ninguém normal alcança dão o mesmo
-efeito comercial, sem o risco, e são honestos.
+Mudar o tamanho de um pacote vale para as **próximas** concessões: quem já
+comprou um passe de 100 conversas continua com o que comprou.
 
 ---
 
-## 3. A sazonalidade, que é o risco do modelo
-
-App de viagem é usado **em rajadas**: planeja, viaja, some por seis meses. O
-"Já Tomou?" é usado todo dia, para sempre — mensalidade encaixa nele.
-
-Não quebra o modelo, mas muda a estratégia:
-
-- O **anual** precisa custar bem menos que doze mensais (algo como cinco ou
-  seis meses). Ele é para quem viaja duas ou mais vezes por ano.
-- Vale um terceiro produto: o **passe de viagem** — pagamento único que libera
-  o Ali sem limites para UMA viagem. Casa com como as pessoas realmente usam e
-  converte quem nunca assinaria nada.
-
----
-
-## 4. O preço sai de conta, não de palpite
-
-O app **já registra `tokens_in` e `tokens_out` por usuário e por mês**. Depois
-de algumas semanas no ar, dá para saber:
-
-- Custo médio por usuário gratuito
-- Custo médio de quem usa muito
-- Onde as pessoas realmente batem na parede
-
-**Só então o preço é decidido.** Antes disso, qualquer número é chute — e chute
-errado aqui custa: barato demais dá prejuízo, caro demais não converte.
-
-Primeira entrega da fase: um painel que mostre esses números.
-
----
-
-## 5. Arquitetura
+## 3. Arquitetura
 
 ### A regra inegociável
 
-> **O aplicativo NUNCA decide se o usuário é premium.** Quem decide é o
-> servidor.
+> **O aplicativo NUNCA decide o que foi comprado.** Quem decide é o servidor.
 
-Se o app disser "sou premium" e o servidor acreditar, qualquer pessoa
-desbloqueia tudo com o app modificado. O cliente só informa que houve uma
-compra; o servidor confirma com o Google antes de liberar.
+O app só avisa "houve uma compra". O servidor pergunta ao RevenueCat, com a
+chave secreta, o que aquela conta comprou — e credita. Um app modificado que
+diga "paguei" não ganha nada.
 
-### Peças
+### Quem faz o quê
 
-| Peça | O que faz |
+| | RevenueCat | Servidor do VouAli |
+|---|---|---|
+| Papel | o **caixa**: confere o recibo com o Google | o **livro-caixa**: saldo e consumo |
+| Sabe | "esta conta comprou o produto X, transação Y" | "restam 2 roteiros nesta viagem" |
+| Onde | serviço externo | tabela `ai_grants` |
+
+Como o saldo é todo nosso, trocar o RevenueCat por Play Billing direto mudaria
+só o arquivo `backend/billing.py`.
+
+### O saldo (`ai_grants`)
+
+Cada linha é um pacote de saldo: degustação, passe ou recarga, com o que foi
+concedido e o que já foi usado, **separado por tipo** (roteiro, conversa, dica).
+
+- A **degustação** é da conta (uma por conta, garantida pela chave primária).
+- O **passe** fica preso a uma **viagem**. Qualquer participante da viagem
+  consome o passe dela — convidado não paga de novo.
+- Um passe comprado **antes de a viagem existir** (o roteiro é gerado antes de
+  a viagem ser criada) fica "solto" e se prende à viagem criada em seguida, ou
+  à primeira em que for usado.
+- Apagar a viagem **devolve o passe** (com o que sobrou) a quem comprou.
+- Ordem de gasto: degustação primeiro (o grátis vai antes do pago), depois o
+  passe da viagem, depois um passe solto.
+
+Regras que protegem os dois lados:
+
+- **Dias vêm do que está gravado**, nunca do que o app declara: o maior entre
+  os dias do roteiro e o intervalo das datas da viagem.
+- **Reserva antes, estorna se falhar.** A unidade sai do saldo antes de chamar
+  a IA (dois pedidos simultâneos não passam com um crédito só) e volta se a IA
+  falhar, recusar ou devolver um roteiro ilegível. Só se paga o que foi
+  entregue.
+- **Uma transação vira saldo uma única vez** (índice único), não importa
+  quantas vezes o app ou o RevenueCat avisem.
+- **Reembolso tira o saldo** daquela compra.
+
+### Rotas
+
+| Rota | Para quê |
 |---|---|
-| Produtos no Play Console | assinatura mensal, anual e (se houver) o passe |
-| Plugin de compra no app | abre a tela de pagamento do Google |
-| Validação no servidor | confirma a compra direto com o Google |
-| Plano na conta | qual plano, até quando, de onde veio |
-| Cotas por plano | o sistema de cotas já existe; hoje é igual para todos |
+| `GET /api/saldo?trip=<id>` | Quanto resta do Ali naquela viagem (a ativa, se omitido) |
+| `POST /api/compras/sincronizar` | O app chama depois de comprar e no "restaurar compras". Corpo opcional `{trip_id}` |
+| `POST /api/revenuecat/webhook` | Aviso do RevenueCat: credita mesmo se o app fechou; trata reembolso |
+| `POST /api/ali*` | Aceitam `trip_id`. Sem saldo respondem `{"error":"paywall","tipo","motivo","dias","max_dias"}` |
+| `POST /api/trips` | Aceita `passe` (id devolvido por `/api/ali/gerar`) para prender o passe à viagem criada |
 
-### Validar a compra: dois caminhos
+`motivo` do paywall: `dias` (há degustação, mas a viagem passa do limite),
+`esgotado` (há passe, mas acabou aquele tipo) ou `sem_passe`.
 
-**A — Google Play Billing direto.** Sem terceiros, sem taxa extra, os dados de
-compra não saem do Google e da Libnan. Mais trabalho: renovação, cancelamento,
-reembolso, período de carência e as notificações do Google ficam por nossa
-conta.
+### Variáveis de ambiente
 
-**B — RevenueCat.** Cuida da validação, do estado da assinatura e dos avisos de
-renovação. Reduz muito o trabalho e o risco de errar num fluxo que é chato de
-testar. Em troca: mais um terceiro recebendo dado de compra — o que obriga a
-**atualizar a política de privacidade e o formulário Data safety** — e uma taxa
-sobre a receita depois de um certo faturamento.
+| Variável | Padrão | O que faz |
+|---|---|---|
+| `COBRANCA` | `off` | **A chave.** `off`: cota mensal de sempre. `on`: saldo que não renova |
+| `DEGUSTACAO_MAX_DIAS` | `4` | Tamanho máximo da viagem que a degustação cobre |
+| `DEGUSTACAO_ROTEIROS` / `_CHATS` / `_DICAS` | `1` / `5` / `3` | Tamanho da degustação |
+| `PASSE_ROTEIROS` / `_CHATS` / `_DICAS` | `3` / `100` / `50` | Tamanho do passe |
+| `RECARGA_ROTEIROS` / `_CHATS` / `_DICAS` | `3` / `100` / `50` | Tamanho de cada recarga (fase 2) |
+| `PRODUTO_PASSE` | `passe_viagem` | Id do produto no Play Console |
+| `REVENUECAT_API_KEY` | — | Chave **secreta** (`sk_…`). Só no Railway; nunca no app, no Git ou em conversa |
+| `REVENUECAT_WEBHOOK_AUTH` | — | Segredo que o RevenueCat manda no aviso. Sem ele, o webhook fica fechado |
+| `REVENUECAT_SANDBOX` | `0` | `1` faz compra de **teste** virar saldo. Ligar só enquanto testa |
+| `COMPRA_RATE_MAX` | `10` | Conferências de compra por conta, por janela |
 
-**Recomendação:** começar pelo **B**, porque o risco de errar validação de
-assinatura na mão é alto e o prejuízo é silencioso (gente usando premium sem
-pagar, ou pagando sem receber). Migrar para o A depois, se o volume justificar.
+### Por que existe a chave `COBRANCA`
+
+O servidor publica na hora; o app, não. O app que está nos celulares hoje não
+conhece o aviso de "paywall" nem tem tela de compra. Ligar a cobrança antes de
+a versão nova estar publicada deixaria as pessoas sem o Ali e sem como comprar.
+Com a chave desligada, **nada muda** para ninguém — a suíte de testes antiga
+passa inteira, sem alteração.
 
 ### Regras de produto que não podem ser esquecidas
 
-- **Perder a assinatura NUNCA apaga dado.** Vencido, o usuário volta às cotas
-  do plano gratuito e continua vendo todas as suas viagens, roteiros e
-  orçamentos. Bloquear o que a pessoa já criou seria sequestro do dado dela.
-- **Trocar de celular não perde o que foi pago.** Como o plano fica na conta do
-  servidor e não no aparelho, isso sai de graça — desde que ninguém tenha a
-  ideia de guardar o plano localmente.
-- **Cancelar não é banir.** A pessoa mantém acesso pago até o fim do período
-  que já pagou.
+- **Ficar sem saldo NUNCA apaga nem esconde dado.** A pessoa continua vendo e
+  editando tudo que criou; só o Ali para.
+- **Trocar de celular não perde o que foi pago.** O saldo fica na conta, no
+  servidor — nunca no aparelho.
+- **Excluir a conta apaga o saldo junto** (app e painel admin usam a mesma regra).
 
 ---
 
-## 6. Etapas
+## 4. Etapas
 
-| | Etapa | Depende de |
+| | Etapa | Situação |
 |---|---|---|
-| **6.1** | Painel de custo por usuário (tokens já gravados) | nada — pode começar hoje |
-| **6.2** | Semanas de uso real → decidir preço e ajustar as cotas | app publicado |
-| **6.3** | Produtos criados no Play Console (mensal e anual) | conta de comerciante |
-| **6.4** | Plano na conta + cotas por plano no servidor | 6.3 |
-| **6.5** | Compra no app + validação no servidor | 6.4 |
-| **6.6** | Tela de upgrade, onde a parede convida em vez de irritar | 6.5 |
-| **6.7** | Restaurar compras, expiração, cancelamento | 6.5 |
-| **6.8** | *(opcional)* Passe de viagem | depois de ver o comportamento real |
-
-A **6.1** é a única que dá para fazer antes de publicar, e é a que evita
-escolher o preço no escuro.
+| **6.1** | Painel de custo por usuário | ✅ feito (painel admin) |
+| **6.2** | Modelo e preço decididos | ✅ nov/2026 |
+| **6.3** | Servidor: saldo, degustação, passe, compras, webhook | ✅ feito, com `COBRANCA=off` |
+| **6.4** | App: paywall, tela de compra (preço da loja), saldo da viagem, SDK do RevenueCat | pendente |
+| **6.5** | Contas externas: comerciante, RevenueCat, produto, contador | pendente — [passo a passo](COBRANCA-PASSO-A-PASSO.md) |
+| **6.6** | Privacidade e *Data safety* (compras passam pelo RevenueCat) | pendente |
+| **6.7** | Teste de ponta a ponta com compra de teste; publicar; ligar `COBRANCA=on` | pendente |
+| **6.8** | Recargas (fase 2): criar os 3 produtos e a tela | servidor já pronto |
 
 ---
 
-## 7. O que ainda não está decidido
+## 5. Pontos em aberto
 
-- **Preço** — sai da 6.2, com dados
-- **RevenueCat ou billing direto** — recomendação acima, mas é decisão da Libnan
-- **Passe de viagem** — só faz sentido se a sazonalidade se confirmar nos dados
-- **Conta de comerciante** — precisa dos dados bancários da Libnan aprovados
-  pelo Google antes de qualquer venda
+- **Recriar a conta para ganhar outra degustação.** Excluir a conta e entrar de
+  novo cria um usuário novo, com degustação nova (R$ 1,21 por volta). Fechar
+  isso exige guardar algum rastro do e-mail depois da exclusão — o que é uma
+  decisão de privacidade, não só técnica. Hoje não é guardado.
+- **Reembolso** é tratado pelo aviso do RevenueCat casando o id da transação.
+  Vale confirmar num reembolso de teste que o id chega como esperado.
+- **Cortesia para quem já usa o app.** Todos (novos e atuais) têm a sua
+  degustação. Dar um passe de cortesia aos atuais é opcional e ainda não existe
+  como ação no painel admin.
+- **Nota fiscal.** O Google é quem vende ao consumidor; a nota é sobre o
+  repasse. O enquadramento é do contador.
 
 ---
 
-## 8. O risco a vigiar
+## 6. O risco a vigiar
 
-O fusível global `ALI_MONTHLY_CAP` existe e continua valendo depois da
-monetização. Ele é a última linha de defesa: se o consumo do mês estourar o
-teto, a IA descansa para todo mundo. Com usuários pagantes isso vira um
-problema de reputação, então o teto precisa ser revisto para caber a base
-pagante com folga — e monitorado, não esquecido.
+O fusível global `ALI_MONTHLY_CAP` continua valendo acima de tudo: se o consumo
+do mês estourar o teto, a IA descansa para todo mundo — **inclusive para quem
+pagou**. Com passes vendidos isso vira problema de reputação: o teto precisa
+ser revisto para caber a base pagante com folga antes de ligar a cobrança, e
+monitorado.

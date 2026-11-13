@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 import auth
+import billing
 import store
 
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -70,6 +71,44 @@ QUOTAS = {
 # Fusível global do mês: se o app inteiro passar disso, a IA descansa.
 # 0 = sem teto global.
 AI_MONTHLY_CAP = int(os.getenv("ALI_MONTHLY_CAP", "0"))
+
+# --- Cobrança: degustação única + passe de viagem (docs/MONETIZACAO.md) ---
+# Desligada, vale a cota mensal acima, como sempre. Ligada, a IA passa a gastar
+# SALDO que não renova (`ai_grants`). A chave existe porque o servidor publica
+# na hora e o app não: só se liga depois que a versão com a tela de compra
+# estiver na mão das pessoas.
+COBRANCA = os.getenv("COBRANCA", "off").strip().lower() in ("on", "1", "true", "sim")
+
+def _saldo_env(prefixo, roteiros, chats, dicas):
+    """Tamanho de um pacote, ajustável por variável de ambiente."""
+    return {"gen": int(os.getenv(f"{prefixo}_ROTEIROS", str(roteiros))),
+            "chat": int(os.getenv(f"{prefixo}_CHATS", str(chats))),
+            "tip": int(os.getenv(f"{prefixo}_DICAS", str(dicas)))}
+
+# Degustação: uma vez por conta, e só em viagem curta.
+DEGUSTACAO_MAX_DIAS = int(os.getenv("DEGUSTACAO_MAX_DIAS", "4"))
+DEGUSTACAO = _saldo_env("DEGUSTACAO", 1, 5, 3)
+PASSE = _saldo_env("PASSE", 3, 100, 50)
+
+# Produto na loja -> o que ele credita. O PREÇO não está aqui de propósito:
+# ele mora no Play Console e o app mostra o que a loja informar.
+# As recargas já têm lugar no catálogo; só passam a existir quando o produto
+# for criado na loja (fase 2).
+PRODUTO_PASSE = os.getenv("PRODUTO_PASSE", "passe_viagem")
+PRODUTOS = {
+    PRODUTO_PASSE: {"origin": "passe", **PASSE},
+    "recarga_roteiros": {"origin": "recarga", "gen": int(os.getenv("RECARGA_ROTEIROS", "3")), "chat": 0, "tip": 0},
+    "recarga_conversas": {"origin": "recarga", "gen": 0, "chat": int(os.getenv("RECARGA_CHATS", "100")), "tip": 0},
+    "recarga_dicas": {"origin": "recarga", "gen": 0, "chat": 0, "tip": int(os.getenv("RECARGA_DICAS", "50"))},
+}
+
+# RevenueCat confere o recibo com o Google. A chave secreta fica só no servidor.
+REVENUECAT_API_KEY = os.getenv("REVENUECAT_API_KEY", "")
+REVENUECAT_WEBHOOK_AUTH = os.getenv("REVENUECAT_WEBHOOK_AUTH", "")
+# Compra de teste (sandbox) só vira saldo se isto estiver ligado.
+REVENUECAT_SANDBOX = os.getenv("REVENUECAT_SANDBOX", "0").strip().lower() in ("on", "1", "true", "sim")
+COMPRA_RATE_MAX = int(os.getenv("COMPRA_RATE_MAX", "10"))     # conferências por conta, por janela
+_compra_calls = {}
 
 # Tetos contra abuso. O cliente controla o corpo do pedido; sem estes limites
 # uma conta sozinha derruba o banco (viagem gigante), enche a base (viagens em
@@ -146,6 +185,90 @@ def _contar(usuario, tipo, resp):
     with user_con(usuario) as con:
         store.registrar_uso(con, usuario["uid"], tipo, entrada, saida)
         con.commit()
+
+# Saldo (cobrança ligada): a unidade é RESERVADA antes de chamar a IA e
+# devolvida se o pedido não der em nada. Conferir antes e descontar depois
+# deixaria dois pedidos simultâneos passarem com um crédito só.
+def _estornar(usuario, tipo, fonte):
+    """O pedido falhou do nosso lado: a unidade reservada volta para o saldo."""
+    if not usuario or not fonte:
+        return
+    with user_con(usuario) as con:
+        store.devolver(con, fonte["id"], tipo)
+
+def _confirmar(usuario, fonte):
+    """O pedido foi entregue. Passe solto se prende à viagem em que foi usado."""
+    if not usuario or not fonte or not fonte.get("prender"):
+        return
+    with user_con(usuario) as con:
+        store.prender(con, fonte["id"], usuario["uid"], fonte["prender"])
+
+def _viagem_do_pedido(con, uid, body, tipo):
+    """De qual viagem é este pedido de IA. Devolve (trip_id, erro).
+
+    O app novo manda `trip_id`. Sem ele: gerar roteiro é sempre de uma viagem
+    que ainda não existe; conversa e dica são da viagem ativa.
+    """
+    tid = str((body or {}).get("trip_id") or "").strip()
+    if tid:
+        if not store.role_of(con, tid, uid):       # inexistente OU de outra pessoa
+            return None, {"error": "trip_not_found"}
+        return tid, None
+    if tipo == "gen":
+        return None, None
+    return store.list_trips(con, uid)["active"], None
+
+def _fontes(con, uid, trip_id, dias):
+    """Os saldos que podem pagar um pedido, na ordem em que são gastos:
+    degustação (grátis vai primeiro), passe da viagem, passe ainda solto."""
+    fontes = []
+    deg = store.degustacao(con, uid)
+    if deg and dias <= DEGUSTACAO_MAX_DIAS:
+        fontes.append(deg)
+    if trip_id:
+        fontes.extend(store.grants_da_viagem(con, trip_id))
+    fontes.extend(store.grants_soltos(con, uid))
+    return fontes, deg
+
+def _autorizar(usuario, tipo, body, dias_pedidos=None):
+    """Pode usar a IA? Devolve (pode, detalhe, fonte).
+
+    Com a cobrança desligada é a cota mensal de sempre. Ligada, o pedido só
+    passa se houver saldo — e `fonte` é o saldo de onde a unidade JÁ SAIU: quem
+    chama precisa de `_confirmar` (deu certo) ou `_estornar` (falhou).
+    `dias_pedidos` vale para a geração de roteiro (o tamanho é o que foi
+    pedido); nos outros casos conta o que está gravado na viagem.
+    """
+    if not usuario or not COBRANCA:
+        pode, detalhe = _cota(usuario, tipo)
+        return pode, detalhe, None
+    uid = usuario["uid"]
+    with user_con(usuario) as con:
+        if AI_MONTHLY_CAP > 0 and store.uso_total(con)["chamadas"] >= AI_MONTHLY_CAP:
+            return False, {"error": "ai_paused"}, None
+        store.garantir_degustacao(con, uid, **DEGUSTACAO)
+        trip_id, erro = _viagem_do_pedido(con, uid, body, tipo)
+        if erro:
+            return False, erro, None
+        if dias_pedidos is not None:
+            dias = dias_pedidos
+        else:
+            dias = store.dias_da_viagem(con, trip_id) if trip_id else 0
+        fontes, deg = _fontes(con, uid, trip_id, dias)
+        for g in fontes:
+            # `consumir` só desconta se ainda houver: é ele, e não a leitura
+            # acima, que decide quando dois pedidos chegam juntos.
+            if store.resto(g, tipo) > 0 and store.consumir(con, g["id"], tipo):
+                solto = g["origin"] != store.ORIGEM_DEGUSTACAO and not g["trip_id"]
+                return True, None, {"id": g["id"], "solto": solto, "prender": trip_id if solto else None}
+        if any(g["origin"] != store.ORIGEM_DEGUSTACAO for g in fontes):
+            motivo = "esgotado"                # tem passe, mas acabou esse tipo
+        elif deg and store.resto(deg, tipo) > 0:
+            motivo = "dias"                    # tem degustação, mas a viagem é longa
+        else:
+            motivo = "sem_passe"
+    return False, {"error": "paywall", "tipo": tipo, "motivo": motivo,
+                   "dias": dias, "max_dias": DEGUSTACAO_MAX_DIAS}, None
 
 ALI_SYSTEM = (
     "Você é o Ali, o assistente de viagens do app VouAli. "
@@ -579,6 +702,9 @@ async def create_trip(request: Request):
             dados = body.get("data") if isinstance(body.get("data"), dict) else None
             tid = store.create_trip(con, usuario["uid"], meta, dados)
             meta["id"] = tid
+            passe = str(body.get("passe") or "").strip()
+            if passe:       # roteiro gerado com um passe ainda solto: ele fica nesta viagem
+                store.prender(con, passe, usuario["uid"], tid)
             con.commit()
             return {"meta": meta, "trips": _with_meta_defaults(store.list_trips(con, usuario["uid"]))}
     con = db()
@@ -818,11 +944,12 @@ async def ali_stream(request: Request):
             yield _sse({"error": "not_configured"}); return
         if not _rate_ok(usuario and usuario["uid"]):
             yield _sse({"error": "rate_limited"}); return
-        pode, motivo = _cota(usuario, "chat")
+        pode, motivo, fonte = _autorizar(usuario, "chat", body)
         if not pode:
             yield _sse(motivo); return
         preparo = _preparar_chat(body)
         if not preparo:
+            _estornar(usuario, "chat", fonte)
             yield _sse({"error": "empty"}); return
         conv, system = preparo
         kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": _system(system), "messages": conv}
@@ -835,10 +962,12 @@ async def ali_stream(request: Request):
                         yield _sse({"delta": pedaco})
                 final = await fluxo.get_final_message()
             _contar(usuario, "chat", final)
+            _confirmar(usuario, fonte)
             if getattr(final, "stop_reason", None) == "refusal":
                 yield _sse({"error": "refusal"})
             yield _sse({"done": True})
         except Exception as e:
+            _estornar(usuario, "chat", fonte)
             yield _sse({"error": "api_error", "detail": str(e)[:200]})
 
     return StreamingResponse(eventos(), media_type="text/event-stream", headers={
@@ -853,12 +982,13 @@ async def ali_chat(request: Request):
         return {"error": "not_configured"}
     if not _rate_ok(usuario and usuario["uid"]):
         return {"error": "rate_limited"}
-    pode, motivo = _cota(usuario, "chat")
+    body = await request.json()
+    pode, motivo, fonte = _autorizar(usuario, "chat", body)
     if not pode:
         return motivo
-    body = await request.json()
     preparo = _preparar_chat(body)
     if not preparo:
+        _estornar(usuario, "chat", fonte)
         return {"error": "empty"}
     conv, system = preparo
     kwargs = {"model": ALI_MODEL_CHAT, "max_tokens": 700, "system": _system(system), "messages": conv}
@@ -867,11 +997,13 @@ async def ali_chat(request: Request):
     try:
         resp = await _ali_client.messages.create(**kwargs)
         _contar(usuario, "chat", resp)
+        _confirmar(usuario, fonte)
         if getattr(resp, "stop_reason", None) == "refusal":
             return {"reply": "Sobre isso eu prefiro não opinar — mas posso ajudar com qualquer coisa do roteiro, orçamento ou dicas da viagem. 🙂"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
         return {"reply": text or "…"}
     except Exception as e:
+        _estornar(usuario, "chat", fonte)
         return {"error": "api_error", "detail": str(e)[:200]}
 
 @app.post("/api/ali/dica")
@@ -881,15 +1013,15 @@ async def ali_dica(request: Request):
         return {"error": "not_configured"}
     if not _rate_ok(usuario and usuario["uid"]):
         return {"error": "rate_limited"}
-    pode, motivo = _cota(usuario, "tip")
-    if not pode:
-        return motivo
     body = await request.json()
     stop = body.get("stop") or {}
     trip = body.get("trip") or {}
     name = str(stop.get("n", "")).strip()
     if not name:
         return {"error": "empty"}
+    pode, motivo, fonte = _autorizar(usuario, "tip", body)
+    if not pode:
+        return motivo
     prompt = f"Parada: {name}"
     for k, label in (("t", "Horário"), ("d", "Resumo"), ("getting", "Como chegar"), ("todo", "O que fazer")):
         v = str(stop.get(k, "")).strip()
@@ -904,10 +1036,13 @@ async def ali_dica(request: Request):
         resp = await _ali_client.messages.create(**kwargs)
         _contar(usuario, "tip", resp)
         if getattr(resp, "stop_reason", None) == "refusal":
+            _estornar(usuario, "tip", fonte)
             return {"error": "refusal"}
+        _confirmar(usuario, fonte)
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip().strip('"').strip()
         return {"dica": text}
     except Exception as e:
+        _estornar(usuario, "tip", fonte)
         return {"error": "api_error", "detail": str(e)[:200]}
 
 @app.post("/api/ali/gerar")
@@ -917,9 +1052,6 @@ async def ali_gerar(request: Request):
         return {"error": "not_configured"}
     if not _rate_ok(usuario and usuario["uid"]):
         return {"error": "rate_limited"}
-    pode, motivo = _cota(usuario, "gen")
-    if not pode:
-        return motivo
     body = await request.json()
     destination = str(body.get("destination", "")).strip()
     try:
@@ -929,6 +1061,9 @@ async def ali_gerar(request: Request):
     if not destination or days < 1:
         return {"error": "invalid"}
     days = min(days, 12)
+    pode, motivo, fonte = _autorizar(usuario, "gen", body, dias_pedidos=days)
+    if not pode:
+        return motivo
     style = str(body.get("style", "")).strip()
     date_label = str(body.get("dateLabel", "")).strip()
     budget = body.get("budget")
@@ -956,17 +1091,29 @@ async def ali_gerar(request: Request):
     try:
         resp = await _ali_client.messages.create(**kwargs)
         _contar(usuario, "gen", resp)
+        # Só fica descontado o roteiro que chega inteiro: resposta recusada,
+        # vazia ou ilegível custa a nós, não a quem pagou.
         if getattr(resp, "stop_reason", None) == "refusal":
+            _estornar(usuario, "gen", fonte)
             return {"error": "refusal"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
         raw = json.loads(_extract_json(text))
         state = _normalize_state(raw if isinstance(raw, dict) else {})
         if not state["days"]:
+            _estornar(usuario, "gen", fonte)
             return {"error": "empty"}
-        return {"state": state}
+        _confirmar(usuario, fonte)
+        saida = {"state": state}
+        if fonte and fonte["solto"] and not fonte["prender"]:
+            # Viagem ainda não existe: o app devolve este id ao criá-la, e o
+            # passe fica preso a ela.
+            saida["passe"] = fonte["id"]
+        return saida
     except json.JSONDecodeError:
+        _estornar(usuario, "gen", fonte)
         return {"error": "parse"}
     except Exception as e:
+        _estornar(usuario, "gen", fonte)
         return {"error": "api_error", "detail": str(e)[:200]}
 
 @app.get("/api/health")
@@ -1045,9 +1192,133 @@ def usage(request: Request):
         return {"quotas": None}      # modo antigo: sem cota
     with user_con(usuario) as con:
         uso = store.uso_do_usuario(con, usuario["uid"])
-    return {"period": uso["period"], "quotas": QUOTAS,
+    # Com a cobrança ligada não existe mais cota do mês: quem responde quanto
+    # resta é /api/saldo. `quotas` nulo faz o app antigo esconder o painel.
+    return {"period": uso["period"], "quotas": None if COBRANCA else QUOTAS,
             "used": {k: uso[k] for k in store.TIPOS_USO},
             "tokens": {"in": uso["tokens_in"], "out": uso["tokens_out"]}}
+
+# --- Saldo e compras (cobrança) ---
+def _resumo_saldo(con, uid, trip_id):
+    """O que a pessoa ainda pode usar do Ali, visto de uma viagem."""
+    store.garantir_degustacao(con, uid, **DEGUSTACAO)
+    dias = store.dias_da_viagem(con, trip_id) if trip_id else 0
+    fontes, deg = _fontes(con, uid, trip_id, dias)
+    da_viagem = [g for g in fontes if g["trip_id"]]
+    soltos = [g for g in fontes if g["origin"] != store.ORIGEM_DEGUSTACAO and not g["trip_id"]]
+
+    def soma(grants):
+        return {t: sum(store.resto(g, t) for g in grants) for t in store.TIPOS_USO}
+
+    return {
+        "cobranca": True,
+        "viagem": trip_id,
+        "dias": dias,
+        "max_dias": DEGUSTACAO_MAX_DIAS,
+        "disponivel": soma(fontes),                 # o que dá para gastar AGORA nesta viagem
+        "degustacao": {**soma([deg]), "vale_nesta_viagem": dias <= DEGUSTACAO_MAX_DIAS},
+        "passe": soma(da_viagem) if da_viagem else None,
+        "soltos": len(soltos),                      # passes comprados e ainda sem viagem
+        "pacotes": {"degustacao": DEGUSTACAO, "passe": PASSE},
+        "produto_passe": PRODUTO_PASSE,
+    }
+
+@app.get("/api/saldo")
+def saldo(request: Request, trip: str = ""):
+    """Quanto resta do Ali para uma viagem (a ativa, se nenhuma for informada)."""
+    usuario = me(request)
+    if not usuario or not COBRANCA:
+        return {"cobranca": False}
+    with user_con(usuario) as con:
+        tid = trip.strip()
+        if tid and not store.role_of(con, tid, usuario["uid"]):
+            raise HTTPException(status_code=404, detail="trip not found")
+        return _resumo_saldo(con, usuario["uid"], tid or store.list_trips(con, usuario["uid"])["active"])
+
+async def _sincronizar_compras(uid, trip_id=None):
+    """Pergunta ao RevenueCat o que a conta comprou e credita o que faltar.
+
+    Devolve os ids dos saldos NOVOS, ou None se não deu para conferir. Rodar de
+    novo não credita em dobro: cada transação vira saldo uma única vez.
+    """
+    store.ensure_schema()
+    with store.connect() as con:
+        conhecido = con.execute("SELECT 1 FROM users WHERE uid=?", (uid,)).fetchone()
+    if not conhecido:           # evento de teste, ou conta que já foi excluída
+        return []
+    compras = await billing.compras_de(uid, REVENUECAT_API_KEY)
+    if compras is None:
+        return None
+    novos = []
+    with store.connect() as con:
+        for c in compras:
+            pacote = PRODUTOS.get(c["produto"])
+            if not pacote or (c["sandbox"] and not REVENUECAT_SANDBOX):
+                continue
+            gid = store.conceder(con, uid, pacote["origin"], chat=pacote["chat"], gen=pacote["gen"],
+                                 tip=pacote["tip"], trip_id=trip_id, txn_id=c["txn"], store_txn=c["store_txn"])
+            if gid:
+                novos.append(gid)
+    return novos
+
+@app.post("/api/compras/sincronizar")
+async def sincronizar_compras(request: Request):
+    """O app chama isto depois de uma compra (e no "restaurar compras").
+
+    O app só AVISA; ele não diz o que comprou. Quem lista as compras é o
+    RevenueCat, perguntado daqui com a chave secreta. `trip_id` (opcional) é a
+    viagem em que a compra foi feita: o passe novo já nasce preso a ela.
+    """
+    usuario = me(request)
+    if not usuario:
+        return {"error": "sem_conta"}
+    if not REVENUECAT_API_KEY:
+        return {"error": "not_configured"}
+    uid = usuario["uid"]
+    if not _janela_ok(_compra_calls.setdefault(uid, deque()), COMPRA_RATE_MAX):
+        return {"error": "rate_limited"}
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    tid = str((body or {}).get("trip_id") or "").strip() or None
+    with user_con(usuario) as con:
+        if tid and not store.role_of(con, tid, uid):
+            raise HTTPException(status_code=404, detail="trip not found")
+    novos = await _sincronizar_compras(uid, tid)
+    if novos is None:
+        return {"error": "upstream"}
+    with user_con(usuario) as con:
+        return {"ok": True, "novos": len(novos),
+                "saldo": _resumo_saldo(con, uid, tid or store.list_trips(con, uid)["active"])}
+
+@app.post("/api/revenuecat/webhook")
+async def revenuecat_webhook(request: Request):
+    """Aviso do RevenueCat (compra, reembolso). Rede de segurança para quando o
+    app fecha antes de avisar: o saldo é creditado mesmo assim.
+
+    O conteúdo do aviso não é usado como verdade — ele só diz DE QUEM conferir.
+    """
+    if not billing.webhook_ok(request.headers.get("Authorization"), REVENUECAT_WEBHOOK_AUTH):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    try:
+        evento = (await request.json()).get("event")
+    except Exception:
+        evento = None
+    if not isinstance(evento, dict):
+        raise HTTPException(status_code=400, detail="invalid event")
+    uid = str(evento.get("app_user_id") or "")
+    if not uid or uid.startswith("$RCAnonymousID"):
+        return {"ok": True, "ignorado": True}
+    if await _sincronizar_compras(uid) is None:
+        # Resposta diferente de 200 faz o RevenueCat tentar de novo mais tarde.
+        raise HTTPException(status_code=503, detail="upstream")
+    revogados = 0
+    if evento.get("type") == "CANCELLATION" and evento.get("product_id") in PRODUTOS:
+        with store.connect() as con:
+            for txn in {evento.get("transaction_id"), evento.get("original_transaction_id")}:
+                revogados += store.revogar(con, txn)
+    return {"ok": True, "revogados": revogados}
 
 @app.get("/api/me")
 def whoami(request: Request):

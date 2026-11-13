@@ -70,11 +70,14 @@ def apagar_dados(uid: str) -> dict:
             con.execute("DELETE FROM trip_members WHERE trip_id=?", (tid,))
             con.execute("DELETE FROM trip_invites WHERE trip_id=?", (tid,))
             con.execute("DELETE FROM trips WHERE id=?", (tid,))
+            # Passe que um convidado comprou para esta viagem volta para ele.
+            con.execute("UPDATE ai_grants SET trip_id=NULL WHERE trip_id=?", (tid,))
         con.execute("DELETE FROM trip_members WHERE uid=?", (uid,))
         if email:
             con.execute("DELETE FROM trip_invites WHERE email=?", (email,))
         con.execute("DELETE FROM trip_invites WHERE invited_by=?", (uid,))
         con.execute("DELETE FROM ai_usage WHERE uid=?", (uid,))
+        con.execute("DELETE FROM ai_grants WHERE uid=?", (uid,))
         con.execute("DELETE FROM users WHERE uid=?", (uid,))
 
     return {

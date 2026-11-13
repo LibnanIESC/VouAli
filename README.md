@@ -60,7 +60,8 @@ Volume em `/app/data` guarda o SQLite.
 | `ALI_MODEL_CHAT` / `ALI_MODEL_GEN` | Opcionais: modelo separado para conversa/dicas e para gerar roteiro. Sem eles, tudo usa `ALI_MODEL`. |
 | `ALI_RATE_MAX` / `ALI_RATE_WINDOW` | Limite global de chamadas de IA por janela (padrão 20/60s). |
 | `ALI_RATE_MAX_USER` | Limite por conta na mesma janela (padrão 8) — evita que uma pessoa consuma a fila de todos. |
-| `QUOTA_CHAT` / `QUOTA_GEN` / `QUOTA_TIP` | Cota mensal por usuário (padrão 50 / 3 / 30). Só vale no modo com contas. |
+| `QUOTA_CHAT` / `QUOTA_GEN` / `QUOTA_TIP` | Cota mensal por usuário (padrão 50 / 3 / 30). Só vale no modo com contas e com `COBRANCA=off`. |
+| `COBRANCA` | `off` (padrão) mantém a cota mensal. `on` troca por saldo que não renova: degustação única + passe de viagem. Tamanhos, RevenueCat e demais variáveis em [docs/MONETIZACAO.md](docs/MONETIZACAO.md). |
 | `ALI_MONTHLY_CAP` | Fusível global: total de chamadas de IA no mês para o app inteiro. `0` = sem teto. |
 | `MAX_BODY_BYTES` | Teto de tamanho de qualquer requisição (padrão ~1,5 MB; 413 acima). Ver [docs/SEGURANCA.md](docs/SEGURANCA.md). |
 | `ALI_MAX_CONTEXT_CHARS` | Teto do contexto enviado à IA por chamada (padrão 60 000 ≈ 15 k tokens) — trava o custo de um pedido só. |
