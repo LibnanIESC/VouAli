@@ -1264,7 +1264,24 @@ def saldo(request: Request, trip: str = ""):
         tid = trip.strip()
         if tid and not store.role_of(con, tid, usuario["uid"]):
             raise HTTPException(status_code=404, detail="trip not found")
-        return _resumo_saldo(con, usuario["uid"], tid or store.list_trips(con, usuario["uid"])["active"])
+        indice = store.list_trips(con, usuario["uid"])
+        resumo = _resumo_saldo(con, usuario["uid"], tid or indice["active"])
+        if not tid:
+            # Visão da conta (lista de viagens): o passe é de cada viagem, então
+            # aqui ele aparece por viagem, e não somado à degustação.
+            resumo["viagens"] = _passes_por_viagem(con, indice["list"])
+        return resumo
+
+def _passes_por_viagem(con, viagens):
+    """As viagens da pessoa que têm passe, com o que resta em cada uma."""
+    saida = []
+    for v in viagens:
+        grants = store.grants_da_viagem(con, v["id"])
+        if not grants:
+            continue
+        saida.append({"id": v["id"], "nome": v.get("name") or "Viagem",
+                      "restante": {t: sum(store.resto(g, t) for g in grants) for t in store.TIPOS_USO}})
+    return saida
 
 async def _sincronizar_compras(uid, trip_id=None):
     """Pergunta ao RevenueCat o que a conta comprou e credita o que faltar.

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
 import { apiUsage, apiSaldo, url } from "../api";
-import { TIPOS, origemDoSaldo } from "../saldo";
+import { TIPOS, origemDoSaldo, linhaDoSaldo } from "../saldo";
 import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
 
 // Barrinha de consumo de um recurso da IA no mês.
@@ -23,24 +23,78 @@ function Consumo({ rotulo, usado, limite }) {
 
 const ROTULO = { gen: "Roteiros", chat: "Conversas", tip: "Dicas" };
 
+const cartao = { background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 };
+
+/**
+ * O Ali visto da lista de viagens.
+ *
+ * Aqui NÃO se soma nada. O passe é de uma viagem e a degustação é da conta;
+ * juntar os dois numa tabela só fazia parecer que existiam dois saldos
+ * disputando o mesmo lugar. Cada passe aparece com o nome da sua viagem, e a
+ * degustação fica à parte, dizendo para que serve. Comprar fica dentro da
+ * viagem, onde o passe vai valer.
+ */
+function AliNaConta({ saldo }) {
+  const viagens = saldo.viagens || [];
+  const deg = saldo.degustacao || {};
+  const degUsada = TIPOS.every((t) => !(Number(deg[t]) > 0));
+  const titulo = { fontSize: 13.5, fontWeight: 800, color: NAVY };
+  const linha = (esgotado) => ({ fontSize: 13, fontWeight: 600, color: esgotado ? "#C62828" : INK2, marginTop: 3, lineHeight: 1.45 });
+  return (
+    <div style={cartao}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8 }}>Passes de viagem</div>
+      {viagens.length === 0 && (
+        <div style={{ fontSize: 13, color: INK2, lineHeight: 1.5 }}>
+          Nenhum passe ainda. Ele é comprado dentro de uma viagem, quando o Ali precisar.
+        </div>
+      )}
+      {viagens.map((v) => {
+        const txt = linhaDoSaldo(v.restante);
+        return (
+          <div key={v.id} style={{ marginBottom: 10 }}>
+            <div style={titulo}>{v.nome}</div>
+            <div style={linha(txt === "esgotado")}>{txt === "esgotado" ? "Passe esgotado" : txt}</div>
+          </div>
+        );
+      })}
+      {saldo.soltos > 0 && (
+        <div style={{ fontSize: 12.5, color: INK2, marginTop: 4, lineHeight: 1.5, fontWeight: 600 }}>
+          + {saldo.soltos === 1 ? "1 passe comprado" : `${saldo.soltos} passes comprados`} ainda sem viagem. Ele entra na primeira viagem em que você usar o Ali.
+        </div>
+      )}
+
+      <div style={{ borderTop: "1px solid #efe9dc", margin: "12px 0 10px" }} />
+      <div style={{ fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 }}>Degustação gratuita</div>
+      <div style={{ fontSize: 13, color: INK2, lineHeight: 1.5 }}>
+        {degUsada
+          ? "Já usada."
+          : <>{linhaDoSaldo(deg)}<br /><span style={{ color: INK3 }}>Para experimentar o Ali numa viagem de até {saldo.max_dias} dias. Vale uma vez por conta.</span></>}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Quanto resta do Ali — só aparece com a cobrança ligada no servidor.
  *
  * Dentro de uma viagem mostra o que dá para gastar NELA (passe ou degustação).
- * Na lista de viagens não há viagem em foco: mostra o que é da conta — a
- * degustação e os passes comprados que ainda não foram usados em viagem alguma.
+ * Na lista de viagens a visão é outra (`AliNaConta`).
  */
 function SaldoDoAli({ saldo, naViagem, onPasse }) {
+  if (!naViagem) return <AliNaConta saldo={saldo} />;
   const origem = origemDoSaldo(saldo);
-  const fonte = naViagem ? saldo.disponivel : saldo.degustacao;
-  const legenda = !naViagem
-    ? `Degustação gratuita, para uma viagem de até ${saldo.max_dias} dias.`
-    : origem === "passe" ? "Do passe desta viagem. Quem viaja com você usa o mesmo."
+  const fonte = saldo.disponivel;
+  const deg = saldo.degustacao || {};
+  const somaDegustacao = origem === "passe" && deg.vale_nesta_viagem && TIPOS.some((t) => Number(deg[t]) > 0);
+  const legenda = origem === "passe"
+    ? (somaDegustacao
+      ? "Do passe desta viagem, mais o que resta da sua degustação gratuita. Quem viaja com você usa o mesmo passe."
+      : "Do passe desta viagem. Quem viaja com você usa o mesmo.")
     : origem === "degustacao" ? `Da degustação gratuita, que vale para viagens de até ${saldo.max_dias} dias.`
     : saldo.dias > saldo.max_dias ? `A degustação vale para viagens de até ${saldo.max_dias} dias; esta tem ${saldo.dias}.`
     : "A degustação desta conta já foi usada.";
   return (
-    <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
+    <div style={cartao}>
       {TIPOS.map((t) => {
         const n = Math.max(0, Number((fonte || {})[t]) || 0);
         return (

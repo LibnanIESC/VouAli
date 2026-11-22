@@ -552,6 +552,27 @@ def test_produto_com_opcao_de_compra_do_google_vira_o_mesmo_passe(tmp_path, monk
     assert saldo(client, ANA, tid)["passe"]["chat"] == m.PASSE["chat"]
 
 
+def test_visao_da_conta_lista_o_passe_de_cada_viagem(tmp_path, monkeypatch):
+    """Na lista de viagens o saldo não é somado: degustação de um lado, e o
+    passe de cada viagem do outro — com o nome dela."""
+    m, client = montar(tmp_path)
+    viagem(client, ANA, dias=2, name="Porto")
+    miami = viagem(client, ANA, dias=8, name="Miami")
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA, miami)
+    conversar(client, ANA, miami)
+    conta = saldo(client, ANA)
+    assert conta["viagens"] == [{"id": miami, "nome": "Miami",
+                                 "restante": {"chat": m.PASSE["chat"] - 1, "gen": m.PASSE["gen"], "tip": m.PASSE["tip"]}}]
+    assert conta["degustacao"]["chat"] == m.DEGUSTACAO["chat"]
+    # dentro da viagem, o formato de sempre (sem a lista)
+    assert "viagens" not in saldo(client, ANA, miami)
+    # viagem compartilhada: quem foi convidado vê o passe dela também
+    client.post(f"/api/trips/{miami}/members", headers=como(ANA), json={"email": BRUNO["email"]})
+    conversar(client, BRUNO)
+    assert [v["nome"] for v in saldo(client, BRUNO)["viagens"]] == ["Miami"]
+
+
 def test_health_diz_se_a_cobranca_esta_configurada_sem_expor_segredo(tmp_path):
     m, client = montar(tmp_path)
     assert client.get("/api/health").json()["cobranca"]["webhook"] is False

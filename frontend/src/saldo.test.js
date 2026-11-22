@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { quantos, resumoDoPacote, ehPaywall, origemDoSaldo, resta, textoDoPaywall, falaDoAliSemSaldo } from "./saldo";
+import { quantos, resumoDoPacote, ehPaywall, origemDoSaldo, resta, textoDoPaywall, falaDoAliSemSaldo, linhaDoSaldo } from "./saldo";
 
 describe("quantos", () => {
   it("concorda no singular e no plural", () => {
@@ -118,5 +118,17 @@ describe("falaDoAliSemSaldo", () => {
       const f = falaDoAliSemSaldo({ motivo, dias: 8, max_dias: 4 });
       expect(f).not.toMatch(/mês|renova no dia/);
     }
+  });
+});
+
+describe("linhaDoSaldo", () => {
+  it("mostra os três tipos, inclusive os zerados", () => {
+    expect(linhaDoSaldo({ gen: 2, chat: 99, tip: 50 })).toBe("2 roteiros · 99 conversas · 50 dicas");
+    expect(linhaDoSaldo({ gen: 0, chat: 1, tip: 3 })).toBe("0 roteiros · 1 conversa · 3 dicas");
+  });
+
+  it("tudo zerado é esgotado", () => {
+    expect(linhaDoSaldo({ gen: 0, chat: 0, tip: 0 })).toBe("esgotado");
+    expect(linhaDoSaldo(null)).toBe("esgotado");
   });
 });

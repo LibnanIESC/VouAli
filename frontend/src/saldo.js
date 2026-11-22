@@ -26,6 +26,17 @@ export function resumoDoPacote(pacote) {
   return `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
 }
 
+/**
+ * Uma linha com os três saldos: "2 roteiros · 99 conversas · 50 dicas".
+ * Mostra também os zerados (esconder um tipo faria parecer que ele não existe)
+ * e diz "esgotado" quando tudo acabou.
+ */
+export function linhaDoSaldo(r) {
+  const v = TIPOS.map((t) => Math.max(0, Number((r || {})[t]) || 0));
+  if (v.every((n) => n === 0)) return "esgotado";
+  return TIPOS.map((t, i) => quantos(v[i], t)).join(" · ");
+}
+
 /** É um aviso de "sem saldo" do servidor? */
 export const ehPaywall = (r) => !!r && r.error === "paywall";
 
