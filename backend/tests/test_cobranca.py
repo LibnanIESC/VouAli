@@ -542,6 +542,16 @@ def test_conta_de_teste_ja_e_cobrada_com_a_chave_geral_desligada(tmp_path, monke
     assert "exemplo.com" not in saude.text.lower()
 
 
+def test_produto_com_opcao_de_compra_do_google_vira_o_mesmo_passe(tmp_path, monkeypatch):
+    """No modelo novo do Google a compra pode vir como `produto:opção`."""
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1", produto="passe_viagem:comprar"),
+                                       compra("t2", produto="outro_app:comprar")]})
+    assert sincronizar(client, ANA, tid).json()["novos"] == 1
+    assert saldo(client, ANA, tid)["passe"]["chat"] == m.PASSE["chat"]
+
+
 def test_health_diz_se_a_cobranca_esta_configurada_sem_expor_segredo(tmp_path):
     m, client = montar(tmp_path)
     assert client.get("/api/health").json()["cobranca"]["webhook"] is False

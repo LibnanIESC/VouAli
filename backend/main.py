@@ -112,6 +112,16 @@ PRODUTOS = {
     "recarga_dicas": {"origin": "recarga", "gen": 0, "chat": 0, "tip": int(os.getenv("RECARGA_DICAS", "50"))},
 }
 
+def _pacote(produto):
+    """O pacote de um produto da loja, ou None.
+
+    No modelo novo de produtos do Google, uma compra pode vir identificada pelo
+    produto E pela opção de compra (`passe_viagem:comprar`). O que define o
+    pacote é só o produto.
+    """
+    produto = str(produto or "").strip()
+    return PRODUTOS.get(produto) or PRODUTOS.get(produto.split(":", 1)[0])
+
 # RevenueCat confere o recibo com o Google. A chave secreta fica só no servidor.
 # `.strip()`: um espaço ou quebra de linha colado junto no painel do Railway
 # não pode invalidar o segredo.
@@ -1273,7 +1283,7 @@ async def _sincronizar_compras(uid, trip_id=None):
     novos = []
     with store.connect() as con:
         for c in compras:
-            pacote = PRODUTOS.get(c["produto"])
+            pacote = _pacote(c["produto"])
             if not pacote or (c["sandbox"] and not REVENUECAT_SANDBOX):
                 continue
             gid = store.conceder(con, uid, pacote["origin"], chat=pacote["chat"], gen=pacote["gen"],
@@ -1335,7 +1345,7 @@ async def revenuecat_webhook(request: Request):
         # Resposta diferente de 200 faz o RevenueCat tentar de novo mais tarde.
         raise HTTPException(status_code=503, detail="upstream")
     revogados = 0
-    if evento.get("type") == "CANCELLATION" and evento.get("product_id") in PRODUTOS:
+    if evento.get("type") == "CANCELLATION" and _pacote(evento.get("product_id")):
         with store.connect() as con:
             for txn in {evento.get("transaction_id"), evento.get("original_transaction_id")}:
                 revogados += store.revogar(con, txn)
