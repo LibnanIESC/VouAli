@@ -285,6 +285,8 @@ def _autorizar(usuario, tipo, body, dias_pedidos=None):
                 return True, None, {"id": g["id"], "solto": solto, "prender": trip_id if solto else None}
         if any(g["origin"] != store.ORIGEM_DEGUSTACAO for g in fontes):
             motivo = "esgotado"                # tem passe, mas acabou esse tipo
+        elif store.reembolsados_da_viagem(con, trip_id):
+            motivo = "reembolsado"             # o passe desta viagem foi estornado
         elif deg and store.resto(deg, tipo) > 0:
             motivo = "dias"                    # tem degustação, mas a viagem é longa
         else:
@@ -1156,11 +1158,21 @@ def health():
         "cobranca": {
             "ligada": COBRANCA,
             "contas_de_teste": len(COBRANCA_TESTE),
+            "cancelamentos_sem_passe": _cancelamentos_sem_passe(),
             "revenuecat": bool(REVENUECAT_API_KEY),
             "webhook": bool(REVENUECAT_WEBHOOK_AUTH),
             "sandbox": REVENUECAT_SANDBOX,
         },
     }
+
+def _cancelamentos_sem_passe():
+    """Só um número, para conferir de fora — nunca quem nem o quê."""
+    try:
+        store.ensure_schema()
+        with store.connect() as con:
+            return store.cancelamentos_sem_passe(con)
+    except Exception:
+        return None
 
 @app.get("/api/config")
 def config():
@@ -1249,6 +1261,9 @@ def _resumo_saldo(con, uid, trip_id):
         "disponivel": soma(fontes),                 # o que dá para gastar AGORA nesta viagem
         "degustacao": {**soma([deg]), "vale_nesta_viagem": dias <= DEGUSTACAO_MAX_DIAS},
         "passe": soma(da_viagem) if da_viagem else None,
+        # Passe estornado e nenhum outro valendo: o app explica, em vez de o
+        # passe simplesmente sumir.
+        "reembolsado": not da_viagem and store.reembolsados_da_viagem(con, trip_id) > 0,
         "soltos": len(soltos),                      # passes comprados e ainda sem viagem
         "pacotes": {"degustacao": DEGUSTACAO, "passe": PASSE},
         "produto_passe": PRODUTO_PASSE,
@@ -1277,10 +1292,13 @@ def _passes_por_viagem(con, viagens):
     saida = []
     for v in viagens:
         grants = store.grants_da_viagem(con, v["id"])
-        if not grants:
-            continue
-        saida.append({"id": v["id"], "nome": v.get("name") or "Viagem",
-                      "restante": {t: sum(store.resto(g, t) for g in grants) for t in store.TIPOS_USO}})
+        nome = v.get("name") or "Viagem"
+        if grants:
+            saida.append({"id": v["id"], "nome": nome,
+                          "restante": {t: sum(store.resto(g, t) for g in grants) for t in store.TIPOS_USO}})
+        elif store.reembolsados_da_viagem(con, v["id"]):
+            saida.append({"id": v["id"], "nome": nome, "reembolsado": True,
+                          "restante": {t: 0 for t in store.TIPOS_USO}})
     return saida
 
 async def _sincronizar_compras(uid, trip_id=None):
@@ -1358,14 +1376,31 @@ async def revenuecat_webhook(request: Request):
     uid = str(evento.get("app_user_id") or "")
     if not uid or uid.startswith("$RCAnonymousID"):
         return {"ok": True, "ignorado": True}
-    if await _sincronizar_compras(uid) is None:
+    novos = await _sincronizar_compras(uid)
+    if novos is None:
         # Resposta diferente de 200 faz o RevenueCat tentar de novo mais tarde.
         raise HTTPException(status_code=503, detail="upstream")
+    tipo = str(evento.get("type") or "")
+    produto = str(evento.get("product_id") or "")
+    txn = str(evento.get("transaction_id") or "")
     revogados = 0
-    if evento.get("type") == "CANCELLATION" and _pacote(evento.get("product_id")):
+    resultado = f"creditados:{len(novos)}" if novos else "ok"
+    if tipo == "CANCELLATION" and _pacote(produto):
         with store.connect() as con:
-            for txn in {evento.get("transaction_id"), evento.get("original_transaction_id")}:
-                revogados += store.revogar(con, txn)
+            for t in {evento.get("transaction_id"), evento.get("original_transaction_id"), evento.get("store_transaction_id")}:
+                revogados += store.revogar(con, t)
+        if not revogados:
+            # O id do aviso não bateu com nenhum saldo. Segunda tentativa: o
+            # que a loja deixou de listar como compra desta conta foi estornado.
+            compras = await billing.compras_de(uid, REVENUECAT_API_KEY)
+            if compras is not None:
+                validos = {c["txn"] for c in compras} | {c["store_txn"] for c in compras if c["store_txn"]}
+                with store.connect() as con:
+                    revogados = store.revogar_ausentes(con, uid, validos)
+        resultado = f"revogados:{revogados}" if revogados else "sem_passe"
+    if tipo != "TEST" and (novos or tipo == "CANCELLATION"):
+        with store.connect() as con:
+            store.registrar_evento(con, uid, tipo, produto, txn, resultado)
     return {"ok": True, "revogados": revogados}
 
 @app.get("/api/me")

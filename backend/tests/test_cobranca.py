@@ -537,8 +537,8 @@ def test_conta_de_teste_ja_e_cobrada_com_a_chave_geral_desligada(tmp_path, monke
     assert client.get("/api/usage", headers=como(BRUNO)).json()["quotas"]["chat"] > 0
     assert "reply" in conversar(client, BRUNO)
     saude = client.get("/api/health")
-    assert saude.json()["cobranca"] == {"ligada": False, "contas_de_teste": 2, "revenuecat": True,
-                                        "webhook": False, "sandbox": False}
+    assert saude.json()["cobranca"] == {"ligada": False, "contas_de_teste": 2, "cancelamentos_sem_passe": 0,
+                                        "revenuecat": True, "webhook": False, "sandbox": False}
     assert "exemplo.com" not in saude.text.lower()
 
 
@@ -619,6 +619,76 @@ def test_reembolso_tira_o_saldo(tmp_path, monkeypatch):
     assert r.json()["revogados"] == 1
     assert conversar(client, ANA, tid)["error"] == "paywall"
     assert sincronizar(client, ANA, tid).json()["novos"] == 0, "reembolsado não volta numa nova conferência"
+
+
+def _reembolso(client, txn="GPA.t1", **extra):
+    corpo = {"type": "CANCELLATION", "app_user_id": ANA["uid"], "product_id": "passe_viagem",
+             "transaction_id": txn, "cancel_reason": "CUSTOMER_SUPPORT", **extra}
+    return aviso(client, corpo)
+
+
+def test_reembolso_que_nao_casa_pelo_id_anula_o_que_a_loja_deixou_de_listar(tmp_path, monkeypatch):
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
+    tid = viagem(client, ANA, dias=8)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1"), compra("t2")]})
+    sincronizar(client, ANA, tid)
+    # a loja passa a listar só a t2: a t1 foi estornada, mas o aviso traz outro id
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t2")]})
+    assert _reembolso(client, txn="id-que-nao-conhecemos").json()["revogados"] == 1
+    assert saldo(client, ANA, tid)["passe"]["chat"] == m.PASSE["chat"], "a t2 continua valendo"
+
+
+def test_reembolso_sem_passe_fica_registrado_e_aparece_na_saude(tmp_path, monkeypatch):
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
+    tid = viagem(client, ANA, dias=8)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA, tid)
+    # a loja ainda lista a compra e o id não bate: não dá para anular nada
+    assert _reembolso(client, txn="id-que-nao-conhecemos").json()["revogados"] == 0
+    assert "reply" in conversar(client, ANA, tid), "na dúvida, não tira o que foi pago"
+    saude = client.get("/api/health").json()
+    assert saude["cobranca"]["cancelamentos_sem_passe"] == 1
+    with m.store.connect() as con:
+        assert con.execute("SELECT tipo, resultado FROM billing_eventos").fetchall() == [("CANCELLATION", "sem_passe")]
+
+
+def test_reembolso_com_a_loja_fora_do_ar_nao_anula_no_escuro(tmp_path, monkeypatch):
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
+    tid = viagem(client, ANA, dias=8)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA, tid)
+    loja(monkeypatch, m, None)
+    assert _reembolso(client, txn="id-que-nao-conhecemos").status_code == 503, "o RevenueCat tenta de novo"
+    assert "reply" in conversar(client, ANA, tid)
+
+
+def test_passe_reembolsado_e_explicado_e_nao_some_em_silencio(tmp_path, monkeypatch):
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
+    tid = viagem(client, ANA, dias=8, name="Miami")
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA, tid)
+    _reembolso(client)
+    r = conversar(client, ANA, tid)
+    assert r["error"] == "paywall" and r["motivo"] == "reembolsado"
+    assert saldo(client, ANA, tid)["reembolsado"] is True
+    assert saldo(client, ANA)["viagens"] == [{"id": tid, "nome": "Miami", "reembolsado": True,
+                                              "restante": {"chat": 0, "gen": 0, "tip": 0}}]
+    # comprou de novo: volta a valer, e deixa de constar como reembolsado
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1"), compra("t2")]})
+    sincronizar(client, ANA, tid)
+    assert saldo(client, ANA, tid)["reembolsado"] is False
+    assert "reply" in conversar(client, ANA, tid)
+
+
+def test_excluir_a_conta_apaga_o_diario_de_compras(tmp_path, monkeypatch):
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
+    tid = viagem(client, ANA, dias=8)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    aviso(client, {"type": "NON_RENEWING_PURCHASE", "app_user_id": ANA["uid"], "product_id": "passe_viagem"})
+    with m.store.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM billing_eventos").fetchone()[0] == 1
+        m.store.excluir_conta(con, ANA["uid"])
+        assert con.execute("SELECT COUNT(*) FROM billing_eventos").fetchone()[0] == 0
 
 
 # ---------- o que continua valendo ----------

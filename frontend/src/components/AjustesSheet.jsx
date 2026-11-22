@@ -53,7 +53,7 @@ function AliNaConta({ saldo }) {
         return (
           <div key={v.id} style={{ marginBottom: 10 }}>
             <div style={titulo}>{v.nome}</div>
-            <div style={linha(txt === "esgotado")}>{txt === "esgotado" ? "Passe esgotado" : txt}</div>
+            <div style={linha(v.reembolsado || txt === "esgotado")}>{v.reembolsado ? "Passe reembolsado" : txt === "esgotado" ? "Passe esgotado" : txt}</div>
           </div>
         );
       })}
@@ -91,6 +91,7 @@ function SaldoDoAli({ saldo, naViagem, onPasse }) {
       ? "Do passe desta viagem, mais o que resta da sua degustação gratuita. Quem viaja com você usa o mesmo passe."
       : "Do passe desta viagem. Quem viaja com você usa o mesmo.")
     : origem === "degustacao" ? `Da degustação gratuita, que vale para viagens de até ${saldo.max_dias} dias.`
+    : saldo.reembolsado ? "O passe desta viagem foi reembolsado e deixou de valer."
     : saldo.dias > saldo.max_dias ? `A degustação vale para viagens de até ${saldo.max_dias} dias; esta tem ${saldo.dias}.`
     : "A degustação desta conta já foi usada.";
   return (

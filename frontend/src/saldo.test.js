@@ -132,3 +132,17 @@ describe("linhaDoSaldo", () => {
     expect(linhaDoSaldo(null)).toBe("esgotado");
   });
 });
+
+describe("passe reembolsado", () => {
+  it("a tela do passe explica o estorno e garante que nada some", () => {
+    const t = textoDoPaywall({ tipo: "chat", motivo: "reembolsado" });
+    expect(t.titulo).toBe("O passe desta viagem foi reembolsado");
+    expect(t.texto).toMatch(/continua na viagem/);
+  });
+
+  it("o Ali não fala em degustação quando o motivo é reembolso", () => {
+    const f = falaDoAliSemSaldo({ motivo: "reembolsado" });
+    expect(f).toMatch(/reembolsado/);
+    expect(f).not.toMatch(/degustação/);
+  });
+});

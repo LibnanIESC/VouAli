@@ -79,6 +79,18 @@ SCHEMA = [
     )""",
     # Uma transação da loja vira no máximo UM saldo (NULLs não colidem).
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_grants_txn ON ai_grants(txn_id)",
+    # Diário dos avisos da loja (compra, reembolso). Serve para auditar: um
+    # reembolso que não achou o passe não pode passar em silêncio.
+    """CREATE TABLE IF NOT EXISTS billing_eventos (
+        id TEXT PRIMARY KEY,
+        uid TEXT,
+        tipo TEXT,
+        produto TEXT,
+        txn TEXT,
+        resultado TEXT,
+        created_at INTEGER
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_billing_eventos_uid ON billing_eventos(uid)",
     "CREATE INDEX IF NOT EXISTS idx_grants_uid ON ai_grants(uid)",
     "CREATE INDEX IF NOT EXISTS idx_grants_trip ON ai_grants(trip_id)",
     "CREATE INDEX IF NOT EXISTS idx_members_uid ON trip_members(uid)",
@@ -418,6 +430,7 @@ def excluir_conta(con, uid, email=""):
     con.execute("DELETE FROM trip_invites WHERE invited_by=?", (uid,))
     con.execute("DELETE FROM ai_usage WHERE uid=?", (uid,))
     con.execute("DELETE FROM ai_grants WHERE uid=?", (uid,))
+    con.execute("DELETE FROM billing_eventos WHERE uid=?", (uid,))
     con.execute("DELETE FROM users WHERE uid=?", (uid,))
     return resumo
 
@@ -582,6 +595,45 @@ def devolver(con, grant_id, tipo):
         f"UPDATE ai_grants SET {tipo}_used = {tipo}_used - 1 WHERE id=? AND {tipo}_used > 0",
         (grant_id,),
     )
+
+
+def revogar_ausentes(con, uid, validos):
+    """Reembolso que não casou pelo id: anula os saldos PAGOS desta conta cuja
+    transação a loja não lista mais. `validos` são os ids que ela ainda lista."""
+    rows = con.execute(
+        "SELECT id, txn_id, store_txn FROM ai_grants WHERE uid=? AND revoked=0 AND origin<>?",
+        (uid, ORIGEM_DEGUSTACAO),
+    ).fetchall()
+    n = 0
+    for gid, txn, store_txn in rows:
+        if not txn and not store_txn:
+            continue                      # sem transação conhecida: não dá para julgar
+        if (txn and txn in validos) or (store_txn and store_txn in validos):
+            continue
+        n += con.execute("UPDATE ai_grants SET revoked=1 WHERE id=? AND revoked=0", (gid,)).rowcount
+    return n
+
+
+def reembolsados_da_viagem(con, trip_id):
+    """Quantos passes desta viagem foram anulados por reembolso."""
+    if not trip_id:
+        return 0
+    row = con.execute("SELECT COUNT(*) FROM ai_grants WHERE trip_id=? AND revoked=1 AND origin<>?",
+                      (trip_id, ORIGEM_DEGUSTACAO)).fetchone()
+    return int(row[0] or 0)
+
+
+def registrar_evento(con, uid, tipo, produto, txn, resultado):
+    con.execute(
+        "INSERT INTO billing_eventos(id, uid, tipo, produto, txn, resultado, created_at) VALUES(?,?,?,?,?,?,?)",
+        (uuid.uuid4().hex, uid, tipo, produto, txn, resultado, _now()),
+    )
+
+
+def cancelamentos_sem_passe(con):
+    """Reembolsos avisados pela loja que não encontraram saldo para anular."""
+    row = con.execute("SELECT COUNT(*) FROM billing_eventos WHERE resultado='sem_passe'").fetchone()
+    return int(row[0] or 0)
 
 
 def revogar(con, txn):

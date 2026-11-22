@@ -16,6 +16,7 @@ elas.
 | 4 | Ligar o RevenueCat ao Google Play | ✅ feito — credenciais válidas | — |
 | 5 | Segredos no Railway | ✅ feito | — |
 | 6 | Webhook do RevenueCat | ✅ feito — teste devolveu 200 | — |
+| 6b | Aviso de reembolso do Google | **a fazer** — sem ele o reembolso não chega | minutos |
 | 7 | Subir a versão 1.1.0 e criar o produto `passe_viagem` | **a fazer** (o app já está pronto) | minutos |
 | 8 | Testadores de licença | junto com a 7 | minutos |
 | 9 | Privacidade, *Data safety* e status de comerciante | antes de publicar | minutos |
@@ -145,6 +146,31 @@ virar saldo). Volta para `0` na etapa 10.
 cabeçalho não é idêntico ao do Railway.
 
 ---
+
+## 6b. Aviso de reembolso do Google (*Google developer notifications*)
+
+Sem isto, o Google **não avisa** o RevenueCat quando um pedido é reembolsado
+pelo Play Console — e o passe continua valendo. (Foi o que o teste de
+22/11/2026 mostrou: o histórico do cliente no RevenueCat tinha só a compra.)
+
+1. RevenueCat → **Apps** → **VouAli** (Play Store) → seção **Google developer
+   notifications** → no campo do tópico, escolha **criar um tópico novo** →
+   **Save changes**. Copie o nome completo do tópico
+   (`projects/vouali-9a7b3/topics/...`).
+2. Play Console → app **VouAli** → **Monetizar com o Google Play** →
+   **Configuração de monetização** → **Notificações do desenvolvedor em tempo
+   real**: ative, cole o nome do tópico e, em **conteúdo da notificação**,
+   escolha a opção que inclui **compras anuladas e todos os produtos únicos**.
+   Salve.
+3. Ainda no Play Console, clique em **Enviar notificação de teste**. No
+   RevenueCat, a seção deve passar a mostrar a data da última notificação.
+
+**Pronto quando:** um reembolso de teste fizer aparecer um evento de
+reembolso no histórico do cliente no RevenueCat, e o passe sumir do app.
+
+> Para conferir de fora: `/api/health` → `cobranca.cancelamentos_sem_passe`
+> conta os reembolsos que chegaram ao servidor mas **não** acharam o passe.
+> Tem de ficar em `0`.
 
 ## 7. Produto no Play Console
 

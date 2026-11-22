@@ -68,6 +68,12 @@ export function textoDoPaywall({ tipo, motivo, dias, max_dias } = {}) {
       texto: `A degustação do Ali vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""}. Com o passe, ele planeja esta viagem inteira com você.`,
     };
   }
+  if (motivo === "reembolsado") {
+    return {
+      titulo: "O passe desta viagem foi reembolsado",
+      texto: "Como a compra foi estornada, o passe deixou de valer. O que o Ali já fez continua na viagem. Para seguir com ele aqui, é preciso um novo passe.",
+    };
+  }
   if (motivo === "esgotado") {
     const o = { chat: "As conversas", gen: "Os roteiros", tip: "As dicas" }[tipo] || "Os usos";
     return {
@@ -94,6 +100,9 @@ export function textoDoPaywall({ tipo, motivo, dias, max_dias } = {}) {
 export function falaDoAliSemSaldo({ motivo, dias, max_dias } = {}) {
   if (motivo === "dias") {
     return `Minha degustação vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""} 😊 Com o passe de viagem eu sigo com você nela inteira — e tudo que já está no roteiro continua aqui.`;
+  }
+  if (motivo === "reembolsado") {
+    return "O passe desta viagem foi reembolsado, então eu parei por aqui 😊 Tudo que já está no roteiro continua aqui — e com um novo passe eu sigo com você.";
   }
   if (motivo === "esgotado") {
     return "As conversas do passe desta viagem acabaram 😅 Um novo passe traz mais — e o roteiro, o orçamento e as dicas já salvos continuam todos aqui.";
