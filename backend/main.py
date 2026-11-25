@@ -1290,6 +1290,8 @@ def _resumo_saldo(con, uid, trip_id):
         # Pacote estornado e nenhum outro valendo: o app explica, em vez de o
         # saldo simplesmente sumir.
         "reembolsado": bool(ultimo and ultimo["revoked"] and not pagos),
+        # De onde veio o saldo: "2 pacotes comprados · 1 reembolsado".
+        "compras": store.resumo_das_compras(con, uid),
         "pacotes": {"degustacao": DEGUSTACAO, "pacote": PASSE},
         "produto": PRODUTO_PASSE,
     }

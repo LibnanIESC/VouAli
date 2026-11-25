@@ -37,6 +37,19 @@ export function linhaDoSaldo(r) {
   return TIPOS.map((t, i) => quantos(v[i], t)).join(" · ");
 }
 
+/**
+ * De onde veio o saldo, para ele não parecer errado: "2 pacotes comprados ·
+ * 1 reembolsado". Vazio se a conta nunca comprou.
+ */
+export function linhaDasCompras(c) {
+  const n = Math.max(0, Number((c || {}).pacotes) || 0);
+  const r = Math.min(n, Math.max(0, Number((c || {}).reembolsados) || 0));
+  if (!n) return "";
+  const comprados = n === 1 ? "1 pacote comprado" : `${n} pacotes comprados`;
+  if (!r) return comprados;
+  return `${comprados} · ${r === 1 ? "1 reembolsado" : `${r} reembolsados`}`;
+}
+
 /** É um aviso de "sem saldo" do servidor? */
 export const ehPaywall = (r) => !!r && r.error === "paywall";
 

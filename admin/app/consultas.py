@@ -191,6 +191,15 @@ def detalhe_usuario(uid: str) -> dict | None:
             " FROM ai_usage WHERE uid=? ORDER BY period DESC LIMIT 12",
             (uid,),
         )
+        try:
+            creditos = con.todos(
+                "SELECT id, origin, chat, gen, tip, chat_used, gen_used, tip_used,"
+                " txn_id, revoked, created_at FROM ai_grants WHERE uid=?"
+                " ORDER BY created_at DESC, id DESC",
+                (uid,),
+            )
+        except Exception:
+            creditos = []                 # banco anterior à cobrança
 
     return {
         "uid": conta[0],
@@ -217,6 +226,27 @@ def detalhe_usuario(uid: str) -> dict | None:
             }
             for u in uso
         ],
+        "creditos": [_credito(c) for c in creditos],
+    }
+
+
+def _credito(c) -> dict:
+    """Um saldo do Ali (degustação ou pacote pago), com o que resta dele."""
+    total = {"chat": _int(c[2]), "gen": _int(c[3]), "tip": _int(c[4])}
+    usado = {"chat": _int(c[5]), "gen": _int(c[6]), "tip": _int(c[7])}
+    resta = {t: max(0, total[t] - usado[t]) for t in total}
+    anulado = bool(_int(c[9]))
+    return {
+        "id": c[0],
+        "degustacao": c[1] == "degustacao",
+        "origem": c[1] or "",
+        "total": total,
+        "usado": usado,
+        "resta": resta,
+        "txn": c[8] or "",
+        "anulado": anulado,
+        "situacao": "anulado" if anulado else ("valendo" if any(resta.values()) else "esgotado"),
+        "criado_em": _int(c[10]),
     }
 
 

@@ -305,6 +305,52 @@ def _linha_uso(m: dict) -> str:
     )
 
 
+_ORIGENS = {"passe": "Pacote VouAli", "pacote": "Pacote VouAli", "degustacao": "Degustação"}
+
+
+def _uso_de(c: dict, tipo: str) -> str:
+    return f"{c['resta'][tipo]} <span class='hint' style='display:inline'>de {c['total'][tipo]}</span>"
+
+
+def _linha_credito(uid: str, c: dict) -> str:
+    badge = {"valendo": "ok", "esgotado": "warn", "anulado": "bad"}[c["situacao"]]
+    if c["degustacao"]:
+        acao = "<span class='hint'>—</span>"
+    elif c["anulado"]:
+        acao = (f"<form method='post' action='/admin/usuarios/{esc(uid)}/creditos/{esc(c['id'])}/restaurar'>"
+                "<button class='btn' type='submit'>Restaurar</button></form>")
+    else:
+        acao = (f"<form method='post' action='/admin/usuarios/{esc(uid)}/creditos/{esc(c['id'])}/anular'"
+                " style='display:flex;gap:6px;align-items:center'>"
+                "<input name='confirmacao' placeholder='Digite ANULAR' required style='width:120px'>"
+                "<button class='btn danger' type='submit' style='flex:0 0 auto'>Anular</button></form>")
+    return linha(
+        td(esc(_ORIGENS.get(c["origem"], c["origem"])) + (sub(c["txn"]) if c["txn"] else "")),
+        td(esc(data_curta(c["criado_em"]))),
+        td(_uso_de(c, "gen"), "num"),
+        td(_uso_de(c, "chat"), "num"),
+        td(_uso_de(c, "tip"), "num"),
+        td(f"<span class='badge {badge}'>{c['situacao']}</span>"),
+        td(acao),
+    )
+
+
+def _cartao_creditos(u: dict) -> str:
+    linhas = "".join(_linha_credito(u["uid"], c) for c in u.get("creditos", [])) \
+        or vazio(7, "Nenhum crédito ainda.")
+    return f"""
+<div class='card'>
+  <h2>Créditos do Ali</h2>
+  <p style='margin:-6px 0 10px;font-size:13px;color:#8a8272'>
+    O que resta de cada saldo. <strong>Anular</strong> tem o mesmo efeito de um
+    reembolso: o que sobrou do pacote deixa de valer na hora. Use para
+    reembolso que a loja não avisou, compra de teste ou suporte.
+    <strong>Restaurar</strong> desfaz uma anulação.
+  </p>
+  {tabela("<tr><th>Saldo</th><th>Creditado em</th><th class='num'>Roteiros</th><th class='num'>Conversas</th><th class='num'>Dicas</th><th>Situação</th><th></th></tr>", linhas)}
+</div>"""
+
+
 @router.get("/usuarios/{uid}", response_class=HTMLResponse)
 def usuario(request: Request, uid: str, aviso: str = "", tipo: str = "ok"):
     barrado = _exigir_sessao(request)
@@ -348,6 +394,8 @@ def usuario(request: Request, uid: str, aviso: str = "", tipo: str = "ok"):
   <h2>Uso da IA, mês a mês</h2>
   {tabela("<tr><th>Período</th><th class='num'>Roteiros</th><th class='num'>Conversas</th><th class='num'>Dicas</th><th class='num'>Tokens</th><th class='num'>Custo</th></tr>", uso)}
 </div>
+
+{_cartao_creditos(u)}
 
 {_acoes_do_usuario(u, aviso)}
 
@@ -498,6 +546,44 @@ def zerar_cota(request: Request, uid: str):
         uid,
         f"Cota de {periodo} zerada ({r['gen']} roteiros, {r['chat']} conversas, "
         f"{r['tip']} dicas). Os tokens continuam contados.",
+    )
+
+
+@router.post("/usuarios/{uid}/creditos/{gid}/anular")
+def anular_credito(request: Request, uid: str, gid: str, confirmacao: str = Form("")):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+    if confirmacao.strip().upper() != "ANULAR":
+        return _voltar_ao_usuario(uid, "Confirmação não confere. Nada foi anulado.", "bad")
+
+    r = acoes.anular_pacote(uid, gid)
+    if not r["ok"]:
+        return _voltar_ao_usuario(uid, f"Não anulei: {r['motivo']}.", "bad")
+
+    acoes.registrar(ip_do_pedido(request), "anular_pacote", uid,
+                    f"pacote={gid} txn={r['txn']} restava gen={r['gen']} chat={r['chat']} tip={r['tip']}")
+    return _voltar_ao_usuario(
+        uid,
+        f"Pacote anulado. Deixaram de valer {r['gen']} roteiros, {r['chat']} conversas e {r['tip']} dicas.",
+    )
+
+
+@router.post("/usuarios/{uid}/creditos/{gid}/restaurar")
+def restaurar_credito(request: Request, uid: str, gid: str):
+    barrado = _exigir_sessao(request)
+    if barrado:
+        return barrado
+
+    r = acoes.restaurar_pacote(uid, gid)
+    if not r["ok"]:
+        return _voltar_ao_usuario(uid, f"Não restaurei: {r['motivo']}.", "bad")
+
+    acoes.registrar(ip_do_pedido(request), "restaurar_pacote", uid,
+                    f"pacote={gid} txn={r['txn']} volta gen={r['gen']} chat={r['chat']} tip={r['tip']}")
+    return _voltar_ao_usuario(
+        uid,
+        f"Pacote restaurado. Voltaram a valer {r['gen']} roteiros, {r['chat']} conversas e {r['tip']} dicas.",
     )
 
 

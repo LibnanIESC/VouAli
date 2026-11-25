@@ -93,6 +93,38 @@ def apagar_dados(uid: str) -> dict:
     }
 
 
+def _mudar_pacote(uid: str, gid: str, de: int, para: int) -> dict:
+    """Troca o estado de UM pacote pago desta conta. A degustação fica de fora:
+    ela é da conta e não vem de compra nenhuma."""
+    with conectar() as con:
+        linha = con.um(
+            "SELECT chat, gen, tip, chat_used, gen_used, tip_used, txn_id"
+            " FROM ai_grants WHERE id=? AND uid=? AND origin<>'degustacao' AND revoked=?",
+            (gid, uid, de),
+        )
+        if not linha:
+            return {"ok": False, "motivo": "pacote não encontrado nesta conta, ou já estava assim"}
+        con.execute("UPDATE ai_grants SET revoked=? WHERE id=? AND uid=?", (para, gid, uid))
+    resta = {t: max(0, int(linha[i] or 0) - int(linha[i + 3] or 0)) for i, t in enumerate(("chat", "gen", "tip"))}
+    return {"ok": True, "txn": linha[6] or "", **resta}
+
+
+def anular_pacote(uid: str, gid: str) -> dict:
+    """Anula um pacote pago: o que resta dele deixa de valer, na hora.
+
+    É o mesmo efeito de um reembolso que chegou pela loja. Serve para o que a
+    loja não avisou (reembolso antigo, compra de teste) e para suporte. A
+    compra continua registrada — a mesma transação nunca volta a creditar.
+    """
+    return _mudar_pacote(uid, gid, 0, 1)
+
+
+def restaurar_pacote(uid: str, gid: str) -> dict:
+    """Desfaz uma anulação feita por engano: o pacote volta a valer com o que
+    restava quando foi anulado."""
+    return _mudar_pacote(uid, gid, 1, 0)
+
+
 def zerar_cotas(uid: str, periodo: str) -> dict:
     """Devolve a cota do mês a uma conta, sem apagar o custo.
 

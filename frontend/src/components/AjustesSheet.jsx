@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
 import { apiUsage, apiSaldo, url } from "../api";
-import { TIPOS, linhaDoSaldo } from "../saldo";
+import { TIPOS, linhaDoSaldo, linhaDasCompras } from "../saldo";
 import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
 
 // Barrinha de consumo de um recurso da IA no mês.
@@ -41,11 +41,15 @@ function CreditosDoAli({ saldo, naViagem, onPacote }) {
     ? txt
     : saldo.reembolsado ? "Reembolsado" : "Nenhum pacote ainda";
   const dono = naViagem && saldo.dono;
+  const compras = linhaDasCompras(saldo.compras);
   return (
     <div style={cartao}>
       <div style={rotuloCaixa}>Pacote VouAli</div>
       <div style={{ fontSize: 14, fontWeight: 700, color: saldo.tem_pacote ? NAVY : INK2, lineHeight: 1.45 }}>{pacote}</div>
       <div style={{ fontSize: 12.5, color: INK3, marginTop: 3, lineHeight: 1.5 }}>Valem em qualquer viagem.</div>
+      {compras && (
+        <div style={{ fontSize: 12.5, color: INK3, marginTop: 2, lineHeight: 1.5 }}>{compras}.</div>
+      )}
 
       {dono && (
         <div style={{ fontSize: 12.5, color: INK2, marginTop: 10, lineHeight: 1.5, fontWeight: 600, background: "#faf7f1", borderRadius: 10, padding: "9px 11px" }}>

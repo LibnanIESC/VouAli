@@ -557,6 +557,18 @@ def creditos(con, uid):
     return [_grant(r) for r in rows]
 
 
+def resumo_das_compras(con, uid):
+    """Quantos pacotes pagos a conta já teve e quantos foram anulados
+    (reembolso na loja ou anulação pelo suporte). É o que explica um saldo
+    que "não bate" com a última compra."""
+    row = con.execute(
+        "SELECT COUNT(*), COALESCE(SUM(CASE WHEN revoked<>0 THEN 1 ELSE 0 END), 0) "
+        "FROM ai_grants WHERE uid=? AND origin<>?",
+        (uid, ORIGEM_DEGUSTACAO),
+    ).fetchone()
+    return {"pacotes": int(row[0] or 0), "reembolsados": int(row[1] or 0)}
+
+
 def ultimo_pacote(con, uids):
     """O pacote pago mais recente destas contas (valendo, esgotado ou
     estornado), ou None se nunca compraram."""

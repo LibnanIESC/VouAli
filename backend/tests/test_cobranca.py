@@ -675,6 +675,19 @@ def test_pacote_reembolsado_e_explicado_e_nao_some_em_silencio(tmp_path, monkeyp
     assert "reply" in conversar(client, ANA, tid)
 
 
+def test_saldo_conta_os_pacotes_comprados_e_reembolsados(tmp_path, monkeypatch):
+    """O saldo que sobra de um pacote antigo não pode parecer erro: o app diz
+    quantos pacotes a conta teve e quantos foram reembolsados."""
+    m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
+    assert saldo(client, ANA)["compras"] == {"pacotes": 0, "reembolsados": 0}
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1"), compra("t2")]})
+    sincronizar(client, ANA)
+    assert saldo(client, ANA)["compras"] == {"pacotes": 2, "reembolsados": 0}
+    _reembolso(client)
+    assert saldo(client, ANA)["compras"] == {"pacotes": 2, "reembolsados": 1}
+    assert creditos(client, ANA) == {"chat": 100, "gen": 3, "tip": 50}, "o outro continua valendo"
+
+
 def test_excluir_a_conta_apaga_o_diario_de_compras(tmp_path, monkeypatch):
     m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
     tid = viagem(client, ANA, dias=8)

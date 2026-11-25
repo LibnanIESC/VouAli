@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { quantos, resumoDoPacote, ehPaywall, origemDoSaldo, resta, textoDoPaywall, falaDoAliSemSaldo, linhaDoSaldo } from "./saldo";
+import { quantos, resumoDoPacote, ehPaywall, origemDoSaldo, resta, textoDoPaywall, falaDoAliSemSaldo, linhaDoSaldo, linhaDasCompras } from "./saldo";
 
 describe("quantos", () => {
   it("concorda no singular e no plural", () => {
@@ -120,6 +120,19 @@ describe("falaDoAliSemSaldo", () => {
       const f = falaDoAliSemSaldo({ motivo, dias: 8, max_dias: 4 });
       expect(f).not.toMatch(/mês|renova no dia/);
     }
+  });
+});
+
+describe("linhaDasCompras", () => {
+  it("explica de onde veio o saldo", () => {
+    expect(linhaDasCompras({ pacotes: 2, reembolsados: 1 })).toBe("2 pacotes comprados · 1 reembolsado");
+    expect(linhaDasCompras({ pacotes: 3, reembolsados: 2 })).toBe("3 pacotes comprados · 2 reembolsados");
+    expect(linhaDasCompras({ pacotes: 1, reembolsados: 0 })).toBe("1 pacote comprado");
+  });
+
+  it("quem nunca comprou (ou servidor antigo) não vê nada", () => {
+    expect(linhaDasCompras({ pacotes: 0, reembolsados: 0 })).toBe("");
+    expect(linhaDasCompras(undefined)).toBe("");
   });
 });
 

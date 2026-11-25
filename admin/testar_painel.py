@@ -69,6 +69,9 @@ def semear() -> None:
         store.registrar_uso(con, "u1", "chat", 4000, 400, p)
         store.registrar_uso(con, "u2", "chat", 3800, 350, p)
         store.registrar_uso(con, "u2", "tip", 900, 300, p)
+        store.garantir_degustacao(con, "u2", chat=5, gen=1, tip=3)
+        g = store.conceder(con, "u2", "passe", chat=100, gen=3, tip=50, txn_id="GPA.teste-1")
+        store.consumir(con, g, "gen")
 
     garantir_schema()
     with conectar() as con:                   # estado do painel sempre do zero
@@ -206,6 +209,49 @@ def rodar() -> None:
     r = c.post("/admin/usuarios/u3/cota", follow_redirects=True)
     checa("conta sem uso avisa que não há o que zerar", "Nada a zerar" in r.text)
 
+    print("\n   -- créditos do Ali: anular e restaurar --")
+    u2 = consultas.detalhe_usuario("u2")
+    pacote = next(x for x in u2["creditos"] if not x["degustacao"])
+    deg = next(x for x in u2["creditos"] if x["degustacao"])
+    r = c.get("/admin/usuarios/u2")
+    checa("o cartão de créditos aparece", "Créditos do Ali" in r.text)
+    checa("mostra o que resta do pacote", "2 <span class='hint' style='display:inline'>de 3</span>" in r.text)
+    checa("mostra a transação da loja", "GPA.teste-1" in r.text)
+    checa("anular por GET não existe",
+          c.get(f"/admin/usuarios/u2/creditos/{pacote['id']}/anular").status_code == 405)
+
+    r = c.post(f"/admin/usuarios/u2/creditos/{pacote['id']}/anular", data={"confirmacao": "sim"},
+               follow_redirects=True)
+    checa("confirmação errada não anula", "não confere" in r.text)
+    with store.connect() as con:
+        checa("o pacote continua valendo", len(store.creditos(con, "u2")) == 1)
+
+    r = c.post(f"/admin/usuarios/u2/creditos/{pacote['id']}/anular", data={"confirmacao": "anular "},
+               follow_redirects=True)
+    checa("anula com a confirmação certa", "Pacote anulado" in r.text and "2 roteiros" in r.text)
+    with store.connect() as con:
+        checa("o app deixa de ver os créditos", store.creditos(con, "u2") == [])
+        checa("e conta como reembolsado no resumo",
+              store.resumo_das_compras(con, "u2") == {"pacotes": 1, "reembolsados": 1})
+    r = c.post(f"/admin/usuarios/u2/creditos/{pacote['id']}/anular", data={"confirmacao": "ANULAR"},
+               follow_redirects=True)
+    checa("anular de novo avisa em vez de fingir", "Não anulei" in r.text)
+
+    r = c.post(f"/admin/usuarios/u2/creditos/{deg['id']}/anular", data={"confirmacao": "ANULAR"},
+               follow_redirects=True)
+    checa("a degustação não se anula pelo painel", "Não anulei" in r.text)
+    r = c.post(f"/admin/usuarios/u1/creditos/{pacote['id']}/anular", data={"confirmacao": "ANULAR"},
+               follow_redirects=True)
+    checa("não anula pacote de outra conta", "Não anulei" in r.text)
+
+    r = c.post(f"/admin/usuarios/u2/creditos/{pacote['id']}/restaurar", follow_redirects=True)
+    checa("restaurar devolve o que restava", "Pacote restaurado" in r.text)
+    with store.connect() as con:
+        checa("o app volta a ver os créditos", len(store.creditos(con, "u2")) == 1)
+    checa("restaurar exige sessão",
+          TestClient(app).post(f"/admin/usuarios/u2/creditos/{pacote['id']}/restaurar",
+                               follow_redirects=False).status_code == 303)
+
     print("\n   -- apagar dados: confirmação errada não apaga --")
     r = c.post("/admin/usuarios/u1/apagar", data={"confirmacao": "qualquer coisa"},
                follow_redirects=True)
@@ -235,6 +281,8 @@ def rodar() -> None:
     checa("auditoria abre", r.status_code == 200)
     checa("registrou o zerar_cota", "zerar_cota" in r.text)
     checa("registrou o apagar_dados", "apagar_dados" in r.text)
+    checa("registrou o anular_pacote", "anular_pacote" in r.text)
+    checa("registrou o restaurar_pacote", "restaurar_pacote" in r.text)
     checa("guarda o IP de quem fez", "testclient" in r.text)
     checa("auditoria exige sessão",
           TestClient(app).get("/admin/auditoria", follow_redirects=False).status_code == 303)
