@@ -78,8 +78,15 @@ export function esquecer() {
  * preço escrito em lugar nenhum, então mudar o valor no Play Console basta.
  * Devolve { produto, preco } ou null se a loja não respondeu / não tem o item.
  */
+// O produto já buscado nesta sessão: a tela do pacote abre com o preço pronto,
+// sem "Consultando a loja…". O preço só muda no Play Console, raramente.
+const _ofertas = new Map();
+export const ofertaGuardada = (produtoId) => _ofertas.get(produtoId);
+
 export async function buscarProduto(uid, produtoId) {
-  if (!produtoId || !(await identificar(uid))) return null;
+  if (!produtoId) return null;
+  if (_ofertas.has(produtoId)) return _ofertas.get(produtoId);
+  if (!(await identificar(uid))) return null;
   try {
     const { Purchases, PRODUCT_CATEGORY } = await sdk();
     const { products } = await Purchases.getProducts({
@@ -87,7 +94,10 @@ export async function buscarProduto(uid, produtoId) {
       type: PRODUCT_CATEGORY.NON_SUBSCRIPTION,
     });
     const produto = (products || []).find((p) => p && p.identifier === produtoId) || (products || [])[0];
-    return produto ? { produto, preco: produto.priceString || "" } : null;
+    if (!produto) return null;
+    const oferta = { produto, preco: produto.priceString || "" };
+    _ofertas.set(produtoId, oferta);
+    return oferta;
   } catch (e) {
     return null;
   }

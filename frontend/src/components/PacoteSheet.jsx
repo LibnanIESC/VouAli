@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import Sheet from "./Sheet";
 import AliAvatar from "./AliAvatar";
-import { apiSaldo, apiSincronizarCompras, url } from "../api";
-import { podeComprarAqui, buscarProduto, comprar, reenviarRecibos, LOJA_URL } from "../compras";
+import { apiSaldo, apiSincronizarCompras, saldoGuardado, url } from "../api";
+import { podeComprarAqui, buscarProduto, ofertaGuardada, comprar, reenviarRecibos, LOJA_URL } from "../compras";
 import { textoDoPaywall, quantos, linhaDoSaldo, TIPOS } from "../saldo";
 import { toast } from "../toast";
 import { btn, HELV, DISPLAY, NAVY, ORANGE, STEEL, INK2, INK3 } from "../theme";
@@ -28,8 +28,13 @@ const O_QUE = {
  * viagem é o saldo que o servidor devolve depois da compra.
  */
 export default function PacoteSheet({ motivo, tripId, uid, onClose, onAtivado }) {
-  const [saldo, setSaldo] = useState(undefined);       // undefined = buscando · null = indisponível
-  const [oferta, setOferta] = useState(undefined);     // { produto, preco } · null = a loja não respondeu
+  // Abre com o que já se sabe (o saldo guardado e o produto que o app buscou
+  // ao entrar): o conteúdo do pacote e o preço aparecem na hora.
+  const [saldo, setSaldo] = useState(() => saldoGuardado(tripId) || undefined);   // undefined = buscando · null = indisponível
+  const [oferta, setOferta] = useState(() => {
+    const s = saldoGuardado(tripId);
+    return s && podeComprarAqui() ? ofertaGuardada(s.produto || s.produto_passe) : undefined;
+  });   // { produto, preco } · null = a loja não respondeu
   const [ocupado, setOcupado] = useState("");          // "" | "comprando" | "conferindo" | "restaurando"
   const [aviso, setAviso] = useState("");
   const vivo = useRef(true);
@@ -41,9 +46,10 @@ export default function PacoteSheet({ motivo, tripId, uid, onClose, onAtivado })
     (async () => {
       const s = await apiSaldo(tripId);
       if (!vivo.current) return;
-      setSaldo(s);
+      if (s || !saldoGuardado(tripId)) setSaldo(s);   // falha de rede não apaga o que está em tela
       if (!naLoja) { setOferta(null); return; }
-      const o = s ? await buscarProduto(uid, s.produto || s.produto_passe) : null;
+      const base = s || saldoGuardado(tripId);
+      const o = base ? await buscarProduto(uid, base.produto || base.produto_passe) : null;
       if (vivo.current) setOferta(o);
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

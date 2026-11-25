@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
 import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao, apiSaldo, apiBackupDeTudo, saldoGuardado, apiUsage, apiMembers } from "./api";
-import { identificar, esquecer } from "./compras";
+import { identificar, esquecer, buscarProduto, podeComprarAqui } from "./compras";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
 import { montarBackup, montarBackupDeTudo, lerBackups, nomeDoArquivo, nomeDoArquivoDeTudo } from "./backup";
@@ -297,8 +297,12 @@ export default function App() {
   // com os créditos, sem aparecer pela metade e "pular" meio segundo depois.
   useEffect(() => {
     if (!uidLogado) return;
-    apiSaldo(null);
     apiUsage();
+    (async () => {
+      // Também o produto da loja: "Comprar Pacote VouAli" abre com o preço pronto.
+      const s = await apiSaldo(null);
+      if (s && podeComprarAqui()) buscarProduto(uidLogado, s.produto || s.produto_passe);
+    })();
   }, [uidLogado]);
 
   // Quanto resta do Ali na viagem aberta. A resposta só vale se a viagem ainda
