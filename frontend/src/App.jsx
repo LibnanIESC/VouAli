@@ -31,7 +31,7 @@ import TripsHome from "./components/TripsHome";
 import TripForm from "./components/TripForm";
 import TetoForm from "./components/TetoForm";
 import ShareSheet from "./components/ShareSheet";
-import PasseSheet from "./components/PasseSheet";
+import PacoteSheet from "./components/PacoteSheet";
 
 const EMPTY_STATE = { days: [], budget: [], prebuy: [], notes: [] };
 
@@ -89,8 +89,8 @@ export default function App() {
   const formSujoRef = useRef(false);
   // Cobrança. `saldo` é o que resta do Ali na viagem aberta — null enquanto a
   // cobrança estiver desligada no servidor, e aí nada disto aparece. `passe` é
-  // a tela de compra: como o aviso de descarte, fica POR CIMA do que estiver
-  // aberto (o formulário de baixo continua intacto).
+  // a tela do Pacote VouAli: como o aviso de descarte, fica POR CIMA do que
+  // estiver aberto (o formulário de baixo continua intacto).
   const [saldo, setSaldo] = useState(null);
   const [saldoVer, setSaldoVer] = useState(0);
   const [passe, setPasse] = useState(null);       // { motivo, tripId, depois }
@@ -307,8 +307,8 @@ export default function App() {
     atualizarSaldo();
   }, [uidLogado, vista, trips.active]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Abre a tela do passe. `tripId` vazio = a viagem ainda não existe (roteiro
-  // de viagem nova) ou a pessoa está na lista: o passe nasce sem viagem.
+  // Abre a tela do Pacote VouAli. Os créditos são da conta; `tripId` só diz de
+  // qual viagem é o saldo mostrado depois da compra (vazio = viagem nova/lista).
   const abrirPasse = (motivo, tripId, depois) => setPasse({ motivo: motivo || null, tripId: tripId || null, depois: depois || null });
   const passeAtivado = (novo) => {
     const p = passe;
@@ -644,8 +644,13 @@ export default function App() {
             {/* A capa desenhada fica atrás da foto: se a foto não carregar
                 (link quebrado, sem internet), sobra ela em vez de um buraco. */}
             <Capa semente={trips.active} />
+            {/* `key`: a mesma <img> servia a todas as viagens. Se a foto
+                falhasse uma vez (por exemplo, ao abrir o app antes de a rede
+                responder), o `onError` a escondia no próprio elemento e ela
+                ficava escondida para sempre — em qualquer viagem aberta depois.
+                Com a chave, cada viagem (e cada entrada nela) tenta de novo. */}
             {activeMeta.bg
-              ? <img src={activeMeta.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              ? <img key={`${trips.active}|${activeMeta.bg}|${vista}`} src={activeMeta.bg} alt="" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               : null}
             <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(18,30,52,0.52) 0%, rgba(18,30,52,0.62) 55%, rgba(18,30,52,0.85) 100%)" }} />
           </div>
@@ -661,7 +666,7 @@ export default function App() {
                 <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: ORANGE }}>Ali</span>
                 <span style={{ width: 11, height: 11, marginBottom: 4, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
               </div>
-              <button onClick={() => setOv({ kind: "ajustes" })} aria-label="Ajustes" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => setOv({ kind: "ajustes" })} aria-label="Configurações da viagem" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <GearIcon color="rgba(255,255,255,0.92)" size={19} />
               </button>
             </div>
@@ -991,7 +996,7 @@ export default function App() {
           onImportFile={(f) => { setOv(null); importBackup(f); }}
           user={user} onLogout={sair}
           tripId={vista === "viagem" ? trips.active : null} saldoVer={saldoVer}
-          onPasse={() => abrirPasse(null, vista === "viagem" ? trips.active : null)}
+          onPacote={() => abrirPasse(null, vista === "viagem" ? trips.active : null)}
           onExcluirConta={user ? () => setOv({ kind: "excluirConta" }) : null} />
       )}
       {ov?.kind === "excluirConta" && (
@@ -1084,9 +1089,9 @@ export default function App() {
           onDelete={() => { const it = ov.item; setOv({ kind: "confirm", message: `Excluir a nota "${it.title}"?`, back: ov, onConfirm: () => { setNotesP(notes.filter((n) => n.id !== it.id)); setOv(null); } }); }} />
       )}
 
-      {/* Tela do passe de viagem: por cima de qualquer formulário aberto. */}
+      {/* Tela do Pacote VouAli: por cima de qualquer formulário aberto. */}
       {passe && (
-        <PasseSheet motivo={passe.motivo} tripId={passe.tripId} uid={uidLogado}
+        <PacoteSheet motivo={passe.motivo} tripId={passe.tripId} uid={uidLogado}
           onClose={() => setPasse(null)} onAtivado={passeAtivado} />
       )}
 

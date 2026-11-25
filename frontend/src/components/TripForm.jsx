@@ -183,10 +183,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
         origin: String(f.origin || "").trim(), transport: transporte,
       });
       setGerando(false);
-      // `passe`: o roteiro foi pago com um passe comprado antes de a viagem
-      // existir. Mandá-lo junto prende o passe à viagem que nasce agora.
-      if (r && r.state) { onSave({ ...meta, data: r.state, ...(r.passe ? { passe: r.passe } : {}) }); return; }
-      // Sem saldo: abre a tela do passe por cima do formulário. Comprou, o
+      if (r && r.state) { onSave({ ...meta, data: r.state }); return; }
+      // Sem saldo: abre a tela do pacote por cima do formulário. Comprou, o
       // roteiro é gerado em seguida, sem a pessoa preencher nada de novo.
       if (ehPaywall(r) && onPaywall) { onPaywall(r, () => submitRef.current && submitRef.current(true)); return; }
       if (r && r.error === "not_configured") { toast("A IA ainda não está ligada — falta a chave no servidor."); return; }

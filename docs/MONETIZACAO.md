@@ -45,16 +45,16 @@ vida toda**.
 |---|---|---|
 | **Planejar na mão** | Viagens, paradas, orçamento, listas, compartilhar, offline — sem limite | nada, para sempre |
 | **Degustação** | A primeira experiência com o Ali: **1 roteiro + 5 conversas + 3 dicas**, só em viagem de **até 4 dias**. Uma vez por conta; **não renova** | nada |
-| **Passe de viagem** | Destrava o Ali para **uma viagem**: **3 roteiros + 100 conversas + 50 dicas** | **R$ 29,90** (único) |
+| **Pacote VouAli** | Créditos do Ali **na conta**, para **qualquer viagem**: **3 roteiros + 100 conversas + 50 dicas** | **R$ 29,90** (único) |
 | **Recargas** *(fase 2)* | +3 roteiros · +100 conversas · +50 dicas, vendidas separadamente | ~R$ 14,90 · 12,90 · 6,90 |
 
-**Por que passe e não assinatura.** App de viagem é usado em rajadas: planeja,
+**Por que pacote e não assinatura.** App de viagem é usado em rajadas: planeja,
 viaja, some por meses. Mensalidade pune esse uso e é cancelada entre uma viagem
-e outra. O passe cobra quando há viagem.
+e outra. O pacote cobra quando há uso.
 
 **Por que o limite de dias na degustação.** Quatro dias bastam para ver o Ali
 montar um roteiro de verdade — e a viagem que a pessoa realmente quer planejar
-quase sempre é maior. O limite é o convite ao passe *e* o teto do custo: roteiro
+quase sempre é maior. O limite é o convite ao pacote *e* o teto do custo: roteiro
 curto custa menos para gerar.
 
 **Por que planejar na mão é grátis sem limite.** É só leitura e escrita no
@@ -71,11 +71,11 @@ alcança dão o mesmo efeito, sem o risco.
 | | Conteúdo | Custo-teto | Custo realista |
 |---|---|---|---|
 | Degustação | 1 roteiro + 5 conversas + 3 dicas | R$ 1,21 | ~R$ 1,00 |
-| Passe | 3 roteiros + 100 conversas + 50 dicas | R$ 10,40 | ~R$ 6,40 |
+| Pacote | 3 roteiros + 100 conversas + 50 dicas | R$ 10,40 | ~R$ 6,40 |
 
-A cada **100 cadastros**, a degustação de todos custa R$ 121. Cada passe
+A cada **100 cadastros**, a degustação de todos custa R$ 121. Cada pacote
 vendido deixa R$ 25,42 − R$ 6,40 = **R$ 19,02**. Logo, **~6,4% de conversão**
-já paga a degustação de quem nunca comprou; daí em diante cada passe é ~R$ 19
+já paga a degustação de quem nunca comprou; daí em diante cada pacote é ~R$ 19
 de margem, antes do custo fixo do servidor. A R$ 24,90 o equilíbrio subiria
 para ~8%.
 
@@ -83,12 +83,12 @@ para ~8%.
 
 | O que | Onde | Precisa atualizar o app? |
 |---|---|---|
-| **Preço** do passe | Play Console (o app mostra o que a loja informar) | não |
-| **Tamanho** da degustação e do passe | variáveis de ambiente no Railway (tabela abaixo) | não |
+| **Preço** do pacote | Play Console (o app mostra o que a loja informar) | não |
+| **Tamanho** da degustação e do pacote | variáveis de ambiente no Railway (tabela abaixo) | não |
 | **Limite de dias** da degustação | `DEGUSTACAO_MAX_DIAS` | não |
 
 Mudar o tamanho de um pacote vale para as **próximas** concessões: quem já
-comprou um passe de 100 conversas continua com o que comprou.
+comprou um pacote de 100 conversas continua com o que comprou.
 
 ---
 
@@ -115,18 +115,24 @@ só o arquivo `backend/billing.py`.
 
 ### O saldo (`ai_grants`)
 
-Cada linha é um pacote de saldo: degustação, passe ou recarga, com o que foi
+Cada linha é um pacote de saldo: degustação, Pacote VouAli ou recarga, com o que foi
 concedido e o que já foi usado, **separado por tipo** (roteiro, conversa, dica).
 
 - A **degustação** é da conta (uma por conta, garantida pela chave primária).
-- O **passe** fica preso a uma **viagem**. Qualquer participante da viagem
-  consome o passe dela — convidado não paga de novo.
-- Um passe comprado **antes de a viagem existir** (o roteiro é gerado antes de
-  a viagem ser criada) fica "solto" e se prende à viagem criada em seguida, ou
-  à primeira em que for usado.
-- Apagar a viagem **devolve o passe** (com o que sobrou) a quem comprou.
-- Ordem de gasto: degustação primeiro (o grátis vai antes do pago), depois o
-  passe da viagem, depois um passe solto.
+- O **Pacote VouAli** é da **conta**: vale em qualquer viagem, e um pacote novo
+  soma ao que sobrou. Apagar ou editar uma viagem não mexe nos créditos.
+- **Viagem compartilhada:** o convidado usa primeiro os créditos do **dono** da
+  viagem (convidado não paga para usar o Ali na viagem de outra pessoa) e, se
+  acabarem, os próprios. O dono nunca gasta os créditos do convidado.
+- Ordem de gasto: degustação primeiro (o grátis vai antes do pago), depois os
+  créditos do dono da viagem, depois os de quem pediu.
+
+> **Histórico (nov/2026).** O primeiro desenho era um *passe preso à viagem*.
+> O teste no celular mostrou três problemas: dois saldos confusos, a brecha de
+> apagar ou editar a viagem para reaproveitar o passe e, o pior, **roteiros
+> pagos inutilizáveis** (o app só gera roteiro ao criar viagem nova, e o
+> restante do passe ficava preso à viagem antiga). Trocado por créditos na
+> conta em 24/11/2026.
 
 Regras que protegem os dois lados:
 
@@ -148,10 +154,9 @@ Regras que protegem os dois lados:
 | `POST /api/compras/sincronizar` | O app chama depois de comprar e no "restaurar compras". Corpo opcional `{trip_id}` |
 | `POST /api/revenuecat/webhook` | Aviso do RevenueCat: credita mesmo se o app fechou; trata reembolso |
 | `POST /api/ali*` | Aceitam `trip_id`. Sem saldo respondem `{"error":"paywall","tipo","motivo","dias","max_dias"}` |
-| `POST /api/trips` | Aceita `passe` (id devolvido por `/api/ali/gerar`) para prender o passe à viagem criada |
 
 `motivo` do paywall: `dias` (há degustação, mas a viagem passa do limite),
-`esgotado` (há passe, mas acabou aquele tipo) ou `sem_passe`.
+`esgotado` (há pacote, mas acabou aquele tipo), `reembolsado` ou `sem_passe` (a degustação acabou e nunca houve pacote).
 
 ### Variáveis de ambiente
 
@@ -161,7 +166,7 @@ Regras que protegem os dois lados:
 | `COBRANCA_TESTE` | — | E-mails (separados por vírgula) para os quais a cobrança **já vale** com a chave desligada. Serve para testar a compra de verdade sem afetar ninguém |
 | `DEGUSTACAO_MAX_DIAS` | `4` | Tamanho máximo da viagem que a degustação cobre |
 | `DEGUSTACAO_ROTEIROS` / `_CHATS` / `_DICAS` | `1` / `5` / `3` | Tamanho da degustação |
-| `PASSE_ROTEIROS` / `_CHATS` / `_DICAS` | `3` / `100` / `50` | Tamanho do passe |
+| `PASSE_ROTEIROS` / `_CHATS` / `_DICAS` | `3` / `100` / `50` | Tamanho do Pacote VouAli (o nome da variável ficou do modelo antigo) |
 | `RECARGA_ROTEIROS` / `_CHATS` / `_DICAS` | `3` / `100` / `50` | Tamanho de cada recarga (fase 2) |
 | `PRODUTO_PASSE` | `passe_viagem` | Id do produto no Play Console |
 | `REVENUECAT_API_KEY` | — | Chave **secreta** (`sk_…`). Só no Railway; nunca no app, no Git ou em conversa |
@@ -175,7 +180,7 @@ Regras que protegem os dois lados:
 |---|---|
 | `frontend/src/compras.js` | Fala com a loja (SDK do RevenueCat). Identifica a conta, busca o produto e o **preço**, abre o pagamento. Não decide saldo |
 | `frontend/src/saldo.js` | Contas e **textos** do saldo e do aviso de "acabou" — puros, com testes |
-| `frontend/src/components/PasseSheet.jsx` | A tela do passe: motivo do bloqueio, o que o passe traz, comprar, "Já comprei" |
+| `frontend/src/components/PacoteSheet.jsx` | A tela do Pacote VouAli: motivo do bloqueio, o que o pacote traz, comprar, "Já comprei" |
 | `frontend/src/api.js` | `apiSaldo`, `apiSincronizarCompras`; as chamadas de IA mandam `trip_id` |
 
 Como as peças se encaixam:
@@ -184,12 +189,12 @@ Como as peças se encaixam:
   SDK com o `uid` do Firebase — o mesmo que o servidor usa para perguntar ao
   RevenueCat. Compra sem identificação ficaria num usuário anônimo e nunca
   viraria saldo; por isso `comprar` sempre identifica antes.
-- **O produto é buscado pelo id** que o servidor informa (`produto_passe`), não
+- **O produto é buscado pelo id** que o servidor informa (`produto`), não
   por uma "oferta" do RevenueCat. Uma configuração a menos para dar errado.
 - **Depois de pagar, o app chama `/api/compras/sincronizar`** e só mostra o
-  passe como ativo quando o servidor devolve o saldo novo. Se a conferência
+  pacote como ativo quando o servidor devolve o saldo novo. Se a conferência
   atrasar, o webhook credita por conta própria e o botão "Já comprei" resolve.
-- **A tela do passe abre por cima** do que estiver aberto (formulário de
+- **A tela do pacote abre por cima** do que estiver aberto (formulário de
   parada, de viagem nova), sem perder o que foi digitado. Ao comprar a partir
   da geração de um roteiro, o roteiro é gerado em seguida, sozinho.
 - **No site não há compra** (quem cobra é a loja do app): a tela aponta para a
@@ -225,7 +230,7 @@ passa inteira, sem alteração.
 |---|---|---|
 | **6.1** | Painel de custo por usuário | ✅ feito (painel admin) |
 | **6.2** | Modelo e preço decididos | ✅ nov/2026 |
-| **6.3** | Servidor: saldo, degustação, passe, compras, webhook | ✅ feito, com `COBRANCA=off` |
+| **6.3** | Servidor: saldo, degustação, pacote, compras, webhook | ✅ feito, com `COBRANCA=off` |
 | **6.4** | App: paywall, tela de compra (preço da loja), saldo da viagem, SDK do RevenueCat | ✅ feito na versão 1.1.0 |
 | **6.5** | Contas externas: comerciante, RevenueCat, produto, contador | em andamento — RevenueCat, credenciais, segredos e webhook ✅; faltam contador, perfil de pagamentos e o produto ([passo a passo](COBRANCA-PASSO-A-PASSO.md)) |
 | **6.6** | Privacidade e *Data safety* (compras passam pelo RevenueCat) | textos ✅ (`/privacidade`, `/termos`); falta declarar no Play Console |
@@ -243,7 +248,7 @@ passa inteira, sem alteração.
 - **Reembolso** é tratado pelo aviso do RevenueCat casando o id da transação.
   Vale confirmar num reembolso de teste que o id chega como esperado.
 - **Cortesia para quem já usa o app.** Todos (novos e atuais) têm a sua
-  degustação. Dar um passe de cortesia aos atuais é opcional e ainda não existe
+  degustação. Dar um pacote de cortesia aos atuais é opcional e ainda não existe
   como ação no painel admin.
 - **Nota fiscal.** O Google é quem vende ao consumidor; a nota é sobre o
   repasse. O enquadramento é do contador.
@@ -263,6 +268,6 @@ passa inteira, sem alteração.
 
 O fusível global `ALI_MONTHLY_CAP` continua valendo acima de tudo: se o consumo
 do mês estourar o teto, a IA descansa para todo mundo — **inclusive para quem
-pagou**. Com passes vendidos isso vira problema de reputação: o teto precisa
+pagou**. Com pacotes vendidos isso vira problema de reputação: o teto precisa
 ser revisto para caber a base pagante com folga antes de ligar a cobrança, e
 monitorado.

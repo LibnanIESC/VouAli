@@ -219,11 +219,10 @@ def _estornar(usuario, tipo, fonte):
         store.devolver(con, fonte["id"], tipo)
 
 def _confirmar(usuario, fonte):
-    """O pedido foi entregue. Passe solto se prende à viagem em que foi usado."""
-    if not usuario or not fonte or not fonte.get("prender"):
-        return
-    with user_con(usuario) as con:
-        store.prender(con, fonte["id"], usuario["uid"], fonte["prender"])
+    """O pedido foi entregue. A unidade já saiu do saldo ao autorizar; não há
+    mais nada a fazer. (Existe para cada pedido ter um desfecho explícito:
+    `_confirmar` ou `_estornar`.)"""
+    return None
 
 def _viagem_do_pedido(con, uid, body, tipo):
     """De qual viagem é este pedido de IA. Devolve (trip_id, erro).
@@ -240,16 +239,28 @@ def _viagem_do_pedido(con, uid, body, tipo):
         return None, None
     return store.list_trips(con, uid)["active"], None
 
+def _pagantes(con, uid, trip_id):
+    """De quem são os créditos que pagam um pedido nesta viagem, em ordem.
+
+    Os créditos do Pacote VouAli são da CONTA, não da viagem. Numa viagem
+    compartilhada, o convidado usa os créditos de quem o convidou (o dono) —
+    convidado não paga para usar o Ali na viagem de outra pessoa — e, se os do
+    dono acabarem, os próprios.
+    """
+    dono = store.dono_da_viagem(con, trip_id) if trip_id else None
+    if dono and dono != uid:
+        return [dono, uid]
+    return [uid]
+
 def _fontes(con, uid, trip_id, dias):
     """Os saldos que podem pagar um pedido, na ordem em que são gastos:
-    degustação (grátis vai primeiro), passe da viagem, passe ainda solto."""
+    degustação (grátis vai primeiro), depois os créditos de quem paga."""
     fontes = []
     deg = store.degustacao(con, uid)
     if deg and dias <= DEGUSTACAO_MAX_DIAS:
         fontes.append(deg)
-    if trip_id:
-        fontes.extend(store.grants_da_viagem(con, trip_id))
-    fontes.extend(store.grants_soltos(con, uid))
+    for p in _pagantes(con, uid, trip_id):
+        fontes.extend(store.creditos(con, p))
     return fontes, deg
 
 def _autorizar(usuario, tipo, body, dias_pedidos=None):
@@ -281,12 +292,12 @@ def _autorizar(usuario, tipo, body, dias_pedidos=None):
             # `consumir` só desconta se ainda houver: é ele, e não a leitura
             # acima, que decide quando dois pedidos chegam juntos.
             if store.resto(g, tipo) > 0 and store.consumir(con, g["id"], tipo):
-                solto = g["origin"] != store.ORIGEM_DEGUSTACAO and not g["trip_id"]
-                return True, None, {"id": g["id"], "solto": solto, "prender": trip_id if solto else None}
-        if any(g["origin"] != store.ORIGEM_DEGUSTACAO for g in fontes):
-            motivo = "esgotado"                # tem passe, mas acabou esse tipo
-        elif store.reembolsados_da_viagem(con, trip_id):
-            motivo = "reembolsado"             # o passe desta viagem foi estornado
+                return True, None, {"id": g["id"]}
+        ultimo = store.ultimo_pacote(con, _pagantes(con, uid, trip_id))
+        if ultimo and ultimo["revoked"] and not any(g["origin"] != store.ORIGEM_DEGUSTACAO for g in fontes):
+            motivo = "reembolsado"             # o pacote foi estornado e não há outro
+        elif ultimo:
+            motivo = "esgotado"                # comprou, mas acabou esse tipo
         elif deg and store.resto(deg, tipo) > 0:
             motivo = "dias"                    # tem degustação, mas a viagem é longa
         else:
@@ -726,9 +737,6 @@ async def create_trip(request: Request):
             dados = body.get("data") if isinstance(body.get("data"), dict) else None
             tid = store.create_trip(con, usuario["uid"], meta, dados)
             meta["id"] = tid
-            passe = str(body.get("passe") or "").strip()
-            if passe:       # roteiro gerado com um passe ainda solto: ele fica nesta viagem
-                store.prender(con, passe, usuario["uid"], tid)
             con.commit()
             return {"meta": meta, "trips": _with_meta_defaults(store.list_trips(con, usuario["uid"]))}
     con = db()
@@ -1127,12 +1135,7 @@ async def ali_gerar(request: Request):
             _estornar(usuario, "gen", fonte)
             return {"error": "empty"}
         _confirmar(usuario, fonte)
-        saida = {"state": state}
-        if fonte and fonte["solto"] and not fonte["prender"]:
-            # Viagem ainda não existe: o app devolve este id ao criá-la, e o
-            # passe fica preso a ela.
-            saida["passe"] = fonte["id"]
-        return saida
+        return {"state": state}
     except json.JSONDecodeError:
         _estornar(usuario, "gen", fonte)
         return {"error": "parse"}
@@ -1243,12 +1246,20 @@ def usage(request: Request):
 
 # --- Saldo e compras (cobrança) ---
 def _resumo_saldo(con, uid, trip_id):
-    """O que a pessoa ainda pode usar do Ali, visto de uma viagem."""
+    """O que a pessoa ainda pode usar do Ali.
+
+    `creditos` é o saldo da CONTA (Pacote VouAli): vale em qualquer viagem.
+    `disponivel` é o que dá para gastar AGORA na viagem informada — os
+    créditos de quem paga ali, mais a degustação se a viagem for curta.
+    """
     store.garantir_degustacao(con, uid, **DEGUSTACAO)
     dias = store.dias_da_viagem(con, trip_id) if trip_id else 0
     fontes, deg = _fontes(con, uid, trip_id, dias)
-    da_viagem = [g for g in fontes if g["trip_id"]]
-    soltos = [g for g in fontes if g["origin"] != store.ORIGEM_DEGUSTACAO and not g["trip_id"]]
+    meus = store.creditos(con, uid)
+    pagantes = _pagantes(con, uid, trip_id)
+    dono = pagantes[0] if len(pagantes) > 1 else None
+    ultimo = store.ultimo_pacote(con, pagantes)
+    pagos = [g for g in fontes if g["origin"] != store.ORIGEM_DEGUSTACAO]
 
     def soma(grants):
         return {t: sum(store.resto(g, t) for g in grants) for t in store.TIPOS_USO}
@@ -1258,15 +1269,17 @@ def _resumo_saldo(con, uid, trip_id):
         "viagem": trip_id,
         "dias": dias,
         "max_dias": DEGUSTACAO_MAX_DIAS,
-        "disponivel": soma(fontes),                 # o que dá para gastar AGORA nesta viagem
+        "disponivel": soma(fontes),
         "degustacao": {**soma([deg]), "vale_nesta_viagem": dias <= DEGUSTACAO_MAX_DIAS},
-        "passe": soma(da_viagem) if da_viagem else None,
-        # Passe estornado e nenhum outro valendo: o app explica, em vez de o
-        # passe simplesmente sumir.
-        "reembolsado": not da_viagem and store.reembolsados_da_viagem(con, trip_id) > 0,
-        "soltos": len(soltos),                      # passes comprados e ainda sem viagem
-        "pacotes": {"degustacao": DEGUSTACAO, "passe": PASSE},
-        "produto_passe": PRODUTO_PASSE,
+        "creditos": soma(meus),                     # da conta, para qualquer viagem
+        "tem_pacote": bool(meus),
+        # Viagem de outra pessoa: o Ali usa primeiro os créditos dela.
+        "dono": {"nome": store.nome_de(con, dono), "creditos": soma(store.creditos(con, dono))} if dono else None,
+        # Pacote estornado e nenhum outro valendo: o app explica, em vez de o
+        # saldo simplesmente sumir.
+        "reembolsado": bool(ultimo and ultimo["revoked"] and not pagos),
+        "pacotes": {"degustacao": DEGUSTACAO, "pacote": PASSE},
+        "produto": PRODUTO_PASSE,
     }
 
 @app.get("/api/saldo")
@@ -1279,29 +1292,9 @@ def saldo(request: Request, trip: str = ""):
         tid = trip.strip()
         if tid and not store.role_of(con, tid, usuario["uid"]):
             raise HTTPException(status_code=404, detail="trip not found")
-        indice = store.list_trips(con, usuario["uid"])
-        resumo = _resumo_saldo(con, usuario["uid"], tid or indice["active"])
-        if not tid:
-            # Visão da conta (lista de viagens): o passe é de cada viagem, então
-            # aqui ele aparece por viagem, e não somado à degustação.
-            resumo["viagens"] = _passes_por_viagem(con, indice["list"])
-        return resumo
+        return _resumo_saldo(con, usuario["uid"], tid or store.list_trips(con, usuario["uid"])["active"])
 
-def _passes_por_viagem(con, viagens):
-    """As viagens da pessoa que têm passe, com o que resta em cada uma."""
-    saida = []
-    for v in viagens:
-        grants = store.grants_da_viagem(con, v["id"])
-        nome = v.get("name") or "Viagem"
-        if grants:
-            saida.append({"id": v["id"], "nome": nome,
-                          "restante": {t: sum(store.resto(g, t) for g in grants) for t in store.TIPOS_USO}})
-        elif store.reembolsados_da_viagem(con, v["id"]):
-            saida.append({"id": v["id"], "nome": nome, "reembolsado": True,
-                          "restante": {t: 0 for t in store.TIPOS_USO}})
-    return saida
-
-async def _sincronizar_compras(uid, trip_id=None):
+async def _sincronizar_compras(uid):
     """Pergunta ao RevenueCat o que a conta comprou e credita o que faltar.
 
     Devolve os ids dos saldos NOVOS, ou None se não deu para conferir. Rodar de
@@ -1322,7 +1315,7 @@ async def _sincronizar_compras(uid, trip_id=None):
             if not pacote or (c["sandbox"] and not REVENUECAT_SANDBOX):
                 continue
             gid = store.conceder(con, uid, pacote["origin"], chat=pacote["chat"], gen=pacote["gen"],
-                                 tip=pacote["tip"], trip_id=trip_id, txn_id=c["txn"], store_txn=c["store_txn"])
+                                 tip=pacote["tip"], txn_id=c["txn"], store_txn=c["store_txn"])
             if gid:
                 novos.append(gid)
     return novos
@@ -1332,8 +1325,8 @@ async def sincronizar_compras(request: Request):
     """O app chama isto depois de uma compra (e no "restaurar compras").
 
     O app só AVISA; ele não diz o que comprou. Quem lista as compras é o
-    RevenueCat, perguntado daqui com a chave secreta. `trip_id` (opcional) é a
-    viagem em que a compra foi feita: o passe novo já nasce preso a ela.
+    RevenueCat, perguntado daqui com a chave secreta. O crédito comprado é da
+    CONTA; `trip_id` (opcional) só escolhe de qual viagem é o saldo devolvido.
     """
     usuario = me(request)
     if not usuario:
@@ -1351,7 +1344,7 @@ async def sincronizar_compras(request: Request):
     with user_con(usuario) as con:
         if tid and not store.role_of(con, tid, uid):
             raise HTTPException(status_code=404, detail="trip not found")
-    novos = await _sincronizar_compras(uid, tid)
+    novos = await _sincronizar_compras(uid)
     if novos is None:
         return {"error": "upstream"}
     with user_con(usuario) as con:

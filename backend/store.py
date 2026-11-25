@@ -542,33 +542,48 @@ def conceder(con, uid, origin, chat=0, gen=0, tip=0, trip_id=None, txn_id=None, 
     return gid if con.execute("SELECT 1 FROM ai_grants WHERE id=?", (gid,)).fetchone() else None
 
 
-def grants_da_viagem(con, trip_id):
-    """Saldos pagos presos a esta viagem, do mais antigo ao mais novo."""
-    rows = con.execute(
-        f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE trip_id=? AND revoked=0 AND origin<>? "
-        "ORDER BY created_at, id",
-        (trip_id, ORIGEM_DEGUSTACAO),
-    ).fetchall()
-    return [_grant(r) for r in rows]
 
 
-def grants_soltos(con, uid):
-    """Saldos pagos da conta que ainda não foram presos a nenhuma viagem."""
+def creditos(con, uid):
+    """Créditos pagos (Pacote VouAli, recargas) que a conta ainda pode gastar,
+    do mais antigo ao mais novo. São da CONTA: valem em qualquer viagem."""
+    if not uid:
+        return []
     rows = con.execute(
-        f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE uid=? AND trip_id IS NULL AND revoked=0 AND origin<>? "
+        f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE uid=? AND revoked=0 AND origin<>? "
         "ORDER BY created_at, id",
         (uid, ORIGEM_DEGUSTACAO),
     ).fetchall()
     return [_grant(r) for r in rows]
 
 
-def prender(con, grant_id, uid, trip_id):
-    """Prende um saldo solto a uma viagem. Só o dono do saldo, e só uma vez."""
-    cur = con.execute(
-        "UPDATE ai_grants SET trip_id=? WHERE id=? AND uid=? AND trip_id IS NULL AND revoked=0 AND origin<>?",
-        (trip_id, grant_id, uid, ORIGEM_DEGUSTACAO),
-    )
-    return cur.rowcount > 0
+def ultimo_pacote(con, uids):
+    """O pacote pago mais recente destas contas (valendo, esgotado ou
+    estornado), ou None se nunca compraram."""
+    uids = [u for u in uids if u]
+    if not uids:
+        return None
+    marcas = ",".join("?" for _ in uids)
+    row = con.execute(
+        f"SELECT {_COLUNAS_GRANT} FROM ai_grants WHERE uid IN ({marcas}) AND origin<>? "
+        "ORDER BY created_at DESC, id DESC LIMIT 1",
+        (*uids, ORIGEM_DEGUSTACAO),
+    ).fetchone()
+    return _grant(row) if row else None
+
+
+def dono_da_viagem(con, trip_id):
+    row = con.execute("SELECT owner_uid FROM trips WHERE id=?", (trip_id,)).fetchone()
+    return row[0] if row else None
+
+
+def nome_de(con, uid):
+    row = con.execute("SELECT name, email FROM users WHERE uid=?", (uid,)).fetchone()
+    if not row:
+        return ""
+    return (row[0] or "").strip() or (row[1] or "").split("@")[0]
+
+
 
 
 def consumir(con, grant_id, tipo):
@@ -614,13 +629,6 @@ def revogar_ausentes(con, uid, validos):
     return n
 
 
-def reembolsados_da_viagem(con, trip_id):
-    """Quantos passes desta viagem foram anulados por reembolso."""
-    if not trip_id:
-        return 0
-    row = con.execute("SELECT COUNT(*) FROM ai_grants WHERE trip_id=? AND revoked=1 AND origin<>?",
-                      (trip_id, ORIGEM_DEGUSTACAO)).fetchone()
-    return int(row[0] or 0)
 
 
 def registrar_evento(con, uid, tipo, produto, txn, resultado):

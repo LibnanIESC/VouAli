@@ -18,7 +18,7 @@ export const LOJA_URL = "https://play.google.com/store/apps/details?id=app.voual
 
 /**
  * Só dá para comprar dentro do app Android: é a loja dele que cobra. No site,
- * a tela do passe aponta para a loja em vez de mostrar um botão que não anda.
+ * a tela do pacote aponta para a loja em vez de mostrar um botão que não anda.
  */
 export const podeComprarAqui = () => noApp();
 

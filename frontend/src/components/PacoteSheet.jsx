@@ -3,7 +3,7 @@ import Sheet from "./Sheet";
 import AliAvatar from "./AliAvatar";
 import { apiSaldo, apiSincronizarCompras, url } from "../api";
 import { podeComprarAqui, buscarProduto, comprar, reenviarRecibos, LOJA_URL } from "../compras";
-import { textoDoPaywall, quantos, TIPOS } from "../saldo";
+import { textoDoPaywall, quantos, linhaDoSaldo, TIPOS } from "../saldo";
 import { toast } from "../toast";
 import { btn, HELV, DISPLAY, NAVY, ORANGE, STEEL, INK2, INK3 } from "../theme";
 
@@ -16,19 +16,18 @@ const O_QUE = {
 };
 
 /**
- * Tela do passe de viagem: explica por que o Ali parou e vende o passe.
+ * Tela do Pacote VouAli: explica por que o Ali parou e vende o pacote.
  *
  * Três regras que valem aqui:
  *  - O PREÇO vem da loja, nunca do código. Mudou no Play Console, mudou aqui.
- *  - O que o passe contém vem do SERVIDOR (`pacotes.passe`), pelo mesmo motivo.
+ *  - O que o pacote contém vem do SERVIDOR (`pacotes.pacote`), pelo mesmo motivo.
  *  - Pagar não credita nada por si só: depois da loja, o servidor confere a
  *    compra e é ELE quem devolve o saldo novo. Um app adulterado não ganha nada.
  *
- * `tripId` é a viagem em que o passe vai valer. Fica vazio quando a viagem
- * ainda não existe (gerando o roteiro de uma viagem nova): o passe nasce solto
- * e se prende à viagem criada em seguida.
+ * Os créditos são da CONTA e valem em qualquer viagem. `tripId` só diz de qual
+ * viagem é o saldo que o servidor devolve depois da compra.
  */
-export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) {
+export default function PacoteSheet({ motivo, tripId, uid, onClose, onAtivado }) {
   const [saldo, setSaldo] = useState(undefined);       // undefined = buscando · null = indisponível
   const [oferta, setOferta] = useState(undefined);     // { produto, preco } · null = a loja não respondeu
   const [ocupado, setOcupado] = useState("");          // "" | "comprando" | "conferindo" | "restaurando"
@@ -44,13 +43,13 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
       if (!vivo.current) return;
       setSaldo(s);
       if (!naLoja) { setOferta(null); return; }
-      const o = s ? await buscarProduto(uid, s.produto_passe) : null;
+      const o = s ? await buscarProduto(uid, s.produto || s.produto_passe) : null;
       if (vivo.current) setOferta(o);
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { titulo, texto } = textoDoPaywall(motivo || {});
-  const pacote = (saldo && saldo.pacotes && saldo.pacotes.passe) || null;
+  const pacote = (saldo && saldo.pacotes && (saldo.pacotes.pacote || saldo.pacotes.passe)) || null;
 
   // A loja confirma o pagamento antes de o RevenueCat registrar a compra do
   // lado dele; a conferência pode chegar um instante cedo demais. Algumas
@@ -70,7 +69,7 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
   };
 
   const ativar = (r) => {
-    toast("Passe ativado. Boa viagem! ✅");
+    toast("Pacote ativado. Boa viagem! ✅");
     onAtivado && onAtivado(r.saldo || null);
   };
 
@@ -83,7 +82,7 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
     if (fim.cancelado) { setOcupado(""); return; }
     if (fim.pendente) {
       setOcupado("");
-      setAviso("O pagamento está em análise. O passe aparece aqui assim que o Google confirmar.");
+      setAviso("O pagamento está em análise. Os créditos aparecem aqui assim que o Google confirmar.");
       return;
     }
     if (!fim.ok) {
@@ -100,7 +99,7 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
     if (r && r.ok && r.novos > 0) { ativar(r); return; }
     // Pagou e a conferência não fechou: o servidor ainda recebe o aviso da
     // loja por conta própria. Dizer isso evita a pessoa comprar duas vezes.
-    setAviso("Pagamento recebido! O passe está sendo ativado — se não aparecer em um minuto, toque em “Já comprei”.");
+    setAviso("Pagamento recebido! O pacote está sendo ativado — se não aparecer em um minuto, toque em “Já comprei”.");
   };
 
   const aoRestaurar = async () => {
@@ -119,8 +118,8 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
   };
 
   const rotuloComprar = ocupado === "comprando" ? "Abrindo a loja…"
-    : ocupado === "conferindo" ? "Ativando o passe…"
-    : oferta && oferta.preco ? `Comprar passe · ${oferta.preco}` : "Comprar passe";
+    : ocupado === "conferindo" ? "Ativando o pacote…"
+    : oferta && oferta.preco ? `Comprar pacote · ${oferta.preco}` : "Comprar pacote";
 
   return (
     <Sheet onClose={ocupado === "comprando" || ocupado === "conferindo" ? () => {} : onClose}>
@@ -132,7 +131,7 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
         </div>
 
         <div style={{ background: "#fff", borderRadius: 16, padding: "16px 16px 6px", marginTop: 20, boxShadow: "0 4px 12px rgba(20,32,56,0.07)" }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>O passe de uma viagem traz</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>O Pacote VouAli traz</div>
           {saldo === undefined && <div aria-hidden="true" style={{ height: 96, borderRadius: 10, background: "#f1ece2", marginBottom: 10, animation: "pulse 1.4s ease-in-out infinite" }} />}
           {pacote && TIPOS.filter((t) => Number(pacote[t]) > 0).map((t) => (
             <div key={t} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 10 }}>
@@ -142,6 +141,11 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
               </span>
             </div>
           ))}
+          {saldo && saldo.tem_pacote && (
+            <div style={{ fontSize: 12.5, color: INK3, lineHeight: 1.5, borderTop: "1px solid #efe9dc", paddingTop: 9, marginBottom: 10 }}>
+              Seus créditos agora: <strong style={{ color: NAVY }}>{linhaDoSaldo(saldo.creditos)}</strong>. Um novo pacote soma a eles.
+            </div>
+          )}
           {saldo === null && (
             <div style={{ fontSize: 14, color: INK2, lineHeight: 1.5, marginBottom: 10 }}>
               Não consegui carregar os detalhes agora. Confira a internet e abra de novo.
@@ -174,7 +178,7 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
               Comprar no app para Android
             </a>
             <div style={{ fontSize: 13, color: INK3, marginTop: 10, textAlign: "center", lineHeight: 1.5 }}>
-              A compra é feita pelo app, na Google Play. O passe vale na sua conta — aqui no site também.
+              A compra é feita pelo app, na Google Play. Os créditos ficam na sua conta — valem aqui no site também.
             </div>
           </>
         )}
@@ -185,7 +189,7 @@ export default function PasseSheet({ motivo, tripId, uid, onClose, onAtivado }) 
         </button>
 
         <div style={{ fontSize: 12, color: INK3, marginTop: 8, textAlign: "center", lineHeight: 1.55 }}>
-          Pagamento único, sem assinatura e sem renovação automática. O passe vale para uma viagem, e quem viaja com você usa o mesmo.
+          Pagamento único, sem assinatura e sem renovação automática. Os créditos são seus e valem em qualquer viagem — e quem viaja com você usa os seus, nas suas viagens.
           Planejar na mão continua grátis. <a href={url("/termos")} target="_blank" rel="noreferrer" style={{ color: STEEL, fontWeight: 700 }}>Termos de uso</a>
         </div>
       </div>

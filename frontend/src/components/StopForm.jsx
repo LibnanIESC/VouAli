@@ -22,7 +22,7 @@ export default function StopForm({ stop, color, trip, onSave, onClose, onSujo, t
     const r = await apiAliDica({ n: f.n, t: f.t, d: f.d, getting: f.getting, todo: f.todo }, trip || {}, tripId);
     setGerando(false);
     if (r && r.dica) { setF((cur) => ({ ...cur, insight: r.dica })); onUsou && onUsou(); }
-    // Sem saldo: a tela do passe abre POR CIMA do formulário, que fica intacto.
+    // Sem saldo: a tela do pacote abre POR CIMA do formulário, que fica intacto.
     else if (ehPaywall(r) && onPaywall) onPaywall(r);
     else if (r && r.error === "not_configured") toast("A IA ainda não está ligada — falta a chave no servidor.");
     else if (r && r.error === "rate_limited") toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂");

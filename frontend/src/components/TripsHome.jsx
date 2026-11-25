@@ -22,7 +22,7 @@ function Topo({ onAjustes }) {
         <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: ORANGE }}>Ali</span>
         <span style={{ width: 11, height: 11, marginBottom: 4, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
       </div>
-      <button onClick={onAjustes} aria-label="Ajustes" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(34,58,94,0.08)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <button onClick={onAjustes} aria-label="Configurações gerais" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(34,58,94,0.08)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <GearIcon color={NAVY} size={19} />
       </button>
     </div>

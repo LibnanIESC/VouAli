@@ -42,11 +42,13 @@ export const ehPaywall = (r) => !!r && r.error === "paywall";
 
 /**
  * De onde vem o que a pessoa pode gastar nesta viagem:
- * "passe" (pago), "degustacao" (grátis, e vale aqui) ou "nada".
+ * "pacote" (créditos pagos — os dela ou os do dono da viagem), "degustacao"
+ * (grátis, e vale aqui) ou "nada".
  */
 export function origemDoSaldo(saldo) {
   if (!saldo) return "nada";
-  if (saldo.passe) return "passe";
+  const dono = saldo.dono && saldo.dono.creditos;
+  if (saldo.tem_pacote || (dono && TIPOS.some((t) => Number(dono[t]) > 0))) return "pacote";
   const d = saldo.degustacao || {};
   if (d.vale_nesta_viagem && TIPOS.some((t) => Number(d[t]) > 0)) return "degustacao";
   return "nada";
@@ -56,40 +58,41 @@ export function origemDoSaldo(saldo) {
 export const resta = (saldo, tipo) => Math.max(0, Number(((saldo || {}).disponivel || {})[tipo]) || 0);
 
 /**
- * Título e explicação da tela do passe, conforme o motivo do bloqueio.
+ * Título e explicação da tela do Pacote VouAli, conforme o motivo do bloqueio.
  * `motivo` vem do servidor: "dias" (a degustação não cobre viagem deste
- * tamanho), "esgotado" (há passe, mas aquele tipo acabou) ou "sem_passe".
- * Sem motivo, a pessoa abriu a tela por conta própria.
+ * tamanho), "esgotado" (há pacote, mas aquele tipo acabou), "reembolsado" ou
+ * "sem_passe" (a degustação acabou e nunca houve pacote). Sem motivo, a pessoa
+ * abriu a tela por conta própria.
  */
 export function textoDoPaywall({ tipo, motivo, dias, max_dias } = {}) {
   if (motivo === "dias") {
     return {
-      titulo: "Esta viagem pede o passe",
-      texto: `A degustação do Ali vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""}. Com o passe, ele planeja esta viagem inteira com você.`,
+      titulo: "Esta viagem pede o Pacote VouAli",
+      texto: `A degustação do Ali vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""}. Com o Pacote VouAli, ele planeja esta e as próximas viagens com você.`,
     };
   }
   if (motivo === "reembolsado") {
     return {
-      titulo: "O passe desta viagem foi reembolsado",
-      texto: "Como a compra foi estornada, o passe deixou de valer. O que o Ali já fez continua na viagem. Para seguir com ele aqui, é preciso um novo passe.",
+      titulo: "Seu Pacote VouAli foi reembolsado",
+      texto: "Como a compra foi estornada, os créditos dela deixaram de valer. O que o Ali já fez continua nas suas viagens. Para seguir com ele, é preciso um novo pacote.",
     };
   }
   if (motivo === "esgotado") {
-    const o = { chat: "As conversas", gen: "Os roteiros", tip: "As dicas" }[tipo] || "Os usos";
+    const o = { chat: "As conversas", gen: "Os roteiros", tip: "As dicas" }[tipo] || "Os créditos";
     return {
-      titulo: `${o} deste passe acabaram`,
-      texto: "Um novo passe renova conversas, roteiros e dicas desta viagem. O que já está salvo continua aqui.",
+      titulo: `${o} do pacote acabaram`,
+      texto: "Um novo Pacote VouAli traz mais roteiros, conversas e dicas, para usar em qualquer viagem. O que já está salvo continua aqui.",
     };
   }
   if (motivo === "sem_passe") {
     return {
       titulo: "Sua degustação do Ali acabou",
-      texto: "Você já usou o que vinha de graça. Com o passe, o Ali segue com você nesta viagem inteira.",
+      texto: "Você já usou o que vinha de graça. Com o Pacote VouAli, o Ali segue com você em qualquer viagem.",
     };
   }
   return {
-    titulo: "Passe de viagem",
-    texto: "Com o passe, o Ali planeja uma viagem inteira com você: roteiro, conversa e dicas.",
+    titulo: "Pacote VouAli",
+    texto: "Créditos do Ali para usar em qualquer viagem: roteiros, conversas e dicas.",
   };
 }
 
@@ -99,13 +102,13 @@ export function textoDoPaywall({ tipo, motivo, dias, max_dias } = {}) {
  */
 export function falaDoAliSemSaldo({ motivo, dias, max_dias } = {}) {
   if (motivo === "dias") {
-    return `Minha degustação vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""} 😊 Com o passe de viagem eu sigo com você nela inteira — e tudo que já está no roteiro continua aqui.`;
+    return `Minha degustação vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""} 😊 Com o Pacote VouAli eu sigo com você nela inteira — e tudo que já está no roteiro continua aqui.`;
   }
   if (motivo === "reembolsado") {
-    return "O passe desta viagem foi reembolsado, então eu parei por aqui 😊 Tudo que já está no roteiro continua aqui — e com um novo passe eu sigo com você.";
+    return "O seu Pacote VouAli foi reembolsado, então eu parei por aqui 😊 Tudo que já está no roteiro continua aqui — e com um novo pacote eu sigo com você.";
   }
   if (motivo === "esgotado") {
-    return "As conversas do passe desta viagem acabaram 😅 Um novo passe traz mais — e o roteiro, o orçamento e as dicas já salvos continuam todos aqui.";
+    return "As conversas do seu pacote acabaram 😅 Um novo Pacote VouAli traz mais — e o roteiro, o orçamento e as dicas já salvos continuam todos aqui.";
   }
-  return "Você já usou as conversas da degustação 😊 Com o passe de viagem eu sigo com você nesta viagem inteira — e o que já está salvo continua aqui.";
+  return "Você já usou as conversas da degustação 😊 Com o Pacote VouAli eu sigo com você em qualquer viagem — e o que já está salvo continua aqui.";
 }

@@ -150,7 +150,7 @@ cabeçalho não é idêntico ao do Railway.
 ## 6b. Aviso de reembolso do Google (*Google developer notifications*)
 
 Sem isto, o Google **não avisa** o RevenueCat quando um pedido é reembolsado
-pelo Play Console — e o passe continua valendo. (Foi o que o teste de
+pelo Play Console — e os créditos continuam valendo. (Foi o que o teste de
 22/11/2026 mostrou: o histórico do cliente no RevenueCat tinha só a compra.)
 
 1. RevenueCat → **Apps** → **VouAli** (Play Store) → seção **Google developer
@@ -166,10 +166,10 @@ pelo Play Console — e o passe continua valendo. (Foi o que o teste de
    RevenueCat, a seção deve passar a mostrar a data da última notificação.
 
 **Pronto quando:** um reembolso de teste fizer aparecer um evento de
-reembolso no histórico do cliente no RevenueCat, e o passe sumir do app.
+reembolso no histórico do cliente no RevenueCat, e os créditos sumirem do app.
 
 > Para conferir de fora: `/api/health` → `cobranca.cancelamentos_sem_passe`
-> conta os reembolsos que chegaram ao servidor mas **não** acharam o passe.
+> conta os reembolsos que chegaram ao servidor mas **não** acharam os créditos.
 > Tem de ficar em `0`.
 
 ## 7. Produto no Play Console
@@ -183,7 +183,7 @@ reembolso no histórico do cliente no RevenueCat, e o passe sumir do app.
 1. O arquivo é `frontend/android/app/build/outputs/bundle/release/app-release.aab`.
 2. Play Console → app **VouAli** → **Testar e lançar** → **Teste interno** →
    **Criar nova versão**.
-3. Envie o AAB, escreva uma nota curta (ex.: "Passe de viagem") e avance até
+3. Envie o AAB, escreva uma nota curta (ex.: "Pacote VouAli") e avance até
    **Salvar e publicar** no teste interno.
 4. Se o Play Console avisar sobre a permissão de **faturamento**
    (`com.android.vending.BILLING`), é o esperado: é ela que permite a compra.
@@ -194,8 +194,11 @@ reembolso no histórico do cliente no RevenueCat, e o passe sumir do app.
    únicos** (*In-app products*) → **Criar produto**.
 2. **ID do produto:** `passe_viagem` — exatamente assim. Não dá para mudar nem
    reaproveitar depois.
-3. **Nome:** `Passe de viagem`. **Descrição:** `O Ali planeja uma viagem
-   inteira com você: 3 roteiros, 100 conversas e 50 dicas.`
+3. **Nome:** `Pacote VouAli`. **Descrição:** `Créditos do Ali para usar em
+   qualquer viagem: 3 roteiros, 100 conversas e 50 dicas.` (O produto foi
+   criado em 22/11/2026 como "Passe de viagem"; em 24/11/2026 o modelo virou
+   créditos na conta — **edite o nome e a descrição** no Play Console. O ID
+   `passe_viagem` fica como está: o usuário nunca o vê.)
 4. **Preço:** R$ 29,90. É **aqui** que o preço mora: para mudar no futuro,
    edite este campo — sem atualizar o app e sem me chamar.
 5. **Ativar** o produto.
@@ -214,9 +217,9 @@ lista de produtos do RevenueCat.
    `COBRANCA_TESTE` com o e-mail da conta que você usa no app (mais de um?
    separe por vírgula) e clique em **Deploy**. Para todos os outros nada muda:
    `COBRANCA` continua `off`.
-4. Crie uma viagem de mais de 4 dias com o Ali → aparece a tela do passe →
-   **Comprar passe** → pague com a conta de teste → o roteiro é gerado.
-5. Em **Ajustes**, confira o saldo da viagem.
+4. Crie uma viagem de mais de 4 dias com o Ali → aparece a tela do Pacote
+   VouAli → **Comprar pacote** → pague com a conta de teste → o roteiro é gerado.
+5. Em **Configurações**, confira os créditos do Ali.
 6. Peça o reembolso da compra de teste no Play Console (**Pedidos**) e me
    avise: é o teste que confirma que o saldo é retirado.
 

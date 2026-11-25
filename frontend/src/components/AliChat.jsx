@@ -45,7 +45,7 @@ function toHistory(msgs) {
 const hora = (t) => new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 // `saldo` só existe com a cobrança ligada no servidor; sem ele nada muda aqui.
-// `onPaywall(motivo)` abre a tela do passe; `onUsou()` pede o saldo atualizado.
+// `onPaywall(motivo)` abre a tela do Pacote VouAli; `onUsou()` pede o saldo atualizado.
 export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status = "synced", tripId, saldo, onPaywall, onUsou }) {
   const [msgs, setMsgs] = useState([{ role: "assistant", content: WELCOME, at: Date.now() }]);
   const [input, setInput] = useState("");
@@ -75,7 +75,7 @@ export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status
 
     setLoading(false);
     let reply;
-    let semSaldo = null;      // motivo do bloqueio, para o botão do passe na bolha
+    let semSaldo = null;      // motivo do bloqueio, para o botão do pacote na bolha
     if (r && r.reply) { reply = r.reply; onUsou && onUsou(); }
     else if (ehPaywall(r)) { reply = falaDoAliSemSaldo(r); semSaldo = r; }
     else if (r && r.error === "not_configured") reply = "A IA ainda não está ligada aqui — falta configurar a chave ANTHROPIC_API_KEY no servidor. Enquanto isso, sigo bom de dicas no roteiro. 🙂";
@@ -105,7 +105,7 @@ export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status
           </div>
         </div>
         {poucas && onPaywall && (
-          <button onClick={() => onPaywall(null)} aria-label={`Restam ${quantos(restam, "chat")}. Ver o passe de viagem`}
+          <button onClick={() => onPaywall(null)} aria-label={`Restam ${quantos(restam, "chat")}. Ver o Pacote VouAli`}
             style={{ marginLeft: "auto", flex: "0 0 auto", background: restam === 0 ? "#fdece9" : SAND_L, color: restam === 0 ? "#8c3a2c" : NAVY, border: "none", borderRadius: 999, padding: "8px 12px", minHeight: 36, fontSize: 12, fontWeight: 800, fontFamily: HELV, cursor: "pointer", whiteSpace: "nowrap" }}>
             {restam === 0 ? "Sem conversas" : `Restam ${restam}`}
           </button>
@@ -126,7 +126,7 @@ export default function AliChat({ trip, destino, currency = MOEDA_PADRAO, status
               {m.semSaldo && onPaywall && (
                 <button onClick={() => onPaywall(m.semSaldo)}
                   style={{ display: "block", marginTop: 10, background: ORANGE, color: NAVY, border: "none", borderRadius: 999, padding: "9px 16px", minHeight: 40, fontSize: 13.5, fontWeight: 800, fontFamily: HELV, cursor: "pointer" }}>
-                  Ver o passe de viagem
+                  Ver o Pacote VouAli
                 </button>
               )}
               <span style={{ display: "block", textAlign: "right", fontSize: 10.5, fontWeight: 600, marginTop: 3, color: meu ? "rgba(255,255,255,0.72)" : "#9aa4b2" }}>{hora(m.at)}</span>

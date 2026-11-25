@@ -264,20 +264,24 @@ def test_conversa_em_streaming_gasta_e_devolve_igual(tmp_path):
     assert '"paywall"' in _conversar_stream(client, ANA, tid)
 
 
-# ---------- passe de viagem ----------
+# ---------- Pacote VouAli: créditos da conta ----------
 
-def test_passe_destrava_a_viagem_longa(tmp_path, monkeypatch):
+def creditos(client, pessoa):
+    return saldo(client, pessoa)["creditos"]
+
+
+def test_pacote_destrava_a_viagem_longa(tmp_path, monkeypatch):
     m, client = montar(tmp_path)
     tid = viagem(client, ANA, dias=8)
     assert conversar(client, ANA, tid)["error"] == "paywall"
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
     r = sincronizar(client, ANA, tid).json()
     assert r["ok"] and r["novos"] == 1
-    assert r["saldo"]["passe"] == {"chat": 100, "gen": 3, "tip": 50}
+    assert r["saldo"]["creditos"] == {"chat": 100, "gen": 3, "tip": 50}
     assert "reply" in conversar(client, ANA, tid)
     assert "dica" in dica(client, ANA, tid)
     assert "state" in gerar(client, ANA, 8, tid)
-    assert saldo(client, ANA, tid)["passe"] == {"chat": 99, "gen": 2, "tip": 49}
+    assert creditos(client, ANA) == {"chat": 99, "gen": 2, "tip": 49}
 
 
 def test_a_mesma_compra_nunca_credita_duas_vezes(tmp_path, monkeypatch):
@@ -287,10 +291,10 @@ def test_a_mesma_compra_nunca_credita_duas_vezes(tmp_path, monkeypatch):
     assert sincronizar(client, ANA, tid).json()["novos"] == 1
     assert sincronizar(client, ANA, tid).json()["novos"] == 0
     assert sincronizar(client, ANA).json()["novos"] == 0
-    assert saldo(client, ANA, tid)["passe"]["gen"] == 3
+    assert creditos(client, ANA)["gen"] == 3
 
 
-def test_passe_esgotado_avisa_que_acabou(tmp_path, monkeypatch):
+def test_pacote_esgotado_avisa_que_acabou(tmp_path, monkeypatch):
     m, client = montar(tmp_path, PASSE_CHATS="1")
     tid = viagem(client, ANA, dias=8)
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
@@ -298,96 +302,109 @@ def test_passe_esgotado_avisa_que_acabou(tmp_path, monkeypatch):
     assert "reply" in conversar(client, ANA, tid)
     bloqueio = conversar(client, ANA, tid)
     assert bloqueio["error"] == "paywall" and bloqueio["motivo"] == "esgotado"
-    assert "dica" in dica(client, ANA, tid), "o resto do passe continua valendo"
+    assert "dica" in dica(client, ANA, tid), "o resto do pacote continua valendo"
 
 
-def test_passe_de_uma_viagem_nao_vale_em_outra(tmp_path, monkeypatch):
+def test_creditos_valem_em_qualquer_viagem(tmp_path, monkeypatch):
+    """Era o defeito do passe preso à viagem: roteiros pagos ficavam presos
+    numa viagem onde não havia como usá-los."""
     m, client = montar(tmp_path)
     uma, outra = viagem(client, ANA, dias=8), viagem(client, ANA, dias=9)
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
     sincronizar(client, ANA, uma)
     assert "reply" in conversar(client, ANA, uma)
-    assert conversar(client, ANA, outra)["error"] == "paywall"
+    assert "reply" in conversar(client, ANA, outra)
+    assert "state" in gerar(client, ANA, 10)          # roteiro de uma viagem que ainda nem existe
+    assert "state" in gerar(client, ANA, 6)
+    assert creditos(client, ANA) == {"chat": 98, "gen": 1, "tip": 50}
 
 
-def test_degustacao_e_gasta_antes_do_passe(tmp_path, monkeypatch):
+def test_roteiro_de_viagem_nova_nao_devolve_id_de_passe(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA)
+    r = gerar(client, ANA, 10)
+    assert "state" in r and "passe" not in r
+
+
+def test_degustacao_e_gasta_antes_do_pacote(tmp_path, monkeypatch):
     m, client = montar(tmp_path, DEGUSTACAO_CHATS="1")
     tid = viagem(client, ANA, dias=3)
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
     sincronizar(client, ANA, tid)
     conversar(client, ANA, tid)
     s = saldo(client, ANA, tid)
-    assert s["degustacao"]["chat"] == 0 and s["passe"]["chat"] == 100
+    assert s["degustacao"]["chat"] == 0 and s["creditos"]["chat"] == 100
     conversar(client, ANA, tid)
-    assert saldo(client, ANA, tid)["passe"]["chat"] == 99
+    assert creditos(client, ANA)["chat"] == 99
 
 
-def test_tamanho_do_passe_e_ajustavel(tmp_path, monkeypatch):
+def test_tamanho_do_pacote_e_ajustavel(tmp_path, monkeypatch):
     m, client = montar(tmp_path, PASSE_ROTEIROS="7", PASSE_CHATS="20", PASSE_DICAS="9")
-    tid = viagem(client, ANA, dias=8)
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
-    assert sincronizar(client, ANA, tid).json()["saldo"]["passe"] == {"chat": 20, "gen": 7, "tip": 9}
+    assert sincronizar(client, ANA).json()["saldo"]["creditos"] == {"chat": 20, "gen": 7, "tip": 9}
 
 
-# ---------- passe comprado antes de a viagem existir ----------
-
-def test_passe_solto_gera_o_roteiro_e_fica_na_viagem_criada(tmp_path, monkeypatch):
-    m, client = montar(tmp_path)
-    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
-    assert sincronizar(client, ANA).json()["saldo"]["soltos"] == 1
-    r = gerar(client, ANA, 10)                       # viagem ainda não existe
-    assert "state" in r and r["passe"]
-    tid = viagem(client, ANA, dias=10, passe=r["passe"])
-    s = saldo(client, ANA, tid)
-    assert s["soltos"] == 0 and s["passe"] == {"chat": 100, "gen": 2, "tip": 50}
-    assert conversar(client, ANA, viagem(client, ANA, dias=10))["error"] == "paywall"
-
-
-def test_passe_solto_se_prende_no_primeiro_uso(tmp_path, monkeypatch):
-    m, client = montar(tmp_path)
-    a, b = viagem(client, ANA, dias=8), viagem(client, ANA, dias=8)
-    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
-    sincronizar(client, ANA)
-    assert "reply" in conversar(client, ANA, a)
-    assert saldo(client, ANA, a)["passe"]["chat"] == 99
-    assert conversar(client, ANA, b)["error"] == "paywall", "preso à primeira, não serve à segunda"
-
-
-def test_nao_da_para_prender_o_passe_de_outra_pessoa(tmp_path, monkeypatch):
-    m, client = montar(tmp_path)
-    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
-    sincronizar(client, ANA)
-    do_ana = gerar(client, ANA, 10)["passe"]
-    tid = viagem(client, BRUNO, dias=10, passe=do_ana)
-    assert conversar(client, BRUNO, tid)["error"] == "paywall"
-    assert saldo(client, ANA)["soltos"] == 1, "o passe continua com a Ana"
-
-
-def test_apagar_a_viagem_devolve_o_passe_a_quem_comprou(tmp_path, monkeypatch):
+def test_apagar_a_viagem_nao_mexe_nos_creditos(tmp_path, monkeypatch):
     m, client = montar(tmp_path)
     tid = viagem(client, ANA, dias=8)
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
     sincronizar(client, ANA, tid)
     conversar(client, ANA, tid)
     client.delete(f"/api/trips/{tid}", headers=como(ANA))
-    nova = viagem(client, ANA, dias=8)
-    assert saldo(client, ANA, nova)["soltos"] == 1
-    assert "reply" in conversar(client, ANA, nova)
-    assert saldo(client, ANA, nova)["passe"]["chat"] == 98, "volta com o que sobrou, não cheio"
+    assert creditos(client, ANA)["chat"] == 99, "nem volta cheio, nem some"
+    assert "reply" in conversar(client, ANA, viagem(client, ANA, dias=8))
+
+
+def test_pacotes_se_somam(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1"), compra("t2")]})
+    sincronizar(client, ANA)
+    assert creditos(client, ANA) == {"chat": 200, "gen": 6, "tip": 100}
 
 
 # ---------- viagem compartilhada ----------
 
-def test_convidado_usa_o_passe_da_viagem(tmp_path, monkeypatch):
-    m, client = montar(tmp_path)
-    tid = viagem(client, ANA, dias=8)
+def _compartilhar(client, tid):
     conversar(client, BRUNO)                                  # Bruno já tem conta
     client.post(f"/api/trips/{tid}/members", headers=como(ANA), json={"email": BRUNO["email"]})
+
+
+def test_convidado_usa_os_creditos_do_dono(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
     assert conversar(client, BRUNO, tid)["error"] == "paywall"
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
     sincronizar(client, ANA, tid)
     assert "reply" in conversar(client, BRUNO, tid)
-    assert saldo(client, ANA, tid)["passe"]["chat"] == 99, "saiu do passe da viagem"
+    assert creditos(client, ANA)["chat"] == 99, "saiu dos créditos da Ana"
+    visto_pelo_bruno = saldo(client, BRUNO, tid)
+    assert visto_pelo_bruno["dono"] == {"nome": "Ana", "creditos": {"chat": 99, "gen": 3, "tip": 50}}
+    assert visto_pelo_bruno["creditos"] == {"chat": 0, "gen": 0, "tip": 0}
+    assert saldo(client, ANA, tid)["dono"] is None, "na própria viagem não há dono a mostrar"
+
+
+def test_convidado_usa_os_proprios_quando_os_do_dono_acabam(tmp_path, monkeypatch):
+    m, client = montar(tmp_path, PASSE_CHATS="1")
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")], BRUNO["uid"]: [compra("t2")]})
+    sincronizar(client, ANA)
+    sincronizar(client, BRUNO)
+    assert "reply" in conversar(client, BRUNO, tid)          # da Ana
+    assert "reply" in conversar(client, BRUNO, tid)          # do Bruno
+    assert creditos(client, ANA)["chat"] == 0 and creditos(client, BRUNO)["chat"] == 0
+
+
+def test_dono_nunca_gasta_os_creditos_do_convidado(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    loja(monkeypatch, m, {BRUNO["uid"]: [compra("t2")]})
+    sincronizar(client, BRUNO)
+    assert conversar(client, ANA, tid)["error"] == "paywall"
+    assert creditos(client, BRUNO)["chat"] == 100
 
 
 def test_ia_em_viagem_alheia_e_recusada(tmp_path, monkeypatch):
@@ -398,7 +415,7 @@ def test_ia_em_viagem_alheia_e_recusada(tmp_path, monkeypatch):
     assert conversar(client, BRUNO, tid) == {"error": "trip_not_found"}
     assert client.get(f"/api/saldo?trip={tid}", headers=como(BRUNO)).status_code == 404
     assert sincronizar(client, BRUNO, tid).status_code == 404
-    assert saldo(client, ANA, tid)["passe"]["chat"] == 100
+    assert creditos(client, ANA)["chat"] == 100
 
 
 def test_app_antigo_sem_trip_id_usa_a_viagem_ativa(tmp_path, monkeypatch):
@@ -418,7 +435,7 @@ def test_o_app_nao_decide_o_que_foi_comprado(tmp_path, monkeypatch):
     loja(monkeypatch, m, {})                                  # o RevenueCat não viu compra nenhuma
     r = client.post("/api/compras/sincronizar", headers=como(ANA),
                     json={"trip_id": tid, "produto": "passe_viagem", "txn": "inventada", "pago": True}).json()
-    assert r["novos"] == 0 and r["saldo"]["passe"] is None
+    assert r["novos"] == 0 and r["saldo"]["tem_pacote"] is False
     assert conversar(client, ANA, tid)["error"] == "paywall"
 
 
@@ -441,7 +458,7 @@ def test_recarga_credita_so_o_seu_tipo(tmp_path, monkeypatch):
     m, client = montar(tmp_path)
     tid = viagem(client, ANA, dias=8)
     loja(monkeypatch, m, {ANA["uid"]: [compra("r1", produto="recarga_roteiros")]})
-    assert sincronizar(client, ANA, tid).json()["saldo"]["passe"] == {"chat": 0, "gen": 3, "tip": 0}
+    assert sincronizar(client, ANA, tid).json()["saldo"]["creditos"] == {"chat": 0, "gen": 3, "tip": 0}
     assert "state" in gerar(client, ANA, 8, tid)
     assert conversar(client, ANA, tid)["motivo"] == "esgotado"
 
@@ -485,7 +502,7 @@ def test_webhook_credita_mesmo_se_o_app_fechou(tmp_path, monkeypatch):
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
     r = aviso(client, {"type": "NON_RENEWING_PURCHASE", "app_user_id": ANA["uid"], "product_id": "passe_viagem"})
     assert r.status_code == 200
-    assert saldo(client, ANA, tid)["soltos"] == 1
+    assert creditos(client, ANA)["chat"] == 100
     assert sincronizar(client, ANA, tid).json()["novos"] == 0, "o app avisando depois não credita de novo"
     assert "reply" in conversar(client, ANA, tid)
 
@@ -497,7 +514,7 @@ def test_webhook_exige_o_segredo(tmp_path, monkeypatch):
     evento = {"type": "NON_RENEWING_PURCHASE", "app_user_id": ANA["uid"]}
     assert aviso(client, evento, segredo="errado").status_code == 401
     assert aviso(client, evento, segredo=None).status_code == 401
-    assert saldo(client, ANA)["soltos"] == 0
+    assert saldo(client, ANA)["tem_pacote"] is False
 
 
 def test_webhook_sem_segredo_configurado_fica_fechado(tmp_path):
@@ -549,28 +566,7 @@ def test_produto_com_opcao_de_compra_do_google_vira_o_mesmo_passe(tmp_path, monk
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1", produto="passe_viagem:comprar"),
                                        compra("t2", produto="outro_app:comprar")]})
     assert sincronizar(client, ANA, tid).json()["novos"] == 1
-    assert saldo(client, ANA, tid)["passe"]["chat"] == m.PASSE["chat"]
-
-
-def test_visao_da_conta_lista_o_passe_de_cada_viagem(tmp_path, monkeypatch):
-    """Na lista de viagens o saldo não é somado: degustação de um lado, e o
-    passe de cada viagem do outro — com o nome dela."""
-    m, client = montar(tmp_path)
-    viagem(client, ANA, dias=2, name="Porto")
-    miami = viagem(client, ANA, dias=8, name="Miami")
-    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
-    sincronizar(client, ANA, miami)
-    conversar(client, ANA, miami)
-    conta = saldo(client, ANA)
-    assert conta["viagens"] == [{"id": miami, "nome": "Miami",
-                                 "restante": {"chat": m.PASSE["chat"] - 1, "gen": m.PASSE["gen"], "tip": m.PASSE["tip"]}}]
-    assert conta["degustacao"]["chat"] == m.DEGUSTACAO["chat"]
-    # dentro da viagem, o formato de sempre (sem a lista)
-    assert "viagens" not in saldo(client, ANA, miami)
-    # viagem compartilhada: quem foi convidado vê o passe dela também
-    client.post(f"/api/trips/{miami}/members", headers=como(ANA), json={"email": BRUNO["email"]})
-    conversar(client, BRUNO)
-    assert [v["nome"] for v in saldo(client, BRUNO)["viagens"]] == ["Miami"]
+    assert creditos(client, ANA)["chat"] == m.PASSE["chat"]
 
 
 def test_health_diz_se_a_cobranca_esta_configurada_sem_expor_segredo(tmp_path):
@@ -635,7 +631,7 @@ def test_reembolso_que_nao_casa_pelo_id_anula_o_que_a_loja_deixou_de_listar(tmp_
     # a loja passa a listar só a t2: a t1 foi estornada, mas o aviso traz outro id
     loja(monkeypatch, m, {ANA["uid"]: [compra("t2")]})
     assert _reembolso(client, txn="id-que-nao-conhecemos").json()["revogados"] == 1
-    assert saldo(client, ANA, tid)["passe"]["chat"] == m.PASSE["chat"], "a t2 continua valendo"
+    assert creditos(client, ANA)["chat"] == m.PASSE["chat"], "a t2 continua valendo"
 
 
 def test_reembolso_sem_passe_fica_registrado_e_aparece_na_saude(tmp_path, monkeypatch):
@@ -662,7 +658,7 @@ def test_reembolso_com_a_loja_fora_do_ar_nao_anula_no_escuro(tmp_path, monkeypat
     assert "reply" in conversar(client, ANA, tid)
 
 
-def test_passe_reembolsado_e_explicado_e_nao_some_em_silencio(tmp_path, monkeypatch):
+def test_pacote_reembolsado_e_explicado_e_nao_some_em_silencio(tmp_path, monkeypatch):
     m, client = montar(tmp_path, REVENUECAT_WEBHOOK_AUTH="segredo-do-webhook")
     tid = viagem(client, ANA, dias=8, name="Miami")
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
@@ -671,8 +667,7 @@ def test_passe_reembolsado_e_explicado_e_nao_some_em_silencio(tmp_path, monkeypa
     r = conversar(client, ANA, tid)
     assert r["error"] == "paywall" and r["motivo"] == "reembolsado"
     assert saldo(client, ANA, tid)["reembolsado"] is True
-    assert saldo(client, ANA)["viagens"] == [{"id": tid, "nome": "Miami", "reembolsado": True,
-                                              "restante": {"chat": 0, "gen": 0, "tip": 0}}]
+    assert saldo(client, ANA)["reembolsado"] is True, "vale também fora da viagem"
     # comprou de novo: volta a valer, e deixa de constar como reembolsado
     loja(monkeypatch, m, {ANA["uid"]: [compra("t1"), compra("t2")]})
     sincronizar(client, ANA, tid)

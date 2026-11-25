@@ -41,14 +41,14 @@ describe("compras fora do app", () => {
 describe("segredos", () => {
   it("só a chave PÚBLICA do SDK mora no app", () => {
     expect(CHAVE_ANDROID).toMatch(/^(goog|test)_/);
-    for (const arquivo of ["compras.js", "components/PasseSheet.jsx", "api.js"]) {
+    for (const arquivo of ["compras.js", "components/PacoteSheet.jsx", "api.js"]) {
       const codigo = readFileSync(new URL(`./${arquivo}`, import.meta.url), "utf8");
       expect(codigo).not.toMatch(/sk_[A-Za-z0-9]{8,}/);
     }
   });
 
   it("o preço não está escrito em lugar nenhum do app: vem da loja", () => {
-    for (const arquivo of ["compras.js", "saldo.js", "components/PasseSheet.jsx", "components/AjustesSheet.jsx", "components/AliChat.jsx"]) {
+    for (const arquivo of ["compras.js", "saldo.js", "components/PacoteSheet.jsx", "components/AjustesSheet.jsx", "components/AliChat.jsx"]) {
       const codigo = readFileSync(new URL(`./${arquivo}`, import.meta.url), "utf8");
       expect(codigo).not.toMatch(/29[,.]90/);
     }
@@ -65,7 +65,7 @@ const resposta = (status, corpo) => ({
 describe("apiSaldo", () => {
   beforeEach(() => { setTokenGetter(async () => "token-de-teste"); });
 
-  const SALDO = { cobranca: true, disponivel: { chat: 5, gen: 1, tip: 3 }, degustacao: {}, passe: null, soltos: 0 };
+  const SALDO = { cobranca: true, disponivel: { chat: 5, gen: 1, tip: 3 }, degustacao: {}, creditos: { chat: 0, gen: 0, tip: 0 }, tem_pacote: false };
 
   it("devolve o saldo e pergunta pela viagem certa", async () => {
     const chamadas = [];
@@ -105,7 +105,7 @@ describe("apiSincronizarCompras", () => {
     expect(corpo).toEqual({ trip_id: "t1" });
   });
 
-  it("sem viagem (passe comprado antes de ela existir) manda corpo vazio", async () => {
+  it("sem viagem (compra feita na lista ou numa viagem nova) manda corpo vazio", async () => {
     let corpo;
     globalThis.fetch = vi.fn(async (u, o) => { corpo = JSON.parse(o.body); return resposta(200, { ok: true, novos: 0 }); });
     await apiSincronizarCompras(null);

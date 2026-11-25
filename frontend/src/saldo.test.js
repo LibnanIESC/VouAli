@@ -17,7 +17,7 @@ describe("quantos", () => {
 });
 
 describe("resumoDoPacote", () => {
-  it("descreve o passe na ordem roteiro, conversa, dica", () => {
+  it("descreve o pacote na ordem roteiro, conversa, dica", () => {
     expect(resumoDoPacote({ chat: 100, gen: 3, tip: 50 })).toBe("3 roteiros, 100 conversas e 50 dicas");
   });
 
@@ -40,17 +40,19 @@ describe("ehPaywall", () => {
 describe("origemDoSaldo", () => {
   const deg = (vale, n = 1) => ({ chat: n, gen: n, tip: n, vale_nesta_viagem: vale });
 
-  it("o passe da viagem vem antes de tudo", () => {
-    expect(origemDoSaldo({ passe: { chat: 90, gen: 2, tip: 50 }, degustacao: deg(true) })).toBe("passe");
+  it("créditos pagos vêm antes de tudo — os próprios ou os do dono da viagem", () => {
+    expect(origemDoSaldo({ tem_pacote: true, degustacao: deg(true) })).toBe("pacote");
+    expect(origemDoSaldo({ tem_pacote: false, dono: { creditos: { chat: 3, gen: 0, tip: 0 } }, degustacao: deg(false) })).toBe("pacote");
+    expect(origemDoSaldo({ tem_pacote: false, dono: { creditos: { chat: 0, gen: 0, tip: 0 } }, degustacao: deg(false) })).toBe("nada");
   });
 
-  it("sem passe, a degustação só conta se valer nesta viagem", () => {
-    expect(origemDoSaldo({ passe: null, degustacao: deg(true) })).toBe("degustacao");
-    expect(origemDoSaldo({ passe: null, degustacao: deg(false) })).toBe("nada");
+  it("sem pacote, a degustação só conta se valer nesta viagem", () => {
+    expect(origemDoSaldo({ tem_pacote: false, degustacao: deg(true) })).toBe("degustacao");
+    expect(origemDoSaldo({ tem_pacote: false, degustacao: deg(false) })).toBe("nada");
   });
 
   it("degustação zerada não é saldo", () => {
-    expect(origemDoSaldo({ passe: null, degustacao: deg(true, 0) })).toBe("nada");
+    expect(origemDoSaldo({ tem_pacote: false, degustacao: deg(true, 0) })).toBe("nada");
     expect(origemDoSaldo(null)).toBe("nada");
   });
 });
@@ -67,7 +69,7 @@ describe("resta", () => {
 describe("textoDoPaywall", () => {
   it("viagem longa: diz o limite da degustação e o tamanho desta", () => {
     const t = textoDoPaywall({ tipo: "gen", motivo: "dias", dias: 8, max_dias: 4 });
-    expect(t.titulo).toBe("Esta viagem pede o passe");
+    expect(t.titulo).toBe("Esta viagem pede o Pacote VouAli");
     expect(t.texto).toContain("até 4 dias");
     expect(t.texto).toContain("esta tem 8");
   });
@@ -77,10 +79,10 @@ describe("textoDoPaywall", () => {
     expect(t.texto).not.toContain("esta tem");
   });
 
-  it("passe esgotado: nomeia o que acabou", () => {
-    expect(textoDoPaywall({ tipo: "chat", motivo: "esgotado" }).titulo).toBe("As conversas deste passe acabaram");
-    expect(textoDoPaywall({ tipo: "gen", motivo: "esgotado" }).titulo).toBe("Os roteiros deste passe acabaram");
-    expect(textoDoPaywall({ tipo: "tip", motivo: "esgotado" }).titulo).toBe("As dicas deste passe acabaram");
+  it("pacote esgotado: nomeia o que acabou", () => {
+    expect(textoDoPaywall({ tipo: "chat", motivo: "esgotado" }).titulo).toBe("As conversas do pacote acabaram");
+    expect(textoDoPaywall({ tipo: "gen", motivo: "esgotado" }).titulo).toBe("Os roteiros do pacote acabaram");
+    expect(textoDoPaywall({ tipo: "tip", motivo: "esgotado" }).titulo).toBe("As dicas do pacote acabaram");
   });
 
   it("degustação usada", () => {
@@ -88,8 +90,8 @@ describe("textoDoPaywall", () => {
   });
 
   it("aberta por conta própria: sem tom de bloqueio", () => {
-    expect(textoDoPaywall().titulo).toBe("Passe de viagem");
-    expect(textoDoPaywall({}).titulo).toBe("Passe de viagem");
+    expect(textoDoPaywall().titulo).toBe("Pacote VouAli");
+    expect(textoDoPaywall({}).titulo).toBe("Pacote VouAli");
   });
 
   it("nunca promete uso ilimitado", () => {
@@ -133,16 +135,26 @@ describe("linhaDoSaldo", () => {
   });
 });
 
-describe("passe reembolsado", () => {
-  it("a tela do passe explica o estorno e garante que nada some", () => {
+describe("pacote reembolsado", () => {
+  it("a tela do pacote explica o estorno e garante que nada some", () => {
     const t = textoDoPaywall({ tipo: "chat", motivo: "reembolsado" });
-    expect(t.titulo).toBe("O passe desta viagem foi reembolsado");
-    expect(t.texto).toMatch(/continua na viagem/);
+    expect(t.titulo).toBe("Seu Pacote VouAli foi reembolsado");
+    expect(t.texto).toMatch(/continua nas suas viagens/);
   });
 
   it("o Ali não fala em degustação quando o motivo é reembolso", () => {
     const f = falaDoAliSemSaldo({ motivo: "reembolsado" });
     expect(f).toMatch(/reembolsado/);
     expect(f).not.toMatch(/degustação/);
+  });
+});
+
+describe("o pacote é da conta, não de uma viagem", () => {
+  it("nenhum texto promete o pacote para uma viagem só", () => {
+    const textos = [undefined, "dias", "esgotado", "sem_passe", "reembolsado"].flatMap((motivo) => {
+      const t = textoDoPaywall({ tipo: "chat", motivo, dias: 8, max_dias: 4 });
+      return [t.titulo, t.texto, falaDoAliSemSaldo({ motivo, dias: 8, max_dias: 4 })];
+    });
+    for (const t of textos) expect(t).not.toMatch(/desta viagem|passe/i);
   });
 });
