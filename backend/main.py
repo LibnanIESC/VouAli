@@ -1125,23 +1125,35 @@ async def ali_gerar(request: Request):
         _contar(usuario, "gen", resp)
         # Só fica descontado o roteiro que chega inteiro: resposta recusada,
         # vazia ou ilegível custa a nós, não a quem pagou.
-        if getattr(resp, "stop_reason", None) == "refusal":
+        parada = getattr(resp, "stop_reason", None)
+        if parada == "refusal":
             _estornar(usuario, "gen", fonte)
+            _log_gerar("refusal", days, parada)
             return {"error": "refusal"}
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
         raw = json.loads(_extract_json(text))
         state = _normalize_state(raw if isinstance(raw, dict) else {})
         if not state["days"]:
             _estornar(usuario, "gen", fonte)
+            _log_gerar("empty", days, parada)
             return {"error": "empty"}
         _confirmar(usuario, fonte)
         return {"state": state}
     except json.JSONDecodeError:
         _estornar(usuario, "gen", fonte)
+        # `max_tokens` aqui quer dizer roteiro cortado no meio: grande demais.
+        _log_gerar("parse", days, locals().get("parada"))
         return {"error": "parse"}
     except Exception as e:
         _estornar(usuario, "gen", fonte)
+        _log_gerar("api_error", days, f"{type(e).__name__}: {str(e)[:200]}")
         return {"error": "api_error", "detail": str(e)[:200]}
+
+def _log_gerar(erro, dias, detalhe):
+    """Uma linha no log do Railway quando a geração de roteiro falha. Sem nada
+    da pessoa nem da viagem: só o tipo de falha, o tamanho pedido e o motivo
+    técnico — o suficiente para descobrir por que um roteiro não saiu."""
+    print(f"[ali/gerar] falhou: erro={erro} dias={dias} detalhe={detalhe}", flush=True)
 
 @app.get("/api/health")
 def health():

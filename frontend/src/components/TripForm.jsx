@@ -74,6 +74,25 @@ function Stepper({ value, onChange, min = 0, max = 20, label }) {
   );
 }
 
+/**
+ * O que dizer quando "Gerar com o Ali" falha. O `codigo` vai junto para a
+ * tela: é com ele que dá para saber, depois, o que aconteceu de fato.
+ * Nenhuma dessas falhas gasta o roteiro — o servidor devolve a unidade.
+ */
+export function mensagemDaFalha(r) {
+  const e = (r && r.error) || "sem_resposta";
+  const m = {
+    not_configured: "A IA ainda não está ligada — falta a chave no servidor.",
+    rate_limited: "Muitas gerações em pouco tempo. Espera uns segundinhos e tenta de novo. 🙂",
+    ai_paused: "O Ali está de recesso rapidinho. Crie a viagem vazia por enquanto.",
+    invalid: "Informe o destino e o número de dias (pelo menos 1).",
+    offline: "Sem conexão com o servidor. Confira a internet e tente de novo — nada foi descontado.",
+  };
+  if (e === "quota") return { texto: `Você já usou os ${r.limite} roteiros do mês. Crie a viagem vazia e monte com o Ali aos poucos. 🙂`, codigo: null };
+  if (m[e]) return { texto: m[e], codigo: e === "offline" ? e : null };
+  return { texto: "Não consegui gerar o roteiro agora. Tente de novo — o roteiro não foi descontado. Se repetir, crie a viagem vazia.", codigo: e };
+}
+
 // Converte a lista de interesses (texto salvo) em {marcados, outros}.
 function parseInteresses(txt) {
   const itens = String(txt || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -164,6 +183,12 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
     setLendoFoto(false);
   };
 
+  // Por que o último "Gerar com o Ali" não deu certo. Fica FIXO no topo do
+  // formulário: só o aviso de 3 segundos passava despercebido, e a pessoa via
+  // a espera sumir e o formulário voltar sem entender o que houve.
+  const [falha, setFalha] = useState(null);
+  const avisar = (m) => { toast(m.texto); setFalha(m); };
+
   const submit = async (comAli = false) => {
     if (!f.name.trim() || gerando) return;
     const meta = { ...f, dateLabel: label, interests: interesses, budget: numeroDoCampo(f.budget),
@@ -171,6 +196,7 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
                    origin: String(f.origin || "").trim(), transport: transporte };
     if (isNew && comAli) {
       if (nDias < 1) { toast("Informe as datas da viagem (ou o número de dias)."); return; }
+      setFalha(null);
       setGerando(true);
       const r = await apiGenerate({
         destination: f.destination || f.name,
@@ -187,12 +213,8 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
       // Sem saldo: abre a tela do pacote por cima do formulário. Comprou, o
       // roteiro é gerado em seguida, sem a pessoa preencher nada de novo.
       if (ehPaywall(r) && onPaywall) { onPaywall(r, () => submitRef.current && submitRef.current(true)); return; }
-      if (r && r.error === "not_configured") { toast("A IA ainda não está ligada — falta a chave no servidor."); return; }
-      if (r && r.error === "rate_limited") { toast("Muitas gerações em pouco tempo. Espera uns segundinhos. 🙂"); return; }
-      if (r && r.error === "quota") { toast(`Você já usou os ${r.limite} roteiros do mês. Crie a viagem vazia e monte com o Ali aos poucos. 🙂`); return; }
-      if (r && r.error === "ai_paused") { toast("O Ali está de recesso rapidinho. Crie a viagem vazia por enquanto."); return; }
-      if (r && r.error === "invalid") { toast("Informe o destino e o número de dias (pelo menos 1)."); return; }
-      toast("Não consegui gerar o roteiro agora. Tenta de novo, ou crie a viagem vazia."); return;
+      avisar(mensagemDaFalha(r));
+      return;
     }
     onSave(meta); // criar vazia OU salvar edição
   };
@@ -230,6 +252,12 @@ export default function TripForm({ trip, onSave, onClose, onDelete, canDelete, o
     <Sheet onClose={onClose} acoes={acoes}>
       <div style={{ padding: "22px 22px 20px" }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>{trip ? "Editar viagem" : "Nova viagem"}</div>
+        {falha && (
+          <div role="alert" style={{ background: "#fdece9", border: "1px solid #f6cfc7", borderRadius: 12, padding: "11px 13px", marginTop: 12 }}>
+            <div style={{ fontSize: 13.5, color: "#8c3a2c", fontWeight: 700, lineHeight: 1.45 }}>{falha.texto}</div>
+            {falha.codigo && <div style={{ fontSize: 11.5, color: "#a56a5e", marginTop: 4 }}>Código: {falha.codigo}</div>}
+          </div>
+        )}
 
         <label style={lbl}>Nome</label>
         <input style={field} value={f.name} onChange={up("name")} placeholder="Ex: New York" />
