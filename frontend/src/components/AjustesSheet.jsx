@@ -30,17 +30,16 @@ const rotuloCaixa = { fontSize: 12, fontWeight: 800, color: INK3, letterSpacing:
  * Os créditos do Ali — só aparece com a cobrança ligada no servidor.
  *
  * Um saldo só: o do Pacote VouAli, que é da CONTA e vale em qualquer viagem.
- * A degustação fica à parte, dizendo para que serve. Dentro de uma viagem de
- * outra pessoa, avisa que o Ali usa primeiro os créditos de quem convidou.
+ * A degustação fica à parte, dizendo para que serve. (O aviso de "de quem o
+ * Ali gasta nesta viagem" mora nas Configurações da Viagem.)
  */
-function CreditosDoAli({ saldo, naViagem, onPacote }) {
+function CreditosDoAli({ saldo, onPacote }) {
   const deg = saldo.degustacao || {};
   const degUsada = TIPOS.every((t) => !(Number(deg[t]) > 0));
   const txt = linhaDoSaldo(saldo.creditos);
   const pacote = saldo.tem_pacote
     ? txt
     : saldo.reembolsado ? "Reembolsado" : "Nenhum pacote ainda";
-  const dono = naViagem && saldo.dono;
   const compras = linhaDasCompras(saldo.compras);
   return (
     <div style={cartao}>
@@ -51,11 +50,6 @@ function CreditosDoAli({ saldo, naViagem, onPacote }) {
         <div style={{ fontSize: 12.5, color: INK3, marginTop: 2, lineHeight: 1.5 }}>{compras}.</div>
       )}
 
-      {dono && (
-        <div style={{ fontSize: 12.5, color: INK2, marginTop: 10, lineHeight: 1.5, fontWeight: 600, background: "#faf7f1", borderRadius: 10, padding: "9px 11px" }}>
-          Nesta viagem, o Ali usa primeiro os créditos de {dono.nome || "quem convidou você"}: {linhaDoSaldo(dono.creditos)}.
-        </div>
-      )}
 
       <div style={{ borderTop: "1px solid #efe9dc", margin: "12px 0 10px" }} />
       <div style={rotuloCaixa}>Degustação gratuita</div>
@@ -63,20 +57,17 @@ function CreditosDoAli({ saldo, naViagem, onPacote }) {
         {degUsada
           ? "Já usada."
           : <>{linhaDoSaldo(deg)}<br /><span style={{ color: INK3 }}>Para experimentar o Ali numa viagem de até {saldo.max_dias} dias. Vale uma vez por conta.</span></>}
-        {naViagem && !degUsada && !deg.vale_nesta_viagem && saldo.dias > 0 && (
-          <><br /><span style={{ color: INK3 }}>Não vale nesta viagem, que tem {saldo.dias} dias.</span></>
-        )}
       </div>
 
-      <button onClick={onPacote} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 14 }}>Pacote VouAli</button>
+      <button onClick={onPacote} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 14 }}>Comprar Pacote VouAli</button>
     </div>
   );
 }
 
-// Configurações: "Gerais" na lista de viagens, "da Viagem" dentro de uma.
-// `tripId` é a viagem aberta (vazio na lista de viagens); `saldoVer` muda
-// quando uma compra é ativada, para o saldo mostrado aqui se atualizar.
-export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout, onExcluirConta, tripId, saldoVer, onPacote }) {
+// Configurações Gerais: tudo o que é da CONTA — créditos, conta, backup de
+// todas as viagens. O que é de uma viagem está em ViagemConfigSheet.
+// `saldoVer` muda quando uma compra é ativada, para o saldo se atualizar.
+export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout, onExcluirConta, saldoVer, onPacote }) {
   const fileRef = useRef(null);
   const [uso, setUso] = useState(null);
   const [saldo, setSaldo] = useState(null);
@@ -84,13 +75,20 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
   useEffect(() => {
     if (!user) return;
     let vivo = true;
-    (async () => { const s = await apiSaldo(tripId); if (vivo) setSaldo(s); })();
+    (async () => { const s = await apiSaldo(null); if (vivo) setSaldo(s); })();
     return () => { vivo = false; };
-  }, [tripId, saldoVer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [saldoVer]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Sheet onClose={onClose}>
       <div style={{ padding: "22px 22px 30px" }}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>{tripId ? "Configurações da Viagem" : "Configurações Gerais"}</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: NAVY }}>Configurações Gerais</div>
+
+        {saldo && (
+          <>
+            <label style={{ ...lbl, marginTop: 18 }}>Créditos do Ali</label>
+            <CreditosDoAli saldo={saldo} onPacote={onPacote} />
+          </>
+        )}
 
         {user && (
           <>
@@ -111,13 +109,6 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
           </>
         )}
 
-        {saldo && (
-          <>
-            <label style={{ ...lbl, marginTop: 18 }}>Créditos do Ali</label>
-            <CreditosDoAli saldo={saldo} naViagem={!!tripId} onPacote={onPacote} />
-          </>
-        )}
-
         {uso && (
           <>
             <label style={{ ...lbl, marginTop: 18 }}>Ali este mês</label>
@@ -130,17 +121,15 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
           </>
         )}
 
-        <label style={{ ...lbl, marginTop: 18 }}>Backup da viagem</label>
+        <label style={{ ...lbl, marginTop: 18 }}>Backup</label>
         <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
           <div style={{ fontSize: 14, color: INK2, lineHeight: 1.55, fontWeight: 500, marginBottom: 12 }}>
             {/* "Baixe" descrevia só o site. No app o arquivo vai para o menu
                 de compartilhamento, e a pessoa escolhe onde guardar. */}
-            Guarde uma cópia de toda a viagem (roteiro, orçamento e notas). Se algo der errado, é só reimportar.
+            Guarde uma cópia de todas as suas viagens (roteiro, orçamento e notas) num arquivo só. Ao importar, elas voltam como viagens novas, sem mexer nas que já estão aqui.
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={onExport} style={{ ...btn(NAVY), flex: 1 }}>Exportar</button>
-            <button onClick={() => fileRef.current && fileRef.current.click()} style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), flex: 1 }}>Importar</button>
-          </div>
+          <button onClick={onExport} style={{ ...btn(NAVY), width: "100%" }}>Exportar todas as viagens</button>
+          <button onClick={() => fileRef.current && fileRef.current.click()} style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), width: "100%", marginTop: 10 }}>Importar viagens</button>
           <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }}
             onChange={(e) => { onImportFile(e.target.files[0]); e.target.value = ""; }} />
         </div>

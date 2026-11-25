@@ -82,6 +82,14 @@ def apagar_dados(uid: str) -> dict:
             con.execute("DELETE FROM billing_eventos WHERE uid=?", (uid,))
         except Exception:
             pass                          # banco anterior à tabela: nada a apagar
+        try:
+            for tid in proprias:
+                con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=?", (tid,))
+            con.execute("DELETE FROM trip_ali_convidado WHERE quem=?", (uid,))
+            if email:
+                con.execute("DELETE FROM trip_ali_convidado WHERE quem=?", (email,))
+        except Exception:
+            pass
         con.execute("DELETE FROM users WHERE uid=?", (uid,))
 
     return {

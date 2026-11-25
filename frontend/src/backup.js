@@ -80,6 +80,34 @@ export function lerBackup(obj) {
   return { meta, state };
 }
 
+/** Um arquivo com VÁRIAS viagens: o "Exportar todas as viagens". */
+export function montarBackupDeTudo(viagens) {
+  return {
+    app: "VouAli",
+    versao: 3,
+    exportedAt: new Date().toISOString(),
+    viagens: (viagens || []).map((v) => {
+      const um = montarBackup(v && v.meta, v && v.state);
+      return { viagem: um.viagem, state: um.state };
+    }),
+  };
+}
+
+/**
+ * Lê um arquivo de backup de uma OU de várias viagens. Devolve a lista de
+ * `{ meta, state }` (vazia nunca: `null` quando não é um backup do VouAli).
+ */
+export function lerBackups(obj) {
+  if (obj && typeof obj === "object" && Array.isArray(obj.viagens)) {
+    const lidas = obj.viagens
+      .map((v) => lerBackup({ ...(v || {}), exportedAt: obj.exportedAt }))
+      .filter(Boolean);
+    return lidas.length ? lidas : null;
+  }
+  const uma = lerBackup(obj);
+  return uma ? [uma] : null;
+}
+
 /** "Costa Amalfitana" -> "costa-amalfitana" (sem acento, sem surpresa no disco). */
 function fatiar(texto) {
   return String(texto || "")
@@ -99,4 +127,9 @@ export function nomeDoArquivo(meta, quando = new Date()) {
   const nome = fatiar(meta && meta.name);
   const dia = new Date(quando).toISOString().slice(0, 10);
   return `vouali-${nome ? `${nome}-` : ""}${dia}.json`;
+}
+
+/** Nome do arquivo com todas as viagens. */
+export function nomeDoArquivoDeTudo(quando = new Date()) {
+  return `vouali-todas-as-viagens-${new Date(quando).toISOString().slice(0, 10)}.json`;
 }

@@ -91,6 +91,18 @@ SCHEMA = [
         created_at INTEGER
     )""",
     "CREATE INDEX IF NOT EXISTS idx_billing_eventos_uid ON billing_eventos(uid)",
+    # Convidado × créditos do dono, por viagem. `quem` é o uid do membro ou o
+    # e-mail de um convite pendente. Sem linha = liberado e nada usado: a
+    # chave nasce ligada, e só quem o dono desligou ou quem já gastou tem linha.
+    """CREATE TABLE IF NOT EXISTS trip_ali_convidado (
+        trip_id TEXT NOT NULL,
+        quem TEXT NOT NULL,
+        liberado INTEGER NOT NULL DEFAULT 1,
+        chat INTEGER NOT NULL DEFAULT 0,
+        gen INTEGER NOT NULL DEFAULT 0,
+        tip INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (trip_id, quem)
+    )""",
     "CREATE INDEX IF NOT EXISTS idx_grants_uid ON ai_grants(uid)",
     "CREATE INDEX IF NOT EXISTS idx_grants_trip ON ai_grants(trip_id)",
     "CREATE INDEX IF NOT EXISTS idx_members_uid ON trip_members(uid)",
@@ -215,7 +227,47 @@ def remove_member(con, trip_id, uid):
     if role_of(con, trip_id, uid) == "owner":
         return False
     con.execute("DELETE FROM trip_members WHERE trip_id=? AND uid=?", (trip_id, uid))
+    con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=? AND quem=?", (trip_id, uid))
     return True
+
+
+# ---------- convidado × créditos do dono ----------
+
+def ali_liberado(con, trip_id, quem):
+    """O dono deixa este convidado usar os créditos dele nesta viagem?
+    Ligado por padrão."""
+    row = con.execute("SELECT liberado FROM trip_ali_convidado WHERE trip_id=? AND quem=?",
+                      (trip_id, quem)).fetchone()
+    return True if not row else bool(row[0])
+
+
+def _linha_convidado(con, trip_id, quem):
+    con.execute("INSERT INTO trip_ali_convidado(trip_id, quem) VALUES(?,?) ON CONFLICT(trip_id, quem) DO NOTHING",
+                (trip_id, quem))
+
+
+def definir_ali_liberado(con, trip_id, quem, liberado):
+    _linha_convidado(con, trip_id, quem)
+    con.execute("UPDATE trip_ali_convidado SET liberado=? WHERE trip_id=? AND quem=?",
+                (1 if liberado else 0, trip_id, quem))
+
+
+def registrar_uso_do_dono(con, trip_id, uid, tipo, delta=1):
+    """Conta quanto um convidado gastou dos créditos do dono (o estorno de um
+    pedido que falhou passa delta=-1)."""
+    if tipo not in TIPOS_USO or not trip_id or not uid:
+        return
+    _linha_convidado(con, trip_id, uid)
+    con.execute(f"UPDATE trip_ali_convidado SET {tipo} = {tipo} + ? WHERE trip_id=? AND quem=? AND {tipo} + ? >= 0",
+                (int(delta), trip_id, uid, int(delta)))
+
+
+def convidados_e_creditos(con, trip_id):
+    """{quem: {"liberado", "usou": {chat, gen, tip}}} das linhas que existem."""
+    rows = con.execute("SELECT quem, liberado, chat, gen, tip FROM trip_ali_convidado WHERE trip_id=?",
+                       (trip_id,)).fetchall()
+    return {r[0]: {"liberado": bool(r[1]), "usou": {"chat": int(r[2] or 0), "gen": int(r[3] or 0), "tip": int(r[4] or 0)}}
+            for r in rows}
 
 
 # ---------- convites ----------
@@ -258,6 +310,17 @@ def pending_invites(con, trip_id):
 
 def cancel_invite(con, trip_id, email):
     con.execute("DELETE FROM trip_invites WHERE trip_id=? AND email=?", (trip_id, norm_email(email)))
+    con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=? AND quem=?", (trip_id, norm_email(email)))
+
+
+def _convite_vira_membro(con, trip_id, email, uid):
+    """A escolha que o dono fez no convite pendente passa para o membro."""
+    row = con.execute("SELECT liberado FROM trip_ali_convidado WHERE trip_id=? AND quem=?",
+                      (trip_id, email)).fetchone()
+    if row:
+        con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=? AND quem=?", (trip_id, email))
+        if not row[0]:
+            definir_ali_liberado(con, trip_id, uid, False)
 
 
 def claim_invites(con, uid, email):
@@ -270,6 +333,7 @@ def claim_invites(con, uid, email):
         existe = con.execute("SELECT 1 FROM trips WHERE id=?", (trip_id,)).fetchone()
         if existe:
             add_member(con, trip_id, uid, role)
+            _convite_vira_membro(con, trip_id, email, uid)
     if rows:
         con.execute("DELETE FROM trip_invites WHERE email=?", (email,))
     return len(rows)
@@ -383,11 +447,13 @@ def delete_trip(con, trip_id, uid):
     if papel == "owner":
         con.execute("DELETE FROM trip_members WHERE trip_id=?", (trip_id,))
         con.execute("DELETE FROM trips WHERE id=?", (trip_id,))
+        con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=?", (trip_id,))
         # O passe pago não some junto com a viagem: volta a ficar solto com
         # quem comprou, e o que sobrou dele serve à próxima viagem.
         con.execute("UPDATE ai_grants SET trip_id=NULL WHERE trip_id=?", (trip_id,))
     else:
         con.execute("DELETE FROM trip_members WHERE trip_id=? AND uid=?", (trip_id, uid))
+        con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=? AND quem=?", (trip_id, uid))
     con.execute("UPDATE users SET active_trip=NULL WHERE active_trip=?", (trip_id,))
     return True
 
@@ -422,11 +488,14 @@ def excluir_conta(con, uid, email=""):
         con.execute("DELETE FROM trip_members WHERE trip_id=?", (tid,))
         con.execute("DELETE FROM trip_invites WHERE trip_id=?", (tid,))
         con.execute("DELETE FROM trips WHERE id=?", (tid,))
+        con.execute("DELETE FROM trip_ali_convidado WHERE trip_id=?", (tid,))
         # Passe que um convidado comprou para esta viagem volta para ele.
         con.execute("UPDATE ai_grants SET trip_id=NULL WHERE trip_id=?", (tid,))
     con.execute("DELETE FROM trip_members WHERE uid=?", (uid,))
+    con.execute("DELETE FROM trip_ali_convidado WHERE quem=?", (uid,))
     if email:
         con.execute("DELETE FROM trip_invites WHERE email=?", (norm_email(email),))
+        con.execute("DELETE FROM trip_ali_convidado WHERE quem=?", (norm_email(email),))
     con.execute("DELETE FROM trip_invites WHERE invited_by=?", (uid,))
     con.execute("DELETE FROM ai_usage WHERE uid=?", (uid,))
     con.execute("DELETE FROM ai_grants WHERE uid=?", (uid,))

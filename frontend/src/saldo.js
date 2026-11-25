@@ -77,7 +77,13 @@ export const resta = (saldo, tipo) => Math.max(0, Number(((saldo || {}).disponiv
  * "sem_passe" (a degustação acabou e nunca houve pacote). Sem motivo, a pessoa
  * abriu a tela por conta própria.
  */
-export function textoDoPaywall({ tipo, motivo, dias, max_dias } = {}) {
+export function textoDoPaywall({ tipo, motivo, dias, max_dias, dono_nome } = {}) {
+  if (motivo === "bloqueado") {
+    return {
+      titulo: "Nesta viagem, o Ali usa os seus créditos",
+      texto: `${dono_nome || "Quem criou a viagem"} preferiu não compartilhar os créditos do pacote aqui. Com o seu Pacote VouAli, você usa o Ali nesta e em qualquer viagem sua.`,
+    };
+  }
   if (motivo === "dias") {
     return {
       titulo: "Esta viagem pede o Pacote VouAli",
@@ -113,7 +119,10 @@ export function textoDoPaywall({ tipo, motivo, dias, max_dias } = {}) {
  * O que o Ali responde, no chat, quando o saldo de conversas acaba.
  * Primeira pessoa e sem drama: o roteiro continua lá, só o Ali para.
  */
-export function falaDoAliSemSaldo({ motivo, dias, max_dias } = {}) {
+export function falaDoAliSemSaldo({ motivo, dias, max_dias, dono_nome } = {}) {
+  if (motivo === "bloqueado") {
+    return `Nesta viagem eu funciono com os seus créditos 😊 ${dono_nome || "Quem criou a viagem"} preferiu não compartilhar os do pacote. Com o seu Pacote VouAli eu sigo com você — e o roteiro continua todo aqui.`;
+  }
   if (motivo === "dias") {
     return `Minha degustação vale para viagens de até ${max_dias} dias${dias > 0 ? `, e esta tem ${dias}` : ""} 😊 Com o Pacote VouAli eu sigo com você nela inteira — e tudo que já está no roteiro continua aqui.`;
   }

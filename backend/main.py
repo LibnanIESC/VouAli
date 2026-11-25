@@ -217,6 +217,8 @@ def _estornar(usuario, tipo, fonte):
         return
     with user_con(usuario) as con:
         store.devolver(con, fonte["id"], tipo)
+        if fonte.get("convidado"):
+            store.registrar_uso_do_dono(con, fonte["convidado"], usuario["uid"], tipo, -1)
 
 def _confirmar(usuario, fonte):
     """O pedido foi entregue. A unidade já saiu do saldo ao autorizar; não há
@@ -245,12 +247,18 @@ def _pagantes(con, uid, trip_id):
     Os créditos do Pacote VouAli são da CONTA, não da viagem. Numa viagem
     compartilhada, o convidado usa os créditos de quem o convidou (o dono) —
     convidado não paga para usar o Ali na viagem de outra pessoa — e, se os do
-    dono acabarem, os próprios.
+    dono acabarem, os próprios. O dono pode desligar isso por convidado
+    ("Quem vai junto"): aí o convidado usa só os créditos dele.
     """
-    dono = store.dono_da_viagem(con, trip_id) if trip_id else None
-    if dono and dono != uid:
+    dono = _dono_alheio(con, uid, trip_id)
+    if dono and store.ali_liberado(con, trip_id, uid):
         return [dono, uid]
     return [uid]
+
+def _dono_alheio(con, uid, trip_id):
+    """O dono da viagem, se não for a própria pessoa."""
+    dono = store.dono_da_viagem(con, trip_id) if trip_id else None
+    return dono if dono and dono != uid else None
 
 def _fontes(con, uid, trip_id, dias):
     """Os saldos que podem pagar um pedido, na ordem em que são gastos:
@@ -292,18 +300,28 @@ def _autorizar(usuario, tipo, body, dias_pedidos=None):
             # `consumir` só desconta se ainda houver: é ele, e não a leitura
             # acima, que decide quando dois pedidos chegam juntos.
             if store.resto(g, tipo) > 0 and store.consumir(con, g["id"], tipo):
-                return True, None, {"id": g["id"]}
+                fonte = {"id": g["id"]}
+                if g["uid"] != uid:            # convidado gastando do dono: o dono vê quanto
+                    store.registrar_uso_do_dono(con, trip_id, uid, tipo)
+                    fonte["convidado"] = trip_id
+                return True, None, fonte
         ultimo = store.ultimo_pacote(con, _pagantes(con, uid, trip_id))
+        dono = _dono_alheio(con, uid, trip_id)
+        bloqueado = bool(dono) and not store.ali_liberado(con, trip_id, uid)
+        extra = {}
         if ultimo and ultimo["revoked"] and not any(g["origin"] != store.ORIGEM_DEGUSTACAO for g in fontes):
             motivo = "reembolsado"             # o pacote foi estornado e não há outro
         elif ultimo:
             motivo = "esgotado"                # comprou, mas acabou esse tipo
+        elif bloqueado:
+            motivo = "bloqueado"               # o dono não liberou os créditos dele
+            extra["dono_nome"] = store.nome_de(con, dono)
         elif deg and store.resto(deg, tipo) > 0:
             motivo = "dias"                    # tem degustação, mas a viagem é longa
         else:
             motivo = "sem_passe"
     return False, {"error": "paywall", "tipo": tipo, "motivo": motivo,
-                   "dias": dias, "max_dias": DEGUSTACAO_MAX_DIAS}, None
+                   "dias": dias, "max_dias": DEGUSTACAO_MAX_DIAS, **extra}, None
 
 ALI_SYSTEM = (
     "Você é o Ali, o assistente de viagens do app VouAli. "
@@ -863,6 +881,20 @@ async def put_trip_meta(request: Request, tid: str):
     return {"trips": trips}
 
 # --- Compartilhamento de viagem ---
+def _quem_vai_junto(con, tid, papel):
+    """Membros e convites. Só o DONO recebe, de cada convidado, a chave dos
+    créditos e quanto ele já gastou dos créditos do dono."""
+    membros, convites = store.members_of(con, tid), store.pending_invites(con, tid)
+    if papel == "owner":
+        info = store.convidados_e_creditos(con, tid)
+        vazio = {"liberado": True, "usou": {t: 0 for t in store.TIPOS_USO}}
+        for m in membros:
+            if m["role"] != "owner":
+                m["ali"] = info.get(m["uid"], vazio)
+        for c in convites:
+            c["ali"] = {"liberado": info.get(c["email"], vazio)["liberado"]}
+    return {"role": papel, "members": membros, "invites": convites}
+
 @app.get("/api/trips/{tid}/members")
 def list_members(request: Request, tid: str):
     usuario = me(request)
@@ -872,7 +904,7 @@ def list_members(request: Request, tid: str):
         papel = store.role_of(con, tid, usuario["uid"])
         if not papel:
             raise HTTPException(status_code=404, detail="trip not found")
-        return {"role": papel, "members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
+        return _quem_vai_junto(con, tid, papel)
 
 @app.post("/api/trips/{tid}/members")
 async def add_member_route(request: Request, tid: str):
@@ -892,7 +924,7 @@ async def add_member_route(request: Request, tid: str):
             raise HTTPException(status_code=409, detail="member limit reached")
         situacao = store.invite(con, tid, email, "editor", usuario["uid"])
         con.commit()
-        return {"status": situacao, "members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
+        return {"status": situacao, **_quem_vai_junto(con, tid, "owner")}
 
 @app.delete("/api/trips/{tid}/members/{quem}")
 def remove_member_route(request: Request, tid: str, quem: str):
@@ -908,7 +940,43 @@ def remove_member_route(request: Request, tid: str, quem: str):
         elif not store.remove_member(con, tid, quem):
             raise HTTPException(status_code=400, detail="cannot remove the owner")
         con.commit()
-        return {"members": store.members_of(con, tid), "invites": store.pending_invites(con, tid)}
+        return _quem_vai_junto(con, tid, "owner")
+
+@app.put("/api/trips/{tid}/members/{quem}/ali")
+async def ali_do_convidado(request: Request, tid: str, quem: str):
+    """O dono liga ou desliga o uso dos créditos DELE por este convidado.
+    `quem` é o uid de um membro ou o e-mail de um convite pendente."""
+    usuario = me(request)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="not available")
+    body = await request.json()
+    with user_con(usuario) as con:
+        if store.role_of(con, tid, usuario["uid"]) != "owner":
+            raise HTTPException(status_code=403, detail="only the owner can change this")
+        if "@" in quem:
+            quem = store.norm_email(quem)
+            if not any(c["email"] == quem for c in store.pending_invites(con, tid)):
+                raise HTTPException(status_code=404, detail="invite not found")
+        elif store.role_of(con, tid, quem) != "editor":
+            raise HTTPException(status_code=404, detail="member not found")
+        store.definir_ali_liberado(con, tid, quem, bool(body.get("liberado")))
+        con.commit()
+        return _quem_vai_junto(con, tid, "owner")
+
+@app.get("/api/backup")
+def backup_de_tudo(request: Request):
+    """Todas as viagens da pessoa (as dela e as compartilhadas com ela), com o
+    conteúdo de cada uma, para o "Exportar todas as viagens"."""
+    usuario = me(request)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="not available")
+    with user_con(usuario) as con:
+        viagens = []
+        for meta in store.list_trips(con, usuario["uid"])["list"]:
+            got = store.get_trip(con, meta["id"], usuario["uid"])
+            if got:
+                viagens.append({"meta": meta, "state": got[0]})
+        return {"viagens": viagens}
 
 @app.delete("/api/trips/{tid}")
 def delete_trip(request: Request, tid: str):
@@ -1270,6 +1338,7 @@ def _resumo_saldo(con, uid, trip_id):
     meus = store.creditos(con, uid)
     pagantes = _pagantes(con, uid, trip_id)
     dono = pagantes[0] if len(pagantes) > 1 else None
+    alheio = _dono_alheio(con, uid, trip_id)
     ultimo = store.ultimo_pacote(con, pagantes)
     pagos = [g for g in fontes if g["origin"] != store.ORIGEM_DEGUSTACAO]
 
@@ -1287,6 +1356,8 @@ def _resumo_saldo(con, uid, trip_id):
         "tem_pacote": bool(meus),
         # Viagem de outra pessoa: o Ali usa primeiro os créditos dela.
         "dono": {"nome": store.nome_de(con, dono), "creditos": soma(store.creditos(con, dono))} if dono else None,
+        # Viagem de outra pessoa que NÃO liberou os créditos dela para você.
+        "dono_bloqueou": store.nome_de(con, alheio) if alheio and not dono else None,
         # Pacote estornado e nenhum outro valendo: o app explica, em vez de o
         # saldo simplesmente sumir.
         "reembolsado": bool(ultimo and ultimo["revoked"] and not pagos),

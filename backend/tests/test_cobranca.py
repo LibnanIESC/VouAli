@@ -407,6 +407,134 @@ def test_dono_nunca_gasta_os_creditos_do_convidado(tmp_path, monkeypatch):
     assert creditos(client, BRUNO)["chat"] == 100
 
 
+def _chave(client, tid, quem, liberado, pessoa=ANA):
+    return client.put(f"/api/trips/{tid}/members/{quem}/ali", headers=como(pessoa), json={"liberado": liberado})
+
+
+def _convidados(client, tid, pessoa=ANA):
+    return client.get(f"/api/trips/{tid}/members", headers=como(pessoa)).json()
+
+
+def test_chave_nasce_ligada_e_o_dono_ve_quanto_o_convidado_usou(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA)
+    conversar(client, BRUNO, tid)
+    conversar(client, BRUNO, tid)
+    dica(client, BRUNO, tid)
+    bruno = next(x for x in _convidados(client, tid)["members"] if x["uid"] == BRUNO["uid"])
+    assert bruno["ali"] == {"liberado": True, "usou": {"chat": 2, "gen": 0, "tip": 1}}
+    dono = next(x for x in _convidados(client, tid)["members"] if x["uid"] == ANA["uid"])
+    assert "ali" not in dono
+
+
+def test_convidado_nao_ve_a_chave_nem_o_uso(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    assert all("ali" not in x for x in _convidados(client, tid, BRUNO)["members"])
+    assert _chave(client, tid, BRUNO["uid"], False, BRUNO).status_code == 403
+
+
+def test_dono_desliga_e_o_convidado_passa_a_usar_os_proprios(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")], BRUNO["uid"]: [compra("t2")]})
+    sincronizar(client, ANA)
+    sincronizar(client, BRUNO)
+    r = _chave(client, tid, BRUNO["uid"], False)
+    assert r.status_code == 200
+    assert next(x for x in r.json()["members"] if x["uid"] == BRUNO["uid"])["ali"]["liberado"] is False
+    assert "reply" in conversar(client, BRUNO, tid)
+    assert creditos(client, ANA)["chat"] == 100, "os da Ana ficaram intactos"
+    assert creditos(client, BRUNO)["chat"] == 99
+    visto = saldo(client, BRUNO, tid)
+    assert visto["dono"] is None and visto["dono_bloqueou"] == "Ana"
+    # religou: volta a usar os da Ana
+    _chave(client, tid, BRUNO["uid"], True)
+    conversar(client, BRUNO, tid)
+    assert creditos(client, ANA)["chat"] == 99
+    assert saldo(client, BRUNO, tid)["dono_bloqueou"] is None
+
+
+def test_convidado_bloqueado_e_sem_creditos_recebe_motivo_proprio(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA)
+    _chave(client, tid, BRUNO["uid"], False)
+    r = conversar(client, BRUNO, tid)
+    assert r["error"] == "paywall" and r["motivo"] == "bloqueado" and r["dono_nome"] == "Ana"
+    assert creditos(client, ANA)["chat"] == 100
+
+
+def test_estorno_tambem_desconta_o_uso_do_convidado(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA)
+
+    class Quebrado:
+        async def create(self, **k):
+            raise RuntimeError("api fora do ar")
+
+    Quebrado.messages = Quebrado()
+    m._ali_client = Quebrado()
+    assert conversar(client, BRUNO, tid)["error"] == "api_error"
+    bruno = next(x for x in _convidados(client, tid)["members"] if x["uid"] == BRUNO["uid"])
+    assert bruno["ali"]["usou"]["chat"] == 0
+    assert creditos(client, ANA)["chat"] == 100
+
+
+def test_chave_do_convite_pendente_passa_para_o_membro(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    client.post(f"/api/trips/{tid}/members", headers=como(ANA), json={"email": BRUNO["email"]})
+    convite = _convidados(client, tid)["invites"][0]
+    assert convite["ali"] == {"liberado": True}
+    assert _chave(client, tid, BRUNO["email"], False).status_code == 200
+    assert _convidados(client, tid)["invites"][0]["ali"] == {"liberado": False}
+    loja(monkeypatch, m, {ANA["uid"]: [compra("t1")]})
+    sincronizar(client, ANA)
+    conversar(client, BRUNO)                                  # 1º login: o convite vira acesso
+    assert conversar(client, BRUNO, tid)["motivo"] == "bloqueado"
+    assert creditos(client, ANA)["chat"] == 100
+
+
+def test_chave_so_vale_para_quem_esta_na_viagem(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    assert _chave(client, tid, BRUNO["uid"], False).status_code == 404
+    assert _chave(client, tid, "ninguem@exemplo.com", False).status_code == 404
+    assert _chave(client, tid, ANA["uid"], False).status_code == 404, "o dono não se bloqueia"
+
+
+def test_sair_da_viagem_zera_a_chave_e_o_uso(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    tid = viagem(client, ANA, dias=8)
+    _compartilhar(client, tid)
+    _chave(client, tid, BRUNO["uid"], False)
+    client.delete(f"/api/trips/{tid}/members/{BRUNO['uid']}", headers=como(ANA))
+    with m.store.connect() as con:
+        assert m.store.convidados_e_creditos(con, tid) == {}
+
+
+def test_backup_traz_todas_as_viagens_com_conteudo(tmp_path, monkeypatch):
+    m, client = montar(tmp_path)
+    uma = viagem(client, ANA, dias=2, name="Miami")
+    outra = viagem(client, ANA, dias=3, name="Lisboa")
+    r = client.get("/api/backup", headers=como(ANA)).json()
+    nomes = {v["meta"]["name"]: len(v["state"]["days"]) for v in r["viagens"]}
+    assert nomes == {"Miami": 2, "Lisboa": 3}
+    assert {v["meta"]["id"] for v in r["viagens"]} == {uma, outra}
+    assert client.get("/api/backup", headers=como(BRUNO)).json() == {"viagens": []}
+
+
 def test_ia_em_viagem_alheia_e_recusada(tmp_path, monkeypatch):
     m, client = montar(tmp_path)
     tid = viagem(client, ANA, dias=8)

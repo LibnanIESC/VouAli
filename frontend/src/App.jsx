@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao, apiSaldo } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao, apiSaldo, apiBackupDeTudo } from "./api";
 import { identificar, esquecer } from "./compras";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
-import { montarBackup, lerBackup, nomeDoArquivo } from "./backup";
+import { montarBackup, montarBackupDeTudo, lerBackups, nomeDoArquivo, nomeDoArquivoDeTudo } from "./backup";
 import { diaDeHoje, rotuloDoDia, MOEDA_PADRAO } from "./tripmeta";
 import { ajustarBarraDeStatus, tratarBotaoVoltar, esconderSplashNativa, vibrar, salvarArquivo } from "./nativo";
 // Teto herdado da época em que o app era só da viagem de NY (antes de o teto
@@ -14,6 +14,7 @@ const NY_TETO_LEGADO = 3000;
 import { MapIcon, MoneyIcon, PinIcon, ChevronIcon, DotsIcon, DragIcon, GearIcon, PlusIcon, PencilIcon } from "./components/Icons";
 import ActionSheet from "./components/ActionSheet";
 import AjustesSheet from "./components/AjustesSheet";
+import ViagemConfigSheet from "./components/ViagemConfigSheet";
 import ExcluirConta from "./components/ExcluirConta";
 import Login from "./components/Login";
 import Sheet from "./components/Sheet";
@@ -466,6 +467,16 @@ export default function App() {
     const r = await salvarArquivo(nomeDoArquivo(activeMeta), JSON.stringify(arquivo, null, 2));
     if (!r.ok) toastMsg("Não consegui salvar a cópia agora. Tenta de novo.");
   };
+  // Backup de TODAS as viagens (Configurações Gerais). Sem conta (modo antigo)
+  // não há como buscar as outras: fica a cópia da viagem aberta.
+  const exportarTudo = async () => {
+    if (!uidLogado) return exportBackup();
+    await flushNow();
+    const r = await apiBackupDeTudo();
+    if (!r || !r.viagens.length) { toastMsg(r ? "Você ainda não tem viagens para exportar." : "Não consegui buscar as viagens agora. Tenta de novo."); return; }
+    const salvo = await salvarArquivo(nomeDoArquivoDeTudo(), JSON.stringify(montarBackupDeTudo(r.viagens), null, 2));
+    if (!salvo.ok) toastMsg("Não consegui salvar a cópia agora. Tenta de novo.");
+  };
   const importBackup = (file) => {
     if (!file) return;
     const reader = new FileReader();
@@ -473,28 +484,37 @@ export default function App() {
       let obj;
       try { obj = JSON.parse(reader.result); }
       catch (e) { toastMsg("Não consegui ler o arquivo: JSON inválido."); return; }
-      const lido = lerBackup(obj);
-      if (!lido) { toastMsg("Arquivo inválido: não parece um backup do VouAli."); return; }
-      setOv({ kind: "confirmImport", backup: lido });
+      const lidas = lerBackups(obj);
+      if (!lidas) { toastMsg("Arquivo inválido: não parece um backup do VouAli."); return; }
+      setOv({ kind: "confirmImport", viagens: lidas });
     };
     reader.readAsText(file);
   };
-  // Importar cria uma viagem NOVA. Escrever por cima da viagem aberta continua
-  // possível, mas só quando a pessoa pede — antes era o único comportamento, e
-  // um backup restaurado com a viagem errada na tela apagava a viagem errada.
-  const importarComoNova = async ({ meta, state }) => {
+  // Importar SEMPRE cria viagens novas. Escrever por cima de uma viagem já
+  // existente deixou de existir: um backup restaurado com a viagem errada na
+  // tela apagava a viagem errada.
+  const importarComoNovas = async (viagens) => {
     setOv(null);
     if (bloqueado()) return;
-    await createTrip({ ...meta, data: state });
-    toastMsg("Viagem importada. ✅");
-  };
-  const importarPorCima = ({ state }) => {
-    setOv(null);
-    if (bloqueado()) return;
-    applyState(state);
-    apiPut(state);
-    guardarEstado(ativaRef.current, state);
-    toastMsg("Backup importado. ✅");
+    if (viagens.length === 1) {
+      await createTrip({ ...viagens[0].meta, data: viagens[0].state });
+      toastMsg("Viagem importada. ✅");
+      return;
+    }
+    await flushNow();
+    let ultimo = null, falhas = 0;
+    for (const v of viagens) {
+      const r = await apiCreateTrip({ ...v.meta, data: v.state });
+      if (r && r.trips) ultimo = r; else falhas += 1;
+    }
+    if (!ultimo) { toastMsg("Não consegui importar agora. Tenta de novo."); return; }
+    setTrips(ultimo.trips); guardarViagens(ultimo.trips);
+    const s = await apiGet();
+    if (s && s.state) guardarEstado(ultimo.meta && ultimo.meta.id, s.state);
+    replaceState(s && s.state, ultimo.meta);
+    setVista("lista");
+    const ok = viagens.length - falhas;
+    toastMsg(falhas ? `${ok} de ${viagens.length} viagens importadas.` : `${ok} viagens importadas. ✅`);
   };
 
   const toggleStop = (sid) => {
@@ -666,7 +686,7 @@ export default function App() {
                 <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, lineHeight: 0.9, color: ORANGE }}>Ali</span>
                 <span style={{ width: 11, height: 11, marginBottom: 4, background: ORANGE, clipPath: "polygon(0% 0%, 100% 50%, 0% 100%, 22% 50%)", display: "block" }} />
               </div>
-              <button onClick={() => setOv({ kind: "ajustes" })} aria-label="Configurações da viagem" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button onClick={() => setOv({ kind: "configViagem" })} aria-label="Configurações da viagem" style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 22, border: "none", background: "rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <GearIcon color="rgba(255,255,255,0.92)" size={19} />
               </button>
             </div>
@@ -992,12 +1012,20 @@ export default function App() {
 
       {/* Overlays */}
       {ov?.kind === "ajustes" && (
-        <AjustesSheet onClose={() => setOv(null)} onExport={exportBackup}
+        <AjustesSheet onClose={() => setOv(null)} onExport={exportarTudo}
           onImportFile={(f) => { setOv(null); importBackup(f); }}
           user={user} onLogout={sair}
-          tripId={vista === "viagem" ? trips.active : null} saldoVer={saldoVer}
-          onPacote={() => abrirPasse(null, vista === "viagem" ? trips.active : null)}
+          saldoVer={saldoVer}
+          onPacote={() => abrirPasse(null, null)}
           onExcluirConta={user ? () => setOv({ kind: "excluirConta" }) : null} />
+      )}
+      {ov?.kind === "configViagem" && (
+        <ViagemConfigSheet trip={activeMeta} onClose={() => setOv(null)}
+          podeCompartilhar={authMode === "firebase"} somenteLeitura={somenteLeitura} logado={!!uidLogado}
+          onEditar={() => setOv({ kind: "tripForm", trip: activeMeta })}
+          onQuemVaiJunto={() => setOv({ kind: "share", trip: activeMeta })}
+          onExportar={() => { setOv(null); exportBackup(); }}
+          onGerais={() => setOv({ kind: "ajustes" })} />
       )}
       {ov?.kind === "excluirConta" && (
         <ExcluirConta onClose={() => setOv({ kind: "ajustes" })} onConfirmar={excluirConta} />
@@ -1035,13 +1063,13 @@ export default function App() {
           ]} />
       )}
       {ov?.kind === "confirmImport" && (
-        <ActionSheet message={`Importar "${ov.backup.meta.name}" do arquivo?`}
+        <ActionSheet
+          message={ov.viagens.length === 1
+            ? `Importar "${ov.viagens[0].meta.name}" do arquivo? Ela entra como uma viagem nova.`
+            : `Importar ${ov.viagens.length} viagens do arquivo? Elas entram como viagens novas, sem mexer nas que você já tem.`}
           onClose={() => setOv(null)}
           actions={[
-            { label: "Criar viagem nova", onClick: () => importarComoNova(ov.backup) },
-            ...(trips.active && activeMeta.name
-              ? [{ label: `Substituir "${activeMeta.name}"`, danger: true, onClick: () => importarPorCima(ov.backup) }]
-              : []),
+            { label: ov.viagens.length === 1 ? "Importar viagem" : `Importar ${ov.viagens.length} viagens`, onClick: () => importarComoNovas(ov.viagens) },
             { label: "Cancelar", onClick: () => setOv(null) },
           ]} />
       )}

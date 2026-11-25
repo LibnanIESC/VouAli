@@ -347,6 +347,29 @@ export async function apiInvite(id, email) {
     return await res.json(); // { status, members, invites }
   } catch (e) { return { error: "offline" }; }
 }
+/** O dono liga/desliga o uso dos créditos dele por um convidado (uid ou e-mail). */
+export async function apiAliDoConvidado(id, quem, liberado) {
+  try {
+    const res = await fetchAuth(`/api/trips/${id}/members/${encodeURIComponent(quem)}/ali`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ liberado: !!liberado }),
+    });
+    if (!res.ok) return { error: "http_" + res.status };
+    return await res.json(); // { role, members, invites }
+  } catch (e) { return { error: "offline" }; }
+}
+
+/** Todas as viagens da conta, com o conteúdo, para o backup completo. */
+export async function apiBackupDeTudo() {
+  try {
+    const res = await fetchAuth("/api/backup", { cache: "no-store" });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && Array.isArray(j.viagens) ? j : null;
+  } catch (e) { return null; }
+}
+
 export async function apiRemoveMember(id, quem) {
   try {
     const res = await fetchAuth(`/api/trips/${id}/members/${encodeURIComponent(quem)}`, { method: "DELETE" });
