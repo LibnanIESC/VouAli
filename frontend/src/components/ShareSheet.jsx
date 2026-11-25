@@ -6,10 +6,10 @@ import { quantos, TIPOS } from "../saldo";
 import { toast } from "../toast";
 import { btn, field, lbl, NAVY, ORANGE, SAND, STEEL, HELV, INK2, INK3, DANGER } from "../theme";
 
-/** "Usou dos seus: 4 conversas · 2 dicas" — ou que ainda não usou. */
+/** "Usou 4 conversas · 2 dicas" (dos créditos do dono — o rótulo da coluna já diz) — ou que ainda não usou. */
 export function linhaDoUsoDoConvidado(usou) {
   const partes = TIPOS.filter((t) => Number((usou || {})[t]) > 0).map((t) => quantos(usou[t], t));
-  return partes.length ? `Usou dos seus: ${partes.join(" · ")}` : "Ainda não usou os seus";
+  return partes.length ? `Usou ${partes.join(" · ")}` : "Ainda não usou";
 }
 
 // Chave liga/desliga, com área de toque de 44px.
@@ -78,43 +78,52 @@ export default function ShareSheet({ trip, onClose }) {
 
   const confirmarRemocao = async () => {
     const quem = aRemover.quem;
+    const pendente = aRemover.pendente;
     setARemover(null);
     const r = await apiRemoveMember(trip.id, quem);
-    if (!r || r.error) { toast("Não consegui remover agora."); return; }
+    if (!r || r.error) { toast(pendente ? "Não consegui cancelar o convite agora." : "Não consegui remover agora."); return; }
     setDados({ role: dados.role, members: r.members, invites: r.invites });
   };
 
-  const linha = (chave, titulo, subtitulo, papel, pendente, ali) => (
-    <div key={chave} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 3px 10px rgba(20,32,56,0.07)" }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <span style={{ width: 38, height: 38, borderRadius: "50%", background: pendente ? SAND : STEEL, color: pendente ? NAVY : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, flex: "0 0 auto" }}>
-        {(titulo || "?").trim().charAt(0).toUpperCase()}
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, color: NAVY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titulo}</span>
-        <span style={{ display: "block", fontSize: 12.5, color: INK3, marginTop: 1 }}>{subtitulo}</span>
-      </span>
-      {papel === "owner" ? (
-        <span style={{ fontSize: 10.5, fontWeight: 800, color: ORANGE, letterSpacing: 0.6, flex: "0 0 auto" }}>DONO</span>
-      ) : souDono ? (
-        <button onClick={() => setARemover({ quem: chave, nome: titulo })} aria-label={`Remover ${titulo}`}
-          style={{ width: 44, height: 44, flex: "0 0 auto", borderRadius: 10, border: "1.5px solid #e6dfd2", background: "#fff", color: DANGER, fontSize: 18, cursor: "pointer" }}>×</button>
-      ) : null}
-    </div>
-    {souDono && cobranca && ali && papel !== "owner" && (
-      <div style={{ display: "flex", alignItems: "center", gap: 10, borderTop: "1px solid #efe9dc", marginTop: 10, paddingTop: 4 }}>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: NAVY }}>Usar meus créditos do Ali</span>
-          <span style={{ display: "block", fontSize: 12, color: INK3, marginTop: 1, lineHeight: 1.4 }}>
-            {ali.liberado ? (ali.usou ? linhaDoUsoDoConvidado(ali.usou) : "Liberado") : "Usa só os próprios créditos"}
+  // A coluna de chaves só existe para o dono, e só com a cobrança ligada.
+  const comChaves = souDono && cobranca;
+
+  // Um cartão por pessoa. A chave fica à direita, sob o rótulo único da
+  // coluna; o "remover" fica embaixo do nome, do lado oposto — longe da chave,
+  // para um toque errado não tirar ninguém da viagem (e ainda pede confirmação).
+  const cartao = (chave, titulo, email, papel, pendente, ali) => {
+    const ehDono = papel === "owner";
+    const subtitulo = pendente ? "convite pendente ✉️"
+      : comChaves && ali ? (ali.liberado ? (ali.usou ? linhaDoUsoDoConvidado(ali.usou) : "Liberado") : "Usa só os próprios créditos")
+      : email;
+    return (
+      <div key={chave} style={{ background: "#fff", borderRadius: 14, padding: souDono && !ehDono ? "12px 12px 2px 14px" : "12px 12px 12px 14px", marginBottom: 12, border: pendente ? "1.5px dashed #d9cfbd" : "1px solid #e6dfd2", boxShadow: "0 3px 10px rgba(20,32,56,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ width: 38, height: 38, borderRadius: "50%", background: pendente ? SAND : STEEL, color: pendente ? NAVY : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, flex: "0 0 auto" }}>
+            {(titulo || "?").trim().charAt(0).toUpperCase()}
           </span>
-        </span>
-        <Chave ligada={!!ali.liberado} ocupada={mudando === chave} onChange={(v) => mudarChave(chave, v)}
-          rotulo={`${titulo} usa meus créditos do Ali`} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, color: NAVY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titulo}</span>
+            {subtitulo && <span style={{ display: "block", fontSize: 12.5, color: INK3, marginTop: 1, lineHeight: 1.4, overflowWrap: "anywhere" }}>{subtitulo}</span>}
+          </span>
+          {ehDono ? (
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: ORANGE, letterSpacing: 0.6, flex: "0 0 auto", width: 56, textAlign: "center" }}>DONO</span>
+          ) : comChaves && ali ? (
+            <Chave ligada={!!ali.liberado} ocupada={mudando === chave} onChange={(v) => mudarChave(chave, v)}
+              rotulo={`${titulo} usa meus créditos do Ali`} />
+          ) : null}
+        </div>
+        {souDono && !ehDono && (
+          <button onClick={() => setARemover({ quem: chave, nome: titulo, pendente })}
+            style={{ display: "block", background: "none", border: "none", padding: "0 0 0 48px", minHeight: 44, color: DANGER, fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer", textAlign: "left" }}>
+            {pendente ? "Cancelar convite" : "Remover da viagem"}
+          </button>
+        )}
       </div>
-    )}
-    </div>
-  );
+    );
+  };
+
+  const total = dados ? dados.members.length + dados.invites.length : 0;
 
   return (
     <>
@@ -125,14 +134,34 @@ export default function ShareSheet({ trip, onClose }) {
           Todo mundo aqui vê e edita <strong style={{ color: NAVY }}>{trip.name}</strong> — roteiro, orçamento e notas, sincronizados.
         </div>
 
+        {/* Convidar é o que mais se vem fazer aqui: fica no topo. */}
+        {souDono && (
+          <>
+            <label style={lbl}>Convidar por e-mail</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") convidar(); }}
+                placeholder="email@exemplo.com" aria-label="E-mail de quem vai junto"
+                style={{ ...field, marginTop: 0, flex: 1 }} />
+              <button onClick={convidar} disabled={ocupado}
+                style={{ ...btn(ORANGE, { color: NAVY }), flex: "0 0 auto", opacity: ocupado ? 0.6 : 1 }}>
+                {ocupado ? "…" : "Convidar"}
+              </button>
+            </div>
+            <div style={{ fontSize: 12.5, color: INK3, marginTop: 8, lineHeight: 1.5 }}>
+              Se a pessoa ainda não usa o VouAli, o convite vale assim que ela entrar com esse e-mail.
+            </div>
+          </>
+        )}
+
         {!dados ? (
           // Primeira vez nesta viagem: o desenho da lista no lugar de "Carregando…",
           // para nada pular quando os nomes chegarem.
           <div aria-busy="true" aria-label="Carregando participantes">
             <label style={lbl}>Participantes</label>
-            <div style={{ marginTop: 6 }}>
+            <div style={{ marginTop: 8 }}>
               {[0, 1].map((i) => (
-                <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 3px 10px rgba(20,32,56,0.07)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div key={i} style={{ background: "#fff", borderRadius: 14, padding: "12px 14px", marginBottom: 12, border: "1px solid #e6dfd2", display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ width: 38, height: 38, borderRadius: "50%", background: "#eee8dc", flex: "0 0 auto" }} />
                   <span style={{ flex: 1 }}>
                     <span style={{ display: "block", height: 12, width: "55%", borderRadius: 6, background: "#eee8dc" }} />
@@ -144,36 +173,23 @@ export default function ShareSheet({ trip, onClose }) {
           </div>
         ) : (
           <>
-            <label style={lbl}>Participantes</label>
-            <div style={{ marginTop: 6 }}>
-              {dados.members.map((m) => linha(m.uid, m.name || m.email || "Sem nome", m.email || "", m.role, false, m.ali))}
-              {dados.invites.map((i) => linha(i.email, i.email, "convite pendente ✉️", i.role, true, i.ali))}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+              <label style={lbl}>Participantes · {total}</label>
+              {comChaves && (
+                <span style={{ fontSize: 11.5, fontWeight: 800, color: INK2, textAlign: "right", lineHeight: 1.3, marginBottom: 2, maxWidth: 110 }}>Usa seus créditos do Ali</span>
+              )}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {dados.members.map((m) => cartao(m.uid, m.name || m.email || "Sem nome", m.email || "", m.role, false, m.ali))}
+              {dados.invites.map((i) => cartao(i.email, i.email, "", i.role, true, i.ali))}
             </div>
 
-            {souDono ? (
-              <>
-                <label style={lbl}>Convidar por e-mail</label>
-                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <input type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") convidar(); }}
-                    placeholder="email@exemplo.com" aria-label="E-mail de quem vai junto"
-                    style={{ ...field, marginTop: 0, flex: 1 }} />
-                  <button onClick={convidar} disabled={ocupado}
-                    style={{ ...btn(ORANGE, { color: NAVY }), flex: "0 0 auto", opacity: ocupado ? 0.6 : 1 }}>
-                    {ocupado ? "…" : "Convidar"}
-                  </button>
-                </div>
-                <div style={{ fontSize: 12.5, color: INK3, marginTop: 8, lineHeight: 1.5 }}>
-                  Se a pessoa ainda não usa o VouAli, o convite fica guardado e vale assim que ela entrar com esse e-mail.
-                </div>
-                {cobranca && (
-                  <div style={{ fontSize: 12.5, color: INK3, marginTop: 8, lineHeight: 1.5 }}>
-                    Com a chave ligada, quem vai junto usa o Ali nesta viagem com os seus créditos (e, se acabarem, com os próprios). Desligada, só com os próprios.
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ fontSize: 13, color: INK3, marginTop: 14, lineHeight: 1.5 }}>
+            {comChaves ? (
+              <div style={{ fontSize: 12.5, color: INK3, marginTop: 2, lineHeight: 1.5 }}>
+                Ligada: a pessoa usa o Ali com os seus créditos (e, se acabarem, com os próprios). Desligada: só com os próprios.
+              </div>
+            ) : !souDono && (
+              <div style={{ fontSize: 13, color: INK3, marginTop: 2, lineHeight: 1.5 }}>
                 Você participa como editor. Só quem criou a viagem pode convidar ou remover pessoas.
               </div>
             )}
@@ -182,10 +198,10 @@ export default function ShareSheet({ trip, onClose }) {
       </div>
     </Sheet>
     {aRemover && (
-      <ActionSheet message={`Remover ${aRemover.nome} desta viagem?`} onClose={() => setARemover(null)}
+      <ActionSheet message={aRemover.pendente ? `Cancelar o convite de ${aRemover.nome}?` : `Remover ${aRemover.nome} desta viagem?`} onClose={() => setARemover(null)}
         actions={[
-          { label: "Remover", danger: true, onClick: confirmarRemocao },
-          { label: "Cancelar", onClick: () => setARemover(null) },
+          { label: aRemover.pendente ? "Cancelar convite" : "Remover", danger: true, onClick: confirmarRemocao },
+          { label: "Voltar", onClick: () => setARemover(null) },
         ]} />
     )}
     </>

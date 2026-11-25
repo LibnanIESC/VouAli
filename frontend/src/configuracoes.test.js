@@ -17,8 +17,8 @@ describe("aviso de créditos nas Configurações da Viagem", () => {
 
 describe("uso do convidado visto pelo dono", () => {
   it("lista só o que foi usado", () => {
-    expect(linhaDoUsoDoConvidado({ chat: 4, gen: 0, tip: 1 })).toBe("Usou dos seus: 4 conversas · 1 dica");
-    expect(linhaDoUsoDoConvidado({ chat: 0, gen: 0, tip: 0 })).toBe("Ainda não usou os seus");
+    expect(linhaDoUsoDoConvidado({ chat: 4, gen: 0, tip: 1 })).toBe("Usou 4 conversas · 1 dica");
+    expect(linhaDoUsoDoConvidado({ chat: 0, gen: 0, tip: 0 })).toBe("Ainda não usou");
   });
 });
 
