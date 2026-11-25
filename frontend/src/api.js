@@ -3,6 +3,7 @@
 // No site, a API é a mesma origem (base vazia). No app Android a interface
 // roda embarcada no aparelho, então precisa do endereço absoluto do servidor
 // — definido em VITE_API_BASE na hora de gerar o app.
+import { lerLembrado, guardarLembrado } from "./cache";
 export const API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/$/, "");
 export const url = (caminho) => API_BASE + caminho;
 export const noApp = () => !!(typeof window !== "undefined" && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -289,7 +290,9 @@ export async function apiUsage() {
     const res = await fetchAuth("/api/usage");
     if (!res.ok) return null;
     const j = await res.json();
-    return j.quotas ? j : null;
+    const uso = j.quotas ? j : null;
+    guardarLembrado("uso", uso);
+    return uso;
   } catch (e) { return null; }
 }
 
@@ -306,9 +309,15 @@ export async function apiSaldo(tripId) {
     const res = await fetchAuth(`/api/saldo${tripId ? `?trip=${encodeURIComponent(tripId)}` : ""}`, { cache: "no-store" });
     if (!res.ok) return null;
     const j = await res.json();
-    return j && j.cobranca === true && j.disponivel ? j : null;
+    const saldo = j && j.cobranca === true && j.disponivel ? j : null;
+    guardarLembrado(`saldo:${tripId || "conta"}`, saldo);
+    return saldo;
   } catch (e) { return null; }
 }
+
+/** Última resposta de `apiSaldo` (undefined se nunca houve) — para abrir a tela na hora. */
+export const saldoGuardado = (tripId) => lerLembrado(`saldo:${tripId || "conta"}`);
+export const usoGuardado = () => lerLembrado("uso");
 
 /**
  * Avisa o servidor de que pode haver compra nova. O app NÃO diz o que comprou:
@@ -332,9 +341,14 @@ export async function apiMembers(id) {
   try {
     const res = await fetchAuth(`/api/trips/${id}/members`);
     if (!res.ok) return null;
-    return await res.json(); // { role, members, invites }
+    const j = await res.json(); // { role, members, invites }
+    guardarMembros(id, j);
+    return j;
   } catch (e) { return null; }
 }
+/** "Quem vai junto" como estava da última vez — a tela abre já preenchida. */
+export const membrosGuardados = (id) => lerLembrado(`membros:${id}`) || null;
+export const guardarMembros = (id, dados) => { if (id && dados && dados.members) guardarLembrado(`membros:${id}`, dados); };
 export async function apiInvite(id, email) {
   try {
     const res = await fetchAuth(`/api/trips/${id}/members`, {

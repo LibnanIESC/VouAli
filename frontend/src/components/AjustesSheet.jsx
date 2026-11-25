@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
-import { apiUsage, apiSaldo, url } from "../api";
+import { apiUsage, apiSaldo, saldoGuardado, usoGuardado, url } from "../api";
 import { TIPOS, linhaDoSaldo, linhaDasCompras } from "../saldo";
 import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
 
@@ -69,13 +69,19 @@ function CreditosDoAli({ saldo, onPacote }) {
 // `saldoVer` muda quando uma compra é ativada, para o saldo se atualizar.
 export default function AjustesSheet({ onExport, onImportFile, onClose, user, onLogout, onExcluirConta, saldoVer, onPacote }) {
   const fileRef = useRef(null);
-  const [uso, setUso] = useState(null);
-  const [saldo, setSaldo] = useState(null);
-  useEffect(() => { (async () => setUso(await apiUsage()))(); }, []);
+  // Abre com a última resposta guardada (a tela já nasce inteira) e atualiza
+  // por baixo. Falha de rede não apaga o que está em tela.
+  const [uso, setUso] = useState(() => usoGuardado() || null);
+  const [saldo, setSaldo] = useState(() => (user ? saldoGuardado(null) || null : null));
+  useEffect(() => {
+    let vivo = true;
+    (async () => { const u = await apiUsage(); if (vivo && (u || usoGuardado() === null)) setUso(u); })();
+    return () => { vivo = false; };
+  }, []);
   useEffect(() => {
     if (!user) return;
     let vivo = true;
-    (async () => { const s = await apiSaldo(null); if (vivo) setSaldo(s); })();
+    (async () => { const s = await apiSaldo(null); if (vivo && (s || saldoGuardado(null) === null)) setSaldo(s); })();
     return () => { vivo = false; };
   }, [saldoVer]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

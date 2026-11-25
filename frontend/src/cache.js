@@ -56,3 +56,20 @@ export function limparCache() {
       .forEach((k) => localStorage.removeItem(k));
   } catch (e) {}
 }
+
+// ---------- Última resposta das telas de configuração ----------
+//
+// Créditos, uso do mês e "quem vai junto" vinham do servidor a cada abertura:
+// a tela abria pela metade e o resto aparecia meio segundo depois, empurrando
+// tudo para baixo. Com a última resposta guardada, a tela já abre completa e
+// só se atualiza por baixo, quando a resposta nova chega.
+//
+// `undefined` = nunca soubemos; qualquer outro valor (inclusive `null`, que
+// aqui quer dizer "cobrança desligada") é a última resposta do servidor.
+const chaveLembrada = (nome) => `${PREFIXO}${_dono}:ui:${nome}`;
+
+export function lerLembrado(nome) {
+  const guardado = ler(chaveLembrada(nome));
+  return guardado && typeof guardado === "object" && "v" in guardado ? guardado.v : undefined;
+}
+export const guardarLembrado = (nome, valor) => gravar(chaveLembrada(nome), { v: valor === undefined ? null : valor });

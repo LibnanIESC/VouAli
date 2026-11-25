@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sheet from "./Sheet";
-import { apiSaldo } from "../api";
+import { apiSaldo, apiMembers, saldoGuardado } from "../api";
 import { PencilIcon, PeopleIcon, ChevronIcon } from "./Icons";
 import { NAVY, HELV, INK2, INK3, STEEL } from "../theme";
 
@@ -19,13 +19,15 @@ export function avisoDeCreditos(saldo) {
 // Configurações da Viagem: só o que é DESTA viagem. Conta, créditos e o
 // backup de tudo ficam nas Configurações Gerais (link no fim).
 export default function ViagemConfigSheet({ trip, podeCompartilhar, somenteLeitura, logado, onEditar, onQuemVaiJunto, onExportar, onGerais, onClose }) {
-  const [saldo, setSaldo] = useState(null);
+  const [saldo, setSaldo] = useState(() => (logado && trip.id ? saldoGuardado(trip.id) || null : null));
   useEffect(() => {
     if (!logado || !trip.id) return;
     let vivo = true;
-    (async () => { const s = await apiSaldo(trip.id); if (vivo) setSaldo(s); })();
+    (async () => { const s = await apiSaldo(trip.id); if (vivo && (s || saldoGuardado(trip.id) === null)) setSaldo(s); })();
+    // Adianta "Quem vai junto": quando a pessoa tocar, a lista já está aqui.
+    if (podeCompartilhar && !somenteLeitura) apiMembers(trip.id);
     return () => { vivo = false; };
-  }, [trip.id, logado]);
+  }, [trip.id, logado]); // eslint-disable-line react-hooks/exhaustive-deps
   const aviso = avisoDeCreditos(saldo);
 
   const item = (rotulo, icone, onClick, detalhe) => (

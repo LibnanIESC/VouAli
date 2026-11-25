@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { uid } from "./utils";
 import { HELV, DISPLAY, MONO, CREAM, NAVY, ORANGE, BROWN, STEEL, SAND, SAND_L, INK2, INK3, btn, field, onColor, readable, safeTop } from "./theme";
-import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao, apiSaldo, apiBackupDeTudo } from "./api";
+import { apiGet, apiPut, onStatus, setRemoteHandler, isDirty, flushPending, flushNow, apiTrips, apiCreateTrip, apiSetActive, flushActive, apiTripMeta, apiDeleteTrip, onAuthNeeded, onSessaoMorta, setToken, apiConfig, setTokenGetter, noApp, apiExcluirConta, resetSessao, apiSaldo, apiBackupDeTudo, saldoGuardado, apiUsage, apiMembers } from "./api";
 import { identificar, esquecer } from "./compras";
 import { onToast, toast as toastMsg } from "./toast";
 import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
@@ -293,6 +293,13 @@ export default function App() {
   // existe dentro do app Android; no site isto não faz nada.
   const uidLogado = authMode === "firebase" && user ? user.uid : null;
   useEffect(() => { if (uidLogado) identificar(uidLogado); }, [uidLogado]);
+  // Adianta o que as Configurações Gerais mostram: ao abrir, a tela já nasce
+  // com os créditos, sem aparecer pela metade e "pular" meio segundo depois.
+  useEffect(() => {
+    if (!uidLogado) return;
+    apiSaldo(null);
+    apiUsage();
+  }, [uidLogado]);
 
   // Quanto resta do Ali na viagem aberta. A resposta só vale se a viagem ainda
   // for a mesma — trocar de viagem no meio não pode pintar o saldo da anterior.
@@ -300,12 +307,14 @@ export default function App() {
     if (!uidLogado) return;
     const id = ativaRef.current;
     const s = await apiSaldo(id);
-    if (ativaRef.current === id) setSaldo(s);
+    // Falha de rede não apaga o saldo conhecido; só uma resposta do servidor muda.
+    if (ativaRef.current === id && (s || saldoGuardado(id) === null)) setSaldo(s);
   };
   useEffect(() => {
     if (!uidLogado || vista !== "viagem" || !trips.active) return;
-    setSaldo(null);
+    setSaldo(saldoGuardado(trips.active) || null);   // a última resposta, até chegar a nova
     atualizarSaldo();
+    apiMembers(trips.active);   // adianta "Quem vai junto"
   }, [uidLogado, vista, trips.active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Abre a tela do Pacote VouAli. Os créditos são da conta; `tripId` só diz de

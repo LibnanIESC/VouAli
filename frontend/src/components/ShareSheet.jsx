@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Sheet from "./Sheet";
 import ActionSheet from "./ActionSheet";
-import { apiMembers, apiInvite, apiRemoveMember, apiAliDoConvidado, apiSaldo } from "../api";
+import { apiMembers, apiInvite, apiRemoveMember, apiAliDoConvidado, apiSaldo, saldoGuardado, membrosGuardados, guardarMembros } from "../api";
 import { quantos, TIPOS } from "../saldo";
 import { toast } from "../toast";
 import { btn, field, lbl, NAVY, ORANGE, SAND, STEEL, HELV, INK2, INK3, DANGER } from "../theme";
@@ -27,16 +27,28 @@ function Chave({ ligada, onChange, rotulo, ocupada }) {
 // Quem participa da viagem: convidar por e-mail, ver membros e remover. O
 // dono também decide, por convidado, se ele usa os créditos do Ali do dono.
 export default function ShareSheet({ trip, onClose }) {
-  const [dados, setDados] = useState(null);      // { role, members, invites }
+  // Abre com a lista da última vez (a tela já nasce inteira) e atualiza por baixo.
+  const [dados, setDadosTela] = useState(() => membrosGuardados(trip.id));   // { role, members, invites }
+  const setDados = (d) => { setDadosTela(d); guardarMembros(trip.id, d); };
   const [email, setEmail] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [aRemover, setARemover] = useState(null);   // { quem, nome } — confirmação
 
-  const [cobranca, setCobranca] = useState(false);   // a chave só faz sentido com créditos
+  const [cobranca, setCobranca] = useState(() => !!saldoGuardado(trip.id));   // a chave só faz sentido com créditos
   const [mudando, setMudando] = useState(null);
   useEffect(() => {
-    (async () => setDados(await apiMembers(trip.id) || { role: "", members: [], invites: [] }))();
-    (async () => setCobranca(!!(await apiSaldo(trip.id))))();
+    let vivo = true;
+    (async () => {
+      const d = await apiMembers(trip.id);
+      if (!vivo) return;
+      if (d) setDadosTela(d);
+      else setDadosTela((atual) => atual || { role: "", members: [], invites: [] });
+    })();
+    (async () => {
+      const s = await apiSaldo(trip.id);
+      if (vivo && (s || saldoGuardado(trip.id) === null)) setCobranca(!!s);
+    })();
+    return () => { vivo = false; };
   }, [trip.id]);
 
   const mudarChave = async (quem, liberado) => {
@@ -114,7 +126,22 @@ export default function ShareSheet({ trip, onClose }) {
         </div>
 
         {!dados ? (
-          <div style={{ fontSize: 14, color: INK3, marginTop: 20 }}>Carregando…</div>
+          // Primeira vez nesta viagem: o desenho da lista no lugar de "Carregando…",
+          // para nada pular quando os nomes chegarem.
+          <div aria-busy="true" aria-label="Carregando participantes">
+            <label style={lbl}>Participantes</label>
+            <div style={{ marginTop: 6 }}>
+              {[0, 1].map((i) => (
+                <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "12px 14px", marginBottom: 8, boxShadow: "0 3px 10px rgba(20,32,56,0.07)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 38, height: 38, borderRadius: "50%", background: "#eee8dc", flex: "0 0 auto" }} />
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "block", height: 12, width: "55%", borderRadius: 6, background: "#eee8dc" }} />
+                    <span style={{ display: "block", height: 10, width: "40%", borderRadius: 5, background: "#f3eee5", marginTop: 7 }} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           <>
             <label style={lbl}>Participantes</label>

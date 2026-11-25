@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache } from "./cache";
+import { definirDono, lerViagens, guardarViagens, lerEstado, guardarEstado, limparCache, lerLembrado, guardarLembrado } from "./cache";
 
 // localStorage de mentira: os testes rodam em Node, sem navegador. As chaves
 // ficam como propriedades do próprio objeto, que é como o navegador expõe.
@@ -71,5 +71,25 @@ describe("cópia local do roteiro", () => {
     guardarEstado(null, ESTADO);
     expect(lerViagens()).toBeNull();
     expect(lerEstado("t1")).toBeNull();
+  });
+});
+
+describe("última resposta das telas de configuração", () => {
+  it("distingue 'nunca soube' de 'cobrança desligada'", () => {
+    expect(lerLembrado("saldo:conta")).toBeUndefined();
+    guardarLembrado("saldo:conta", null);
+    expect(lerLembrado("saldo:conta")).toBeNull();
+    guardarLembrado("saldo:conta", { creditos: { chat: 98 } });
+    expect(lerLembrado("saldo:conta")).toEqual({ creditos: { chat: 98 } });
+  });
+
+  it("é de cada conta e some ao sair", () => {
+    definirDono("ana");
+    guardarLembrado("membros:t1", { members: [{ uid: "ana" }] });
+    definirDono("bruno");
+    expect(lerLembrado("membros:t1")).toBeUndefined();
+    definirDono("ana");
+    limparCache();
+    expect(lerLembrado("membros:t1")).toBeUndefined();
   });
 });
