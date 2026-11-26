@@ -5,7 +5,7 @@ import { apiSaldo, apiSincronizarCompras, saldoGuardado, url } from "../api";
 import { podeComprarAqui, buscarProduto, ofertaGuardada, comprar, reenviarRecibos, LOJA_URL } from "../compras";
 import { textoDoPaywall, quantos, linhaDoSaldo, TIPOS } from "../saldo";
 import { toast } from "../toast";
-import { btn, HELV, DISPLAY, NAVY, ORANGE, STEEL, INK2, INK3 } from "../theme";
+import { btn, HELV, DISPLAY, NAVY, ORANGE, STEEL, INK2, INK3, cartaoBase } from "../theme";
 
 const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -136,7 +136,7 @@ export default function PacoteSheet({ motivo, tripId, uid, onClose, onAtivado })
           <div style={{ fontSize: 14.5, color: INK2, fontWeight: 500, marginTop: 8, lineHeight: 1.55, maxWidth: 340 }}>{texto}</div>
         </div>
 
-        <div style={{ background: "#fff", borderRadius: 16, padding: "16px 16px 6px", marginTop: 20, boxShadow: "0 4px 12px rgba(20,32,56,0.07)" }}>
+        <div style={{ ...cartaoBase, borderRadius: 16, padding: "16px 16px 6px", marginTop: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>O Pacote VouAli traz</div>
           {saldo === undefined && <div aria-hidden="true" style={{ height: 96, borderRadius: 10, background: "#f1ece2", marginBottom: 10, animation: "pulse 1.4s ease-in-out infinite" }} />}
           {pacote && TIPOS.filter((t) => Number(pacote[t]) > 0).map((t) => (

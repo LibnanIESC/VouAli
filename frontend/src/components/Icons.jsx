@@ -55,3 +55,26 @@ export const ChevronIcon = ({ color, size = 18, dir = "right" }) => {
 export const ChevronsIcon = ({ color, size = 18, dir = "right" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: dir === "left" ? "rotate(180deg)" : "none", flex: "0 0 auto" }}><path d="M6 5l7 7-7 7M13 5l7 7-7 7" /></svg>
 );
+
+// Ícones das listas de Configurações e de "Quem vai junto" (mesma família, stroke 1.8).
+const Traco = ({ size, color, children }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "0 0 auto" }} aria-hidden="true">{children}</svg>
+);
+export const TrashIcon = ({ color, size = 20 }) => (
+  <Traco size={size} color={color}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></Traco>
+);
+export const LogoutIcon = ({ color, size = 20 }) => (
+  <Traco size={size} color={color}><path d="M14 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2M9 12h12l-3-3M18 15l3-3" /></Traco>
+);
+export const UserXIcon = ({ color, size = 20 }) => (
+  <Traco size={size} color={color}><circle cx="9" cy="7" r="4" /><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M17 9l4 4M21 9l-4 4" /></Traco>
+);
+export const DownloadIcon = ({ color, size = 20 }) => (
+  <Traco size={size} color={color}><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 11l5 5 5-5M12 4v12" /></Traco>
+);
+export const UploadIcon = ({ color, size = 20 }) => (
+  <Traco size={size} color={color}><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 9l5-5 5 5M12 4v12" /></Traco>
+);
+export const GiftIcon = ({ color, size = 18 }) => (
+  <Traco size={size} color={color}><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5" /></Traco>
+);

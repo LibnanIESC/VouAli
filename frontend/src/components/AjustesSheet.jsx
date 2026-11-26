@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from "react";
 import Sheet from "./Sheet";
 import { apiUsage, apiSaldo, saldoGuardado, usoGuardado, url } from "../api";
-import { TIPOS, linhaDoSaldo, linhaDasCompras } from "../saldo";
-import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L } from "../theme";
+import { TIPOS, quantos, linhaDasCompras } from "../saldo";
+import { GiftIcon, LogoutIcon, UserXIcon, DownloadIcon, UploadIcon, ChevronIcon } from "./Icons";
+import { btn, lbl, HELV, NAVY, INK2, INK3, ORANGE, STEEL, SAND_L, CREAM, DANGER, cartaoBase } from "../theme";
 
 // Barrinha de consumo de um recurso da IA no mês.
 function Consumo({ rotulo, usado, limite }) {
@@ -23,43 +24,76 @@ function Consumo({ rotulo, usado, limite }) {
 
 const ROTULO = { gen: "Roteiros", chat: "Conversas", tip: "Dicas" };
 
-const cartao = { background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 };
-const rotuloCaixa = { fontSize: 12, fontWeight: 800, color: INK3, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 };
+const cartao = { ...cartaoBase, marginTop: 6, overflow: "hidden" };
+
+// Uma opção de lista (ícone, nome, frase curta, seta): o jeito Android de
+// ajustes. Substitui parágrafo + botão grande — o nome já diz o que faz.
+function Opcao({ icone, titulo, detalhe, onClick, cor = NAVY, primeira }) {
+  return (
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", borderTop: primeira ? "none" : "1px solid #efe9dc", padding: "10px 14px", minHeight: 56, cursor: "pointer", fontFamily: HELV, textAlign: "left" }}>
+      {icone}
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: 700, color: cor }}>{titulo}</span>
+        {detalhe && <span style={{ display: "block", fontSize: 12.5, color: INK3, marginTop: 1 }}>{detalhe}</span>}
+      </span>
+      <ChevronIcon color="#b4bcc8" size={16} />
+    </button>
+  );
+}
+
+// "2" grande e "roteiros" embaixo: o saldo se lê de relance, sem frase.
+function Numero({ n, tipo }) {
+  const v = Math.max(0, Number(n) || 0);
+  return (
+    <div style={{ background: CREAM, borderRadius: 10, padding: "10px 4px", textAlign: "center" }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: NAVY, lineHeight: 1.15 }}>{v}</div>
+      <div style={{ fontSize: 12, color: INK2, fontWeight: 600 }}>{quantos(v, tipo).replace(/^\d+ /, "")}</div>
+    </div>
+  );
+}
 
 /**
  * Os créditos do Ali — só aparece com a cobrança ligada no servidor.
  *
- * Um saldo só: o do Pacote VouAli, que é da CONTA e vale em qualquer viagem.
- * A degustação fica à parte, dizendo para que serve. (O aviso de "de quem o
- * Ali gasta nesta viagem" mora nas Configurações da Viagem.)
+ * Três números grandes (roteiros, conversas, dicas). Com pacote, são os do
+ * Pacote VouAli, que é da CONTA e vale em qualquer viagem; a degustação vira
+ * uma linha só. Sem pacote, os números grandes são os da degustação.
+ * Compras só aparecem se houve reembolso (aí o saldo precisa de explicação).
  */
 function CreditosDoAli({ saldo, onPacote }) {
   const deg = saldo.degustacao || {};
-  const degUsada = TIPOS.every((t) => !(Number(deg[t]) > 0));
-  const txt = linhaDoSaldo(saldo.creditos);
-  const pacote = saldo.tem_pacote
-    ? txt
-    : saldo.reembolsado ? "Reembolsado" : "Nenhum pacote ainda";
-  const compras = linhaDasCompras(saldo.compras);
+  const degLivre = TIPOS.some((t) => Number(deg[t]) > 0);
+  const linhaDeg = TIPOS.map((t) => quantos(deg[t], t)).join(" · ");
+  const mostraDeg = !saldo.tem_pacote && degLivre;
+  const numeros = mostraDeg ? deg : (saldo.creditos || {});
+  const titulo = mostraDeg ? "Degustação grátis" : "Seu saldo";
+  const nota = mostraDeg ? `viagens de até ${saldo.max_dias} dias` : "vale em qualquer viagem";
+  const reembolsos = Number((saldo.compras || {}).reembolsados) > 0 ? linhaDasCompras(saldo.compras) : "";
   return (
-    <div style={cartao}>
-      <div style={rotuloCaixa}>Pacote VouAli</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: saldo.tem_pacote ? NAVY : INK2, lineHeight: 1.45 }}>{pacote}</div>
-      <div style={{ fontSize: 12.5, color: INK3, marginTop: 3, lineHeight: 1.5 }}>Valem em qualquer viagem.</div>
-      {compras && (
-        <div style={{ fontSize: 12.5, color: INK3, marginTop: 2, lineHeight: 1.5 }}>{compras}.</div>
-      )}
-
-
-      <div style={{ borderTop: "1px solid #efe9dc", margin: "12px 0 10px" }} />
-      <div style={rotuloCaixa}>Degustação gratuita</div>
-      <div style={{ fontSize: 13, color: INK2, lineHeight: 1.5 }}>
-        {degUsada
-          ? "Já usada."
-          : <>{linhaDoSaldo(deg)}<br /><span style={{ color: INK3 }}>Para experimentar o Ali numa viagem de até {saldo.max_dias} dias. Vale uma vez por conta.</span></>}
+    <div style={{ ...cartao, padding: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: NAVY }}>{titulo}</span>
+        <span style={{ fontSize: 12, color: INK3, fontWeight: 600, textAlign: "right" }}>{nota}</span>
       </div>
-
-      <button onClick={onPacote} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 14 }}>Comprar Pacote VouAli</button>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 10 }}>
+        {TIPOS.map((t) => <Numero key={t} n={numeros[t]} tipo={t} />)}
+      </div>
+      {saldo.tem_pacote && degLivre && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+          <GiftIcon color={ORANGE} size={18} />
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: NAVY }}>Degustação grátis</span>
+            <span style={{ display: "block", fontSize: 12.5, color: INK2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{linhaDeg}</span>
+          </span>
+        </div>
+      )}
+      {!saldo.tem_pacote && !degLivre && (
+        <div style={{ fontSize: 12.5, color: INK3, marginTop: 12 }}>Degustação grátis já usada.</div>
+      )}
+      {reembolsos && <div style={{ fontSize: 12, color: INK3, marginTop: 8 }}>{reembolsos}.</div>}
+      <button onClick={onPacote} style={{ ...btn(ORANGE, { color: NAVY }), width: "100%", marginTop: 14 }}>
+        {saldo.tem_pacote ? "Comprar mais créditos" : "Comprar Pacote VouAli"}
+      </button>
     </div>
   );
 }
@@ -99,17 +133,22 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
         {user && (
           <>
             <label style={{ ...lbl, marginTop: 18 }}>Conta</label>
-            <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: NAVY }}>{user.name || "Você"}</div>
-              <div style={{ fontSize: 13.5, color: INK2, marginTop: 2, wordBreak: "break-all" }}>{user.email}</div>
-              <button onClick={onLogout} style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), width: "100%", marginTop: 14 }}>Sair da conta</button>
+            <div style={cartao}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px" }}>
+                <span style={{ width: 38, height: 38, borderRadius: "50%", background: STEEL, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, flex: "0 0 auto" }}>
+                  {(user.name || user.email || "?").trim().charAt(0).toUpperCase()}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 15, fontWeight: 700, color: NAVY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.name || "Você"}</span>
+                  <span style={{ display: "block", fontSize: 12.5, color: INK3, marginTop: 1, wordBreak: "break-all" }}>{user.email}</span>
+                </span>
+              </div>
+              <Opcao icone={<LogoutIcon color={STEEL} />} titulo="Sair da conta" onClick={onLogout} />
               {/* Excluir a conta tem de estar aqui dentro: o Google exige um
-                  caminho pelo app, não só por e-mail ou site. Fica discreto e
-                  em segundo plano, porque não tem desfazer. */}
+                  caminho pelo app, não só por e-mail ou site. Fica por último,
+                  em vermelho, porque não tem desfazer (e pede confirmação). */}
               {onExcluirConta && (
-                <button onClick={onExcluirConta} style={{ width: "100%", marginTop: 10, background: "none", border: "none", padding: "10px 6px", minHeight: 44, color: "#C62828", fontSize: 13, fontWeight: 700, fontFamily: HELV, cursor: "pointer", textDecoration: "underline" }}>
-                  Excluir minha conta
-                </button>
+                <Opcao icone={<UserXIcon color={DANGER} />} titulo="Excluir minha conta" cor={DANGER} onClick={onExcluirConta} />
               )}
             </div>
           </>
@@ -118,7 +157,7 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
         {uso && (
           <>
             <label style={{ ...lbl, marginTop: 18 }}>Ali este mês</label>
-            <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
+            <div style={{ ...cartao, padding: 16 }}>
               <Consumo rotulo="Conversas" usado={uso.used.chat} limite={uso.quotas.chat} />
               <Consumo rotulo="Roteiros gerados" usado={uso.used.gen} limite={uso.quotas.gen} />
               <Consumo rotulo="Dicas geradas" usado={uso.used.tip} limite={uso.quotas.tip} />
@@ -127,15 +166,13 @@ export default function AjustesSheet({ onExport, onImportFile, onClose, user, on
           </>
         )}
 
+        {/* Backup: o nome de cada opção já diz o que faz; a frase curta tira a
+            dúvida que sobra (importar não mexe no que já está aqui). No app,
+            exportar abre o menu de compartilhamento e a pessoa escolhe onde guardar. */}
         <label style={{ ...lbl, marginTop: 18 }}>Backup</label>
-        <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 4px 12px rgba(20,32,56,0.07)", marginTop: 6 }}>
-          <div style={{ fontSize: 14, color: INK2, lineHeight: 1.55, fontWeight: 500, marginBottom: 12 }}>
-            {/* "Baixe" descrevia só o site. No app o arquivo vai para o menu
-                de compartilhamento, e a pessoa escolhe onde guardar. */}
-            Guarde uma cópia de todas as suas viagens (roteiro, orçamento e notas) num arquivo só. Ao importar, elas voltam como viagens novas, sem mexer nas que já estão aqui.
-          </div>
-          <button onClick={onExport} style={{ ...btn(NAVY), width: "100%" }}>Exportar todas as viagens</button>
-          <button onClick={() => fileRef.current && fileRef.current.click()} style={{ ...btn("#fff", { color: NAVY, border: `1.5px solid ${NAVY}` }), width: "100%", marginTop: 10 }}>Importar viagens</button>
+        <div style={cartao}>
+          <Opcao primeira icone={<DownloadIcon color={STEEL} />} titulo="Exportar viagens" detalhe="Todas num arquivo só" onClick={onExport} />
+          <Opcao icone={<UploadIcon color={STEEL} />} titulo="Importar viagens" detalhe="Entram como viagens novas" onClick={() => fileRef.current && fileRef.current.click()} />
           <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: "none" }}
             onChange={(e) => { onImportFile(e.target.files[0]); e.target.value = ""; }} />
         </div>

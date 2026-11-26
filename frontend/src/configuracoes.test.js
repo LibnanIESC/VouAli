@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { avisoDeCreditos } from "./components/ViagemConfigSheet";
-import { linhaDoUsoDoConvidado } from "./components/ShareSheet";
+import { linhaDaChave } from "./components/ShareSheet";
 import { textoDoPaywall, falaDoAliSemSaldo } from "./saldo";
 import { montarBackupDeTudo, lerBackups, montarBackup, nomeDoArquivoDeTudo } from "./backup";
 
@@ -15,10 +15,14 @@ describe("aviso de créditos nas Configurações da Viagem", () => {
   });
 });
 
-describe("uso do convidado visto pelo dono", () => {
-  it("lista só o que foi usado", () => {
-    expect(linhaDoUsoDoConvidado({ chat: 4, gen: 0, tip: 1 })).toBe("Usou 4 conversas · 1 dica");
-    expect(linhaDoUsoDoConvidado({ chat: 0, gen: 0, tip: 0 })).toBe("Ainda não usou");
+describe("chave dos créditos no cartão do convidado", () => {
+  it("ligada: lista só o que foi usado dos créditos do dono", () => {
+    expect(linhaDaChave({ liberado: true, usou: { chat: 4, gen: 0, tip: 1 } })).toBe("Já usou 4 conversas · 1 dica");
+    expect(linhaDaChave({ liberado: true, usou: { chat: 0, gen: 0, tip: 0 } })).toBe("Ainda não usou nenhum crédito seu");
+    expect(linhaDaChave({ liberado: true })).toBe("Ainda não usou nenhum crédito seu");
+  });
+  it("desligada: diz de onde sai o Ali da pessoa", () => {
+    expect(linhaDaChave({ liberado: false, usou: { chat: 4 } })).toBe("Não — gasta os da própria conta");
   });
 });
 

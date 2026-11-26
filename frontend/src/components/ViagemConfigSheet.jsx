@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import Sheet from "./Sheet";
 import { apiSaldo, apiMembers, saldoGuardado } from "../api";
-import { PencilIcon, PeopleIcon, ChevronIcon } from "./Icons";
-import { NAVY, HELV, INK2, INK3, STEEL } from "../theme";
+import { PencilIcon, PeopleIcon, ChevronIcon, DownloadIcon } from "./Icons";
+import { NAVY, HELV, INK2, INK3, STEEL, cartaoBase } from "../theme";
 
 /**
  * O aviso de créditos numa viagem de OUTRA pessoa: de quem o Ali gasta aqui.
@@ -31,7 +31,7 @@ export default function ViagemConfigSheet({ trip, podeCompartilhar, somenteLeitu
   const aviso = avisoDeCreditos(saldo);
 
   const item = (rotulo, icone, onClick, detalhe) => (
-    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, background: "#fff", border: "none", borderRadius: 14, padding: "10px 16px", marginBottom: 8, minHeight: 56, cursor: "pointer", fontFamily: HELV, boxShadow: "0 3px 10px rgba(20,32,56,0.08)", color: NAVY, textAlign: "left" }}>
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, ...cartaoBase, padding: "10px 16px", marginBottom: 10, minHeight: 56, cursor: "pointer", fontFamily: HELV, color: NAVY, textAlign: "left" }}>
       {icone}
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 16, fontWeight: 700 }}>{rotulo}</span>
@@ -49,7 +49,7 @@ export default function ViagemConfigSheet({ trip, podeCompartilhar, somenteLeitu
 
         {!somenteLeitura && item("Editar viagem", <PencilIcon color={NAVY} size={18} />, onEditar, "Nome, datas, destino e capa")}
         {!somenteLeitura && podeCompartilhar && item("Quem vai junto", <PeopleIcon color={NAVY} size={19} />, onQuemVaiJunto, trip.role === "owner" ? "Convidar pessoas e controlar o uso dos seus créditos" : "Ver quem participa desta viagem")}
-        {item("Exportar esta viagem", <span aria-hidden="true" style={{ width: 19, textAlign: "center", fontSize: 17, lineHeight: 1 }}>⤓</span>, onExportar, "Uma cópia só desta viagem, em arquivo")}
+        {item("Exportar esta viagem", <DownloadIcon color={NAVY} size={19} />, onExportar, "Uma cópia só desta viagem, em arquivo")}
 
         {aviso && (
           <div style={{ fontSize: 13, color: INK2, fontWeight: 600, lineHeight: 1.5, background: "#faf7f1", borderRadius: 12, padding: "11px 13px", marginTop: 6 }}>{aviso}</div>

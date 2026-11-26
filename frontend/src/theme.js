@@ -31,6 +31,14 @@ export const INK2 = "#4A5A6E";  // texto de apoio (≈7:1 sobre branco)
 export const INK3 = "#66738A";  // rótulos/caps (≈4.8:1 sobre branco)
 export const DANGER = "#C62828";    // Vermelho de ação destrutiva (excluir, remover)
 
+// ---------- Cartões ----------
+// Um só contorno para os cartões brancos das telas de configuração (Gerais,
+// da Viagem, Quem vai junto, Pacote). Bem marcado de propósito: tudo o que
+// está dentro do contorno é de uma coisa só — numa pessoa, o nome e a chave
+// dos créditos do Ali ficam visivelmente juntos.
+export const CARTAO_BORDA = "#CDBFA6";
+export const cartaoBase = { background: "#fff", border: `1.5px solid ${CARTAO_BORDA}`, borderRadius: 14 };
+
 // Paleta de cores de dia: tons escuros o bastante para texto branco em cima e
 // distintos entre si. Substitui o seletor hex livre — mais fácil de tocar e
 // garante que a cor escolhida apareça como está (sem o ajuste do readable()).
